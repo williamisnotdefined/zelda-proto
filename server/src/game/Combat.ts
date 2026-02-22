@@ -1,4 +1,4 @@
-import { Player, PLAYER_DAMAGE, PLAYER_WIDTH, PLAYER_HEIGHT } from './Player.js';
+import { Player, PLAYER_DAMAGE, PVP_DAMAGE, PLAYER_WIDTH, PLAYER_HEIGHT } from './Player.js';
 import { Slime, SLIME_WIDTH, SLIME_HEIGHT } from './Slime.js';
 import { BossGelehk, BOSS_WIDTH, BOSS_HEIGHT } from './BossGelehk.js';
 import { aabbOverlap, entityAABB } from './Physics.js';
@@ -40,9 +40,11 @@ export function resolvePlayerVsPlayer(
     for (const target of players.values()) {
       if (target.id === attacker.id) continue;
       if (target.state === 'dead') continue;
+      if (attacker.attackHitIds.has(target.id)) continue;
       const targetBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
       if (aabbOverlap(hitbox, targetBox)) {
-        target.takeDamage(PLAYER_DAMAGE);
+        target.takeDamage(PVP_DAMAGE);
+        attacker.attackHitIds.add(target.id);
       }
     }
   }

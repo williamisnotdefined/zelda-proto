@@ -8,6 +8,7 @@ export const PLAYER_WIDTH = 28;
 export const PLAYER_HEIGHT = 28;
 export const PLAYER_ATTACK_RANGE = 32;
 export const PLAYER_ATTACK_WIDTH = 24;
+export const PVP_DAMAGE = 25;
 
 export class Player {
   id: string;
@@ -20,6 +21,7 @@ export class Player {
   direction: Direction;
   attackCooldownTimer: number;
   attackStateTimer: number;
+  attackHitIds: Set<string>;
   lastInput: InputMessage | null;
   respawnTimer: number;
 
@@ -34,6 +36,7 @@ export class Player {
     this.direction = 'down';
     this.attackCooldownTimer = 0;
     this.attackStateTimer = 0;
+    this.attackHitIds = new Set();
     this.lastInput = null;
     this.respawnTimer = 0;
   }
@@ -62,6 +65,7 @@ export class Player {
       if (this.attackStateTimer <= 0) {
         this.state = 'idle';
         this.attackStateTimer = 0;
+        this.attackHitIds.clear();
       }
     }
 
@@ -69,6 +73,7 @@ export class Player {
       this.state = 'attacking';
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
       this.attackStateTimer = 300;
+      this.attackHitIds.clear();
       return;
     }
 
