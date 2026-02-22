@@ -14,6 +14,8 @@ export const BOSS_MAX_HP = 1000;
 export const BOSS_SPEED = 80;
 export const BOSS_WIDTH = 64;
 export const BOSS_HEIGHT = 64;
+export const BOSS_ACTIVATION_RADIUS = 500;
+export const BOSS_RESPAWN_TIME = 15000;
 
 const AOE_TELEGRAPH_TIME = 1000;
 const AOE_DAMAGE = 30;
@@ -25,9 +27,6 @@ const PHASE1_COOLDOWN = 3000;
 const PHASE2_COOLDOWN = 2500;
 const PHASE3_COOLDOWN = 2000;
 const ICE_ZONE_SLOW = 0.4;
-const BOSS_ARENA_X = 640;
-const BOSS_ARENA_Y = 640;
-const BOSS_ACTIVATION_RADIUS = 250;
 
 export { ICE_ZONE_SLOW };
 
@@ -35,12 +34,15 @@ export class BossGelehk {
   id: string;
   x: number;
   y: number;
+  spawnX: number;
+  spawnY: number;
   hp: number;
   maxHp: number;
   speed: number;
   phase: BossPhase;
   state: BossState;
   active: boolean;
+  respawnTimer: number;
 
   private attackTimer: number;
   private stateTimer: number;
@@ -56,16 +58,19 @@ export class BossGelehk {
   private waveRadius: number;
   private waveActive: boolean;
 
-  constructor() {
-    this.id = 'boss_gelehk';
-    this.x = BOSS_ARENA_X;
-    this.y = BOSS_ARENA_Y;
+  constructor(id: string, x: number, y: number) {
+    this.id = id;
+    this.x = x;
+    this.y = y;
+    this.spawnX = x;
+    this.spawnY = y;
     this.hp = BOSS_MAX_HP;
     this.maxHp = BOSS_MAX_HP;
     this.speed = BOSS_SPEED;
     this.phase = 1;
     this.state = 'idle';
     this.active = false;
+    this.respawnTimer = 0;
 
     this.attackTimer = 0;
     this.stateTimer = 0;
@@ -80,6 +85,40 @@ export class BossGelehk {
     this.aoeIndicators = [];
     this.waveRadius = 0;
     this.waveActive = false;
+  }
+
+  reset(): void {
+    this.x = this.spawnX;
+    this.y = this.spawnY;
+    this.hp = BOSS_MAX_HP;
+    this.maxHp = BOSS_MAX_HP;
+    this.speed = BOSS_SPEED;
+    this.phase = 1;
+    this.state = 'idle';
+    this.active = false;
+    this.respawnTimer = 0;
+    this.attackTimer = 0;
+    this.stateTimer = 0;
+    this.targetPlayerId = null;
+    this.chargeTargetX = 0;
+    this.chargeTargetY = 0;
+    this.chargeDx = 0;
+    this.chargeDy = 0;
+    this.hasDealtChargeDamage = false;
+    this.iceZones = [];
+    this.aoeIndicators = [];
+    this.waveRadius = 0;
+    this.waveActive = false;
+  }
+
+  tryRespawn(dt: number): boolean {
+    if (this.state !== 'dead') return false;
+    this.respawnTimer -= dt;
+    if (this.respawnTimer <= 0) {
+      this.reset();
+      return true;
+    }
+    return false;
   }
 
   update(
@@ -147,7 +186,7 @@ export class BossGelehk {
   }
 
   private handleIdle(
-    dt: number,
+    _dt: number,
     players: Map<string, Player>,
     _spawnMinions: (x: number, y: number, count: number) => void
   ): void {
@@ -255,8 +294,8 @@ export class BossGelehk {
 
   private handleEnraged(
     dt: number,
-    players: Map<string, Player>,
-    spawnMinions: (x: number, y: number, count: number) => void
+    _players: Map<string, Player>,
+    _spawnMinions: (x: number, y: number, count: number) => void
   ): void {
     this.stateTimer += dt;
     if (this.stateTimer > 1000) {
@@ -353,6 +392,7 @@ export class BossGelehk {
       this.iceZones = [];
       this.aoeIndicators = [];
       this.waveActive = false;
+      this.respawnTimer = BOSS_RESPAWN_TIME;
     }
   }
 

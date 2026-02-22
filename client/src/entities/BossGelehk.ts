@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-const BOSS_SIZE = 64;
 const LERP_SPEED = 0.25;
+const BOSS_SCALE = 2;
 
 interface IceZoneData {
   x: number;
@@ -18,7 +18,7 @@ interface AoeData {
 }
 
 export class BossGelehkEntity {
-  sprite: Phaser.GameObjects.Rectangle;
+  sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
   targetX: number;
   targetY: number;
@@ -27,6 +27,11 @@ export class BossGelehkEntity {
   serverState: string;
   phase: number;
 
+  private prevX: number;
+  private prevY: number;
+  private facing: string;
+  private currentAnimKey: string;
+  private deathPlayed: boolean;
   private iceZoneGraphics: Phaser.GameObjects.Rectangle[];
   private aoeGraphics: Phaser.GameObjects.Arc[];
   private scene: Phaser.Scene;
@@ -35,17 +40,23 @@ export class BossGelehkEntity {
     this.scene = scene;
     this.targetX = x;
     this.targetY = y;
+    this.prevX = x;
+    this.prevY = y;
     this.hp = 1000;
     this.maxHp = 1000;
     this.serverState = 'idle';
     this.phase = 1;
+    this.facing = 'down';
+    this.currentAnimKey = '';
+    this.deathPlayed = false;
     this.iceZoneGraphics = [];
     this.aoeGraphics = [];
 
-    this.sprite = scene.add.rectangle(x, y, BOSS_SIZE, BOSS_SIZE, 0x6666ff);
+    this.sprite = scene.add.sprite(x, y, 'skeleton');
+    this.sprite.setScale(BOSS_SCALE);
     this.sprite.setDepth(8);
 
-    this.label = scene.add.text(x, y - 44, 'GELEHK', {
+    this.label = scene.add.text(x, y - 56, 'GELEHK', {
       fontSize: '12px',
       color: '#aaaaff',
       fontStyle: 'bold',
@@ -65,12 +76,24 @@ export class BossGelehkEntity {
     iceZones: IceZoneData[],
     aoeIndicators: AoeData[]
   ): void {
+    this.prevX = this.targetX;
+    this.prevY = this.targetY;
     this.targetX = x;
     this.targetY = y;
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
     this.phase = phase;
+
+    const dx = x - this.prevX;
+    const dy = y - this.prevY;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.facing = dx > 0 ? 'right' : 'left';
+      } else {
+        this.facing = dy > 0 ? 'down' : 'up';
+      }
+    }
 
     this.updateIceZones(iceZones);
     this.updateAoeIndicators(aoeIndicators);
@@ -110,22 +133,70 @@ export class BossGelehkEntity {
     this.sprite.y += (this.targetY - this.sprite.y) * LERP_SPEED;
 
     this.label.x = this.sprite.x;
-    this.label.y = this.sprite.y - 44;
+    this.label.y = this.sprite.y - 56;
 
-    if (this.serverState === 'dead') {
-      this.sprite.setAlpha(0.2);
-      this.label.setAlpha(0.2);
-    } else if (this.serverState === 'enraged') {
-      this.sprite.fillColor = 0xff4444;
-    } else if (this.serverState === 'charging') {
-      this.sprite.fillColor = 0xff8800;
-    } else {
-      this.sprite.fillColor = 0x6666ff;
+    this.updateAnimation();
+    this.updateTint();
+  }
+
+  private updateAnimation(): void {
+    const state = this.serverState;
+
+    let animKey: string;
+    let flipX = false;
+
+    if (state === 'dead') {
+      animKey = 'skeleton_death';
+      if (!this.deathPlayed) {
+        this.sprite.setAlpha(1);
+        this.sprite.play(animKey);
+        this.deathPlayed = true;
+        this.currentAnimKey = animKey;
+      }
+      return;
     }
 
-    const phaseColors: Record<number, number> = { 1: 0x6666ff, 2: 0x8844ff, 3: 0xff4444 };
-    if (this.serverState !== 'charging' && this.serverState !== 'enraged') {
-      this.sprite.fillColor = phaseColors[this.phase] ?? 0x6666ff;
+    this.deathPlayed = false;
+    this.sprite.setAlpha(1);
+
+    const dirSuffix = this.facing === 'left' ? 'right' : this.facing;
+    flipX = this.facing === 'left';
+
+    if (state === 'charging') {
+      animKey = `skeleton_attack_${dirSuffix}`;
+    } else if (state === 'jumping' || state === 'targeting') {
+      animKey = `skeleton_attack_${dirSuffix}`;
+    } else if (state === 'enraged') {
+      animKey = `skeleton_move_${dirSuffix}`;
+    } else if (state === 'spawning_minions') {
+      animKey = `skeleton_damaged_${dirSuffix}`;
+    } else {
+      animKey = `skeleton_idle_${dirSuffix}`;
+    }
+
+    this.sprite.setFlipX(flipX);
+
+    if (this.currentAnimKey !== animKey) {
+      this.sprite.play(animKey);
+      this.currentAnimKey = animKey;
+    }
+  }
+
+  private updateTint(): void {
+    if (this.serverState === 'dead') {
+      this.sprite.clearTint();
+      this.sprite.setAlpha(0.4);
+      return;
+    }
+
+    if (this.serverState === 'enraged' || this.phase === 3) {
+      this.sprite.setTint(0xff6666);
+    } else if (this.serverState === 'charging') {
+      this.sprite.setTint(0xff8800);
+    } else if (this.phase === 2) {
+      this.sprite.setTint(0xaa88ff);
+    } else {
+      this.sprite.clearTint();
     }
   }
 

@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
 
-const SLIME_SIZE = 28;
 const LERP_SPEED = 0.3;
 
 export class SlimeEntity {
-  sprite: Phaser.GameObjects.Rectangle;
+  sprite: Phaser.GameObjects.Sprite;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
   targetX: number;
@@ -13,14 +12,25 @@ export class SlimeEntity {
   maxHp: number;
   serverState: string;
 
+  private prevX: number;
+  private prevY: number;
+  private currentAnimKey: string;
+  private deathPlayed: boolean;
+  private facing: string;
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
     this.targetY = y;
+    this.prevX = x;
+    this.prevY = y;
     this.hp = 30;
     this.maxHp = 30;
     this.serverState = 'idle';
+    this.currentAnimKey = '';
+    this.deathPlayed = false;
+    this.facing = 'down';
 
-    this.sprite = scene.add.rectangle(x, y, SLIME_SIZE, SLIME_SIZE, 0x22cc66);
+    this.sprite = scene.add.sprite(x, y, 'slime');
     this.sprite.setDepth(8);
 
     this.hpBarBg = scene.add.rectangle(x, y - 20, 24, 3, 0x333333);
@@ -31,11 +41,23 @@ export class SlimeEntity {
   }
 
   updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+    this.prevX = this.targetX;
+    this.prevY = this.targetY;
     this.targetX = x;
     this.targetY = y;
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+
+    const dx = x - this.prevX;
+    const dy = y - this.prevY;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        this.facing = dx > 0 ? 'right' : 'left';
+      } else {
+        this.facing = dy > 0 ? 'down' : 'up';
+      }
+    }
   }
 
   update(): void {
@@ -49,6 +71,44 @@ export class SlimeEntity {
     this.hpBar.width = 24 * hpRatio;
     this.hpBar.x = this.sprite.x - (24 - this.hpBar.width) / 2;
     this.hpBar.y = this.sprite.y - 20;
+
+    this.updateAnimation();
+  }
+
+  private updateAnimation(): void {
+    const state = this.serverState;
+
+    let animKey: string;
+    let flipX = false;
+
+    if (state === 'dead') {
+      animKey = 'slime_death';
+      if (!this.deathPlayed) {
+        this.sprite.play(animKey);
+        this.deathPlayed = true;
+        this.currentAnimKey = animKey;
+      }
+      return;
+    }
+
+    this.deathPlayed = false;
+    const dirSuffix = this.facing === 'left' ? 'right' : this.facing;
+    flipX = this.facing === 'left';
+
+    if (state === 'attacking') {
+      animKey = `slime_attack_${dirSuffix}`;
+    } else if (state === 'chasing') {
+      animKey = `slime_move_${dirSuffix}`;
+    } else {
+      animKey = `slime_idle_${dirSuffix}`;
+    }
+
+    this.sprite.setFlipX(flipX);
+
+    if (this.currentAnimKey !== animKey) {
+      this.sprite.play(animKey);
+      this.currentAnimKey = animKey;
+    }
   }
 
   destroy(): void {

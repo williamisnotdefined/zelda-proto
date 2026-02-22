@@ -6,7 +6,7 @@ import { aabbOverlap, entityAABB } from './Physics.js';
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
   slimes: Map<string, Slime>,
-  boss: BossGelehk | null
+  bosses: Map<string, BossGelehk>
 ): void {
   for (const player of players.values()) {
     const hitbox = player.getAttackHitbox();
@@ -20,10 +20,29 @@ export function resolvePlayerAttacks(
       }
     }
 
-    if (boss && boss.state !== 'dead') {
+    for (const boss of bosses.values()) {
+      if (boss.state === 'dead') continue;
       const bossBox = entityAABB(boss.x, boss.y, BOSS_WIDTH, BOSS_HEIGHT);
       if (aabbOverlap(hitbox, bossBox)) {
         boss.takeDamage(PLAYER_DAMAGE);
+      }
+    }
+  }
+}
+
+export function resolvePlayerVsPlayer(
+  players: Map<string, Player>
+): void {
+  for (const attacker of players.values()) {
+    const hitbox = attacker.getAttackHitbox();
+    if (!hitbox) continue;
+
+    for (const target of players.values()) {
+      if (target.id === attacker.id) continue;
+      if (target.state === 'dead') continue;
+      const targetBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+      if (aabbOverlap(hitbox, targetBox)) {
+        target.takeDamage(PLAYER_DAMAGE);
       }
     }
   }

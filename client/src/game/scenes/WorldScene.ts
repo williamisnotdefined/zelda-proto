@@ -56,18 +56,32 @@ interface AoeIndicator {
   timer: number;
 }
 
+const CHUNK_SIZE = 512;
+const CHUNK_MARGIN = 1;
+const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
+const DECOR_PER_CHUNK = 6;
+
+function seededRandom(cx: number, cy: number, index: number): number {
+  let h = (cx * 374761393 + cy * 668265263 + index * 1013904223) | 0;
+  h = ((h ^ (h >> 13)) * 1274126177) | 0;
+  h = (h ^ (h >> 16)) | 0;
+  return (h >>> 0) / 4294967296;
+}
+
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
   private playerEntities: Map<string, PlayerEntity> = new Map();
   private slimeEntities: Map<string, SlimeEntity> = new Map();
-  private bossEntity: BossGelehkEntity | null = null;
+  private bossEntities: Map<string, BossGelehkEntity> = new Map();
   private dropEntities: Map<string, DropEntity> = new Map();
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private attackKey!: Phaser.Input.Keyboard.Key;
-  private mapWidth = 1280;
-  private mapHeight = 1280;
   private prevAttack = false;
   private removeMessageHandler: (() => void) | null = null;
+
+  private bgTileSprite!: Phaser.GameObjects.TileSprite;
+  private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
+  private bossArenas: Map<string, { circle: Phaser.GameObjects.Arc; ring: Phaser.GameObjects.Arc }> = new Map();
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -77,7 +91,7 @@ export class WorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.attackKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    this.drawMap();
+    this.createInfiniteBackground();
 
     connect();
 
@@ -85,8 +99,6 @@ export class WorldScene extends Phaser.Scene {
       switch (msg.type) {
         case 'welcome':
           this.localPlayerId = msg.id as string;
-          this.mapWidth = (msg.mapWidth as number) || 1280;
-          this.mapHeight = (msg.mapHeight as number) || 1280;
           useGameStore.getState().setLocalPlayerId(msg.id as string);
           useGameStore.getState().setConnected(true);
           break;
@@ -97,73 +109,108 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  private drawMap(): void {
-    let hasMap = false;
-    try {
-      const map = this.make.tilemap({ key: 'map' });
-      if (map && map.tilesets.length > 0) {
-        const tileset = map.addTilesetImage('grass', 'grass');
-        if (tileset) {
-          map.createLayer('ground', tileset);
-          const obstacleLayer = map.createLayer('obstacles', tileset);
-          if (obstacleLayer) {
-            obstacleLayer.setDepth(1);
-          }
-          hasMap = true;
+  private createInfiniteBackground(): void {
+    const cam = this.cameras.main;
+    this.bgTileSprite = this.add.tileSprite(
+      0, 0, cam.width + 256, cam.height + 256, 'grass_tile'
+    );
+    this.bgTileSprite.setDepth(-1);
+  }
+
+  private ensureBossArena(id: string, x: number, y: number): void {
+    if (this.bossArenas.has(id)) return;
+    const circle = this.add.circle(x, y, 200, 0x2a5a2a, 0.3);
+    circle.setDepth(0);
+    const ring = this.add.circle(x, y, 200);
+    ring.setStrokeStyle(2, 0x998866, 0.4);
+    ring.setDepth(0);
+    this.bossArenas.set(id, { circle, ring });
+  }
+
+  private removeBossArena(id: string): void {
+    const arena = this.bossArenas.get(id);
+    if (arena) {
+      arena.circle.destroy();
+      arena.ring.destroy();
+      this.bossArenas.delete(id);
+    }
+  }
+
+  private updateBackground(): void {
+    const cam = this.cameras.main;
+    this.bgTileSprite.x = cam.scrollX + cam.width / 2;
+    this.bgTileSprite.y = cam.scrollY + cam.height / 2;
+  }
+
+  private getChunkKey(cx: number, cy: number): string {
+    return `${cx},${cy}`;
+  }
+
+  private updateChunks(): void {
+    const cam = this.cameras.main;
+    const camCX = Math.floor((cam.scrollX + cam.width / 2) / CHUNK_SIZE);
+    const camCY = Math.floor((cam.scrollY + cam.height / 2) / CHUNK_SIZE);
+
+    const neededChunks = new Set<string>();
+
+    for (let dx = -CHUNK_MARGIN; dx <= CHUNK_MARGIN; dx++) {
+      for (let dy = -CHUNK_MARGIN; dy <= CHUNK_MARGIN; dy++) {
+        const cx = camCX + dx;
+        const cy = camCY + dy;
+        const key = this.getChunkKey(cx, cy);
+        neededChunks.add(key);
+
+        if (!this.activeChunks.has(key)) {
+          this.spawnChunkDecor(cx, cy, key);
         }
       }
-    } catch {
-      // tilemap not available, use fallback
     }
 
-    if (!hasMap) {
-      const tileSize = 32;
-      const cols = Math.ceil(this.mapWidth / tileSize);
-      const rows = Math.ceil(this.mapHeight / tileSize);
-
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const shade = ((r + c) % 2 === 0) ? 0x3a7d44 : 0x357a3f;
-          this.add.rectangle(
-            c * tileSize + tileSize / 2,
-            r * tileSize + tileSize / 2,
-            tileSize,
-            tileSize,
-            shade
-          ).setDepth(0);
-        }
+    for (const [key, sprites] of this.activeChunks) {
+      if (!neededChunks.has(key)) {
+        for (const s of sprites) s.destroy();
+        this.activeChunks.delete(key);
       }
+    }
+  }
 
-      const obstacles = [
-        { x: 160, y: 400, w: 64, h: 64 },
-        { x: 400, y: 160, w: 96, h: 32 },
-        { x: 800, y: 300, w: 32, h: 96 },
-        { x: 1000, y: 800, w: 64, h: 64 },
-        { x: 300, y: 1000, w: 128, h: 32 },
-      ];
+  private spawnChunkDecor(cx: number, cy: number, key: string): void {
+    const sprites: Phaser.GameObjects.Sprite[] = [];
+    const baseX = cx * CHUNK_SIZE;
+    const baseY = cy * CHUNK_SIZE;
 
-      for (const ob of obstacles) {
-        this.add.rectangle(ob.x, ob.y, ob.w, ob.h, 0x665544).setDepth(1);
-      }
+    const count = Math.floor(seededRandom(cx, cy, 999) * DECOR_PER_CHUNK) + 2;
 
-      // Boss arena marker
-      this.add.circle(640, 640, 200, 0x444466, 0.15).setDepth(0);
-      this.add.circle(640, 640, 200).setStrokeStyle(2, 0x6666aa, 0.3).setDepth(0);
+    for (let i = 0; i < count; i++) {
+      const rx = seededRandom(cx, cy, i * 3);
+      const ry = seededRandom(cx, cy, i * 3 + 1);
+      const rf = seededRandom(cx, cy, i * 3 + 2);
+
+      const x = baseX + rx * CHUNK_SIZE;
+      const y = baseY + ry * CHUNK_SIZE;
+      const frameIdx = Math.floor(rf * DECOR_FRAMES.length);
+      const frame = DECOR_FRAMES[frameIdx];
+
+      const sprite = this.add.sprite(x, y, 'decor', frame);
+      sprite.setDepth(1);
+      sprite.setAlpha(0.8);
+      sprites.push(sprite);
     }
 
-    this.cameras.main.setBounds(0, 0, this.mapWidth, this.mapHeight);
+    this.activeChunks.set(key, sprites);
   }
 
   private handleSnapshot(msg: Record<string, unknown>): void {
     const players = msg.players as PlayerSnapshot[];
     const enemies = msg.enemies as SlimeSnapshot[];
-    const boss = msg.boss as BossSnapshot | null;
+    const bosses = (msg.bosses as BossSnapshot[]) || [];
     const drops = (msg.drops as DropSnapshot[]) || [];
     const iceZones = (msg.iceZones as IceZone[]) || [];
     const aoeIndicators = (msg.aoeIndicators as AoeIndicator[]) || [];
 
     useGameStore.getState().setPlayerCount(players.length);
 
+    // --- Players ---
     const seenPlayerIds = new Set<string>();
     for (const p of players) {
       seenPlayerIds.add(p.id);
@@ -194,6 +241,7 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
+    // --- Slimes ---
     const seenSlimeIds = new Set<string>();
     for (const s of enemies) {
       seenSlimeIds.add(s.id);
@@ -212,31 +260,61 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    if (boss) {
-      if (!this.bossEntity) {
-        this.bossEntity = new BossGelehkEntity(this, boss.x, boss.y);
+    // --- Bosses ---
+    const seenBossIds = new Set<string>();
+    let nearestBoss: BossSnapshot | null = null;
+    let nearestBossDist = Infinity;
+    const localPlayer = this.localPlayerId
+      ? players.find((p) => p.id === this.localPlayerId)
+      : null;
+
+    for (const b of bosses) {
+      seenBossIds.add(b.id);
+      let entity = this.bossEntities.get(b.id);
+      if (!entity) {
+        entity = new BossGelehkEntity(this, b.x, b.y);
+        this.bossEntities.set(b.id, entity);
+        this.ensureBossArena(b.id, b.x, b.y);
       }
-      this.bossEntity.updateFromServer(
-        boss.x, boss.y, boss.hp, boss.maxHp,
-        boss.state, boss.phase, iceZones, aoeIndicators
+      entity.updateFromServer(
+        b.x, b.y, b.hp, b.maxHp,
+        b.state, b.phase, iceZones, aoeIndicators
       );
+
+      if (localPlayer) {
+        const dx = localPlayer.x - b.x;
+        const dy = localPlayer.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearestBossDist) {
+          nearestBossDist = dist;
+          nearestBoss = b;
+        }
+      }
+    }
+
+    for (const [id, entity] of this.bossEntities) {
+      if (!seenBossIds.has(id)) {
+        entity.destroy();
+        this.bossEntities.delete(id);
+        this.removeBossArena(id);
+      }
+    }
+
+    if (nearestBoss && nearestBoss.state !== 'dead') {
       useGameStore.getState().setBoss({
-        id: boss.id,
-        x: boss.x,
-        y: boss.y,
-        hp: boss.hp,
-        maxHp: boss.maxHp,
-        state: boss.state,
-        phase: boss.phase,
+        id: nearestBoss.id,
+        x: nearestBoss.x,
+        y: nearestBoss.y,
+        hp: nearestBoss.hp,
+        maxHp: nearestBoss.maxHp,
+        state: nearestBoss.state,
+        phase: nearestBoss.phase,
       });
     } else {
-      if (this.bossEntity) {
-        this.bossEntity.destroy();
-        this.bossEntity = null;
-      }
       useGameStore.getState().setBoss(null);
     }
 
+    // --- Drops ---
     const seenDropIds = new Set<string>();
     for (const d of drops) {
       seenDropIds.add(d.id);
@@ -279,14 +357,17 @@ export class WorldScene extends Phaser.Scene {
       entity.update();
     }
 
-    if (this.bossEntity) {
-      this.bossEntity.update();
+    for (const entity of this.bossEntities.values()) {
+      entity.update();
     }
 
     const localEntity = this.playerEntities.get(this.localPlayerId);
     if (localEntity) {
       this.cameras.main.centerOn(localEntity.sprite.x, localEntity.sprite.y);
     }
+
+    this.updateBackground();
+    this.updateChunks();
   }
 
   shutdown(): void {

@@ -5,7 +5,7 @@ import { aabbOverlap, distance, entityAABB } from './Physics.js';
 export const SLIME_HP = 30;
 export const SLIME_SPEED = 60;
 export const SLIME_DAMAGE = 5;
-export const SLIME_AGGRO_RADIUS = 150;
+export const SLIME_AGGRO_RADIUS = 600;
 export const SLIME_WIDTH = 28;
 export const SLIME_HEIGHT = 28;
 export const SLIME_DAMAGE_COOLDOWN = 1000;
@@ -25,8 +25,10 @@ export class Slime {
   spawnX: number;
   spawnY: number;
   respawnTimer: number;
+  chunkKey: string;
+  targetPlayerId: string | null;
 
-  constructor(id: string, x: number, y: number) {
+  constructor(id: string, x: number, y: number, chunkKey: string = '') {
     this.id = id;
     this.x = x;
     this.y = y;
@@ -40,6 +42,8 @@ export class Slime {
     this.state = 'idle';
     this.damageCooldown = 0;
     this.respawnTimer = 0;
+    this.chunkKey = chunkKey;
+    this.targetPlayerId = null;
   }
 
   update(dt: number, players: Map<string, Player>): void {
@@ -61,11 +65,27 @@ export class Slime {
       }
     }
 
-    if (nearestPlayer && nearestDist <= this.aggroRadius) {
+    if (this.targetPlayerId) {
+      const currentTarget = players.get(this.targetPlayerId);
+
+      if (!currentTarget || currentTarget.state === 'dead') {
+        this.targetPlayerId = null;
+      } else if (nearestPlayer && nearestPlayer.id !== this.targetPlayerId) {
+        this.targetPlayerId = nearestPlayer.id;
+      }
+    }
+
+    if (!this.targetPlayerId && nearestPlayer && nearestDist <= this.aggroRadius) {
+      this.targetPlayerId = nearestPlayer.id;
+    }
+
+    const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
+
+    if (target && target.state !== 'dead') {
       this.state = 'chasing';
 
-      const dx = nearestPlayer.x - this.x;
-      const dy = nearestPlayer.y - this.y;
+      const dx = target.x - this.x;
+      const dy = target.y - this.y;
       const len = Math.sqrt(dx * dx + dy * dy);
       if (len > 0) {
         this.x += (dx / len) * this.speed * (dt / 1000);
@@ -73,14 +93,15 @@ export class Slime {
       }
 
       const slimeBox = entityAABB(this.x, this.y, SLIME_WIDTH, SLIME_HEIGHT);
-      const playerBox = entityAABB(nearestPlayer.x, nearestPlayer.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+      const playerBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
 
       if (aabbOverlap(slimeBox, playerBox) && this.damageCooldown <= 0) {
         this.state = 'attacking';
-        nearestPlayer.takeDamage(this.damage);
+        target.takeDamage(this.damage);
         this.damageCooldown = SLIME_DAMAGE_COOLDOWN;
       }
     } else {
+      this.targetPlayerId = null;
       this.state = 'idle';
     }
   }
@@ -91,6 +112,7 @@ export class Slime {
     if (this.hp <= 0) {
       this.hp = 0;
       this.state = 'dead';
+      this.targetPlayerId = null;
       this.respawnTimer = SLIME_RESPAWN_TIME;
     }
   }
@@ -104,6 +126,7 @@ export class Slime {
       this.hp = this.maxHp;
       this.state = 'idle';
       this.damageCooldown = 0;
+      this.targetPlayerId = null;
       return true;
     }
     return false;

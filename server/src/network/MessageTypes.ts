@@ -80,7 +80,7 @@ export interface SnapshotMessage {
   type: 'snapshot';
   players: PlayerSnapshot[];
   enemies: SlimeSnapshot[];
-  boss: BossSnapshot | null;
+  bosses: BossSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
   drops: DropSnapshot[];

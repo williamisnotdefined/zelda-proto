@@ -1,26 +1,47 @@
 import { nanoid } from 'nanoid';
-import { InputMessage, SnapshotMessage, DropSnapshot } from '../network/MessageTypes.js';
+import { InputMessage, SnapshotMessage } from '../network/MessageTypes.js';
 import { Player } from './Player.js';
 import { Slime } from './Slime.js';
-import { BossGelehk, ICE_ZONE_SLOW } from './BossGelehk.js';
-import { resolvePlayerAttacks, resolveEnemyContactDamage } from './Combat.js';
+import { BossGelehk, ICE_ZONE_SLOW, BOSS_RESPAWN_TIME } from './BossGelehk.js';
+import { resolvePlayerAttacks, resolvePlayerVsPlayer, resolveEnemyContactDamage } from './Combat.js';
+import { distance } from './Physics.js';
 
-export const MAP_WIDTH = 1280;
-export const MAP_HEIGHT = 1280;
+export const MAP_WIDTH = 0;
+export const MAP_HEIGHT = 0;
 const PLAYER_SPAWN_X = 200;
 const PLAYER_SPAWN_Y = 200;
 const PLAYER_RESPAWN_TIME = 3000;
 
-const SLIME_SPAWN_POSITIONS = [
-  { x: 400, y: 300 },
-  { x: 500, y: 500 },
-  { x: 700, y: 200 },
-  { x: 300, y: 700 },
-  { x: 850, y: 400 },
-  { x: 600, y: 800 },
-  { x: 900, y: 600 },
-  { x: 150, y: 500 },
-];
+const CHUNK_SIZE = 512;
+const SLIMES_PER_CHUNK = 4;
+const CHUNK_ACTIVE_RANGE = 1024;
+const CHUNK_DESPAWN_TIME = 30000;
+
+const BOSS_REGION_SIZE = 800;
+const BOSS_ACTIVE_RANGE = 2000;
+const BOSS_DESPAWN_TIME = 60000;
+
+interface SpawnChunk {
+  cx: number;
+  cy: number;
+  slimeIds: Set<string>;
+  lastPlayerNearby: number;
+}
+
+interface BossRegion {
+  key: string;
+  bossId: string;
+  centerX: number;
+  centerY: number;
+  lastPlayerNearby: number;
+}
+
+function seededRandom(cx: number, cy: number, index: number): number {
+  let h = (cx * 374761393 + cy * 668265263 + index * 1013904223) | 0;
+  h = ((h ^ (h >> 13)) * 1274126177) | 0;
+  h = (h ^ (h >> 16)) | 0;
+  return (h >>> 0) / 4294967296;
+}
 
 export interface Drop {
   id: string;
@@ -32,19 +53,21 @@ export interface Drop {
 export class World {
   players: Map<string, Player>;
   slimes: Map<string, Slime>;
-  boss: BossGelehk;
+  bosses: Map<string, BossGelehk>;
   drops: Map<string, Drop>;
+
+  private spawnChunks: Map<string, SpawnChunk>;
+  private bossRegions: Map<string, BossRegion>;
+  private now: number;
 
   constructor() {
     this.players = new Map();
     this.slimes = new Map();
-    this.boss = new BossGelehk();
+    this.bosses = new Map();
     this.drops = new Map();
-
-    for (const pos of SLIME_SPAWN_POSITIONS) {
-      const id = `slime_${nanoid(8)}`;
-      this.slimes.set(id, new Slime(id, pos.x, pos.y));
-    }
+    this.spawnChunks = new Map();
+    this.bossRegions = new Map();
+    this.now = Date.now();
   }
 
   addPlayer(id: string): Player {
@@ -65,12 +88,17 @@ export class World {
   }
 
   update(dt: number): void {
+    this.now = Date.now();
+
     for (const player of this.players.values()) {
       let speedMult = 1;
-      if (this.boss.active && this.boss.state !== 'dead' && this.boss.isInIceZone(player.x, player.y)) {
-        speedMult = ICE_ZONE_SLOW;
+      for (const boss of this.bosses.values()) {
+        if (boss.active && boss.state !== 'dead' && boss.isInIceZone(player.x, player.y)) {
+          speedMult = ICE_ZONE_SLOW;
+          break;
+        }
       }
-      player.update(dt, MAP_WIDTH, MAP_HEIGHT, speedMult);
+      player.update(dt, speedMult);
     }
 
     for (const player of this.players.values()) {
@@ -82,23 +110,148 @@ export class World {
       }
     }
 
+    this.updateSlimeChunks();
+
     for (const slime of this.slimes.values()) {
       slime.update(dt, this.players);
       slime.tryRespawn(dt);
     }
 
-    this.boss.update(dt, this.players, (x, y, count) => {
-      this.spawnMinions(x, y, count);
-    });
+    this.updateBossRegions(dt);
 
-    resolvePlayerAttacks(this.players, this.slimes, this.boss);
+    for (const boss of this.bosses.values()) {
+      boss.update(dt, this.players, (x, y, count) => {
+        this.spawnMinions(x, y);
+      });
+      boss.tryRespawn(dt);
+    }
+
+    resolvePlayerAttacks(this.players, this.slimes, this.bosses);
+    resolvePlayerVsPlayer(this.players);
     resolveEnemyContactDamage(this.slimes, this.players);
 
     this.handleDropPickup();
     this.handleEnemyDrops();
   }
 
-  private spawnMinions(x: number, y: number, count: number): void {
+  private updateSlimeChunks(): void {
+    const activeChunkKeys = new Set<string>();
+
+    for (const player of this.players.values()) {
+      if (player.state === 'dead') continue;
+
+      const pcx = Math.floor(player.x / CHUNK_SIZE);
+      const pcy = Math.floor(player.y / CHUNK_SIZE);
+      const range = Math.ceil(CHUNK_ACTIVE_RANGE / CHUNK_SIZE);
+
+      for (let dx = -range; dx <= range; dx++) {
+        for (let dy = -range; dy <= range; dy++) {
+          const cx = pcx + dx;
+          const cy = pcy + dy;
+          const key = `${cx},${cy}`;
+          activeChunkKeys.add(key);
+
+          let chunk = this.spawnChunks.get(key);
+          if (!chunk) {
+            chunk = { cx, cy, slimeIds: new Set(), lastPlayerNearby: this.now };
+            this.spawnChunks.set(key, chunk);
+            this.spawnSlimesInChunk(chunk);
+          } else {
+            chunk.lastPlayerNearby = this.now;
+          }
+        }
+      }
+    }
+
+    for (const [key, chunk] of this.spawnChunks) {
+      if (!activeChunkKeys.has(key) && this.now - chunk.lastPlayerNearby > CHUNK_DESPAWN_TIME) {
+        for (const slimeId of chunk.slimeIds) {
+          this.slimes.delete(slimeId);
+        }
+        this.spawnChunks.delete(key);
+      }
+    }
+  }
+
+  private spawnSlimesInChunk(chunk: SpawnChunk): void {
+    const baseX = chunk.cx * CHUNK_SIZE;
+    const baseY = chunk.cy * CHUNK_SIZE;
+
+    for (let i = 0; i < SLIMES_PER_CHUNK; i++) {
+      const rx = seededRandom(chunk.cx, chunk.cy, i * 2);
+      const ry = seededRandom(chunk.cx, chunk.cy, i * 2 + 1);
+      const x = baseX + rx * CHUNK_SIZE;
+      const y = baseY + ry * CHUNK_SIZE;
+
+      const id = `slime_${nanoid(8)}`;
+      const key = `${chunk.cx},${chunk.cy}`;
+      const slime = new Slime(id, x, y, key);
+      this.slimes.set(id, slime);
+      chunk.slimeIds.add(id);
+    }
+  }
+
+  private getBossRegionCenter(rx: number, ry: number): { x: number; y: number } {
+    return {
+      x: rx * BOSS_REGION_SIZE + BOSS_REGION_SIZE / 2,
+      y: ry * BOSS_REGION_SIZE + BOSS_REGION_SIZE / 2,
+    };
+  }
+
+  private updateBossRegions(dt: number): void {
+    const activeRegionKeys = new Set<string>();
+
+    for (const player of this.players.values()) {
+      if (player.state === 'dead') continue;
+
+      const prx = Math.floor(player.x / BOSS_REGION_SIZE);
+      const pry = Math.floor(player.y / BOSS_REGION_SIZE);
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const rx = prx + dx;
+          const ry = pry + dy;
+          const key = `boss_${rx},${ry}`;
+          activeRegionKeys.add(key);
+
+          const center = this.getBossRegionCenter(rx, ry);
+          const dist = distance(player.x, player.y, center.x, center.y);
+
+          if (dist > BOSS_ACTIVE_RANGE) continue;
+
+          let region = this.bossRegions.get(key);
+          if (!region) {
+            const bossId = `gelehk_${rx}_${ry}`;
+            const boss = new BossGelehk(bossId, center.x, center.y);
+            this.bosses.set(bossId, boss);
+            region = {
+              key,
+              bossId,
+              centerX: center.x,
+              centerY: center.y,
+              lastPlayerNearby: this.now,
+            };
+            this.bossRegions.set(key, region);
+          } else {
+            region.lastPlayerNearby = this.now;
+          }
+        }
+      }
+    }
+
+    for (const [key, region] of this.bossRegions) {
+      if (!activeRegionKeys.has(key) || this.now - region.lastPlayerNearby > BOSS_DESPAWN_TIME) {
+        const boss = this.bosses.get(region.bossId);
+        if (boss && (boss.state === 'idle' || boss.state === 'dead') && !boss.active) {
+          this.bosses.delete(region.bossId);
+          this.bossRegions.delete(key);
+        }
+      }
+    }
+  }
+
+  private spawnMinions(x: number, y: number): void {
+    const count = 3;
     for (let i = 0; i < count; i++) {
       const id = `minion_${nanoid(8)}`;
       const angle = (Math.PI * 2 * i) / count;
@@ -142,20 +295,29 @@ export class World {
   }
 
   getSnapshot(): SnapshotMessage {
+    const allIceZones = [];
+    const allAoeIndicators = [];
+
+    for (const boss of this.bosses.values()) {
+      if (boss.state === 'dead') continue;
+      allIceZones.push(...boss.iceZones);
+      allAoeIndicators.push(...boss.aoeIndicators.map((a) => ({
+        x: Math.round(a.x),
+        y: Math.round(a.y),
+        radius: a.radius,
+        timer: Math.round(a.timer),
+      })));
+    }
+
     return {
       type: 'snapshot',
       players: Array.from(this.players.values()).map((p) => p.toSnapshot()),
       enemies: Array.from(this.slimes.values())
         .filter((s) => s.state !== 'dead')
         .map((s) => s.toSnapshot()),
-      boss: this.boss.active ? this.boss.toSnapshot() : null,
-      iceZones: this.boss.iceZones,
-      aoeIndicators: this.boss.aoeIndicators.map((a) => ({
-        x: Math.round(a.x),
-        y: Math.round(a.y),
-        radius: a.radius,
-        timer: Math.round(a.timer),
-      })),
+      bosses: Array.from(this.bosses.values()).map((b) => b.toSnapshot()),
+      iceZones: allIceZones,
+      aoeIndicators: allAoeIndicators,
       drops: Array.from(this.drops.values()),
     };
   }

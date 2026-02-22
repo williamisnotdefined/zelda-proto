@@ -19,6 +19,7 @@ export class Player {
   state: PlayerState;
   direction: Direction;
   attackCooldownTimer: number;
+  attackStateTimer: number;
   lastInput: InputMessage | null;
   respawnTimer: number;
 
@@ -32,6 +33,7 @@ export class Player {
     this.state = 'idle';
     this.direction = 'down';
     this.attackCooldownTimer = 0;
+    this.attackStateTimer = 0;
     this.lastInput = null;
     this.respawnTimer = 0;
   }
@@ -40,7 +42,7 @@ export class Player {
     this.lastInput = input;
   }
 
-  update(dt: number, mapWidth: number, mapHeight: number, speedMultiplier: number = 1): void {
+  update(dt: number, speedMultiplier: number = 1): void {
     if (this.state === 'dead') {
       return;
     }
@@ -55,9 +57,18 @@ export class Player {
       return;
     }
 
+    if (this.state === 'attacking') {
+      this.attackStateTimer -= dt;
+      if (this.attackStateTimer <= 0) {
+        this.state = 'idle';
+        this.attackStateTimer = 0;
+      }
+    }
+
     if (input.attack && this.attackCooldownTimer <= 0) {
       this.state = 'attacking';
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
+      this.attackStateTimer = 300;
       return;
     }
 
@@ -86,11 +97,6 @@ export class Player {
     } else if (this.state !== 'attacking') {
       this.state = 'idle';
     }
-
-    const halfW = PLAYER_WIDTH / 2;
-    const halfH = PLAYER_HEIGHT / 2;
-    this.x = Math.max(halfW, Math.min(mapWidth - halfW, this.x));
-    this.y = Math.max(halfH, Math.min(mapHeight - halfH, this.y));
   }
 
   getAttackHitbox(): { x: number; y: number; w: number; h: number } | null {
