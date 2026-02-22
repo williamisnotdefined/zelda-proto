@@ -5,7 +5,8 @@ type ServerMessage = {
 
 type MessageHandler = (msg: ServerMessage) => void;
 
-const WS_URL = `wss://${window.location.hostname}:3001`;
+const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const WS_URL = `${protocol}//${window.location.host}/ws`;
 
 let ws: WebSocket | null = null;
 let handlers: MessageHandler[] = [];
