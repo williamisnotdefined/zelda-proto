@@ -1,13 +1,10 @@
 import Phaser from 'phaser';
 
-const DROP_SIZE = 16;
-
 export class DropEntity {
-  sprite: Phaser.GameObjects.Rectangle;
+  sprite: Phaser.GameObjects.Sprite;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, kind: string) {
-    const color = kind === 'heal' ? 0xff6688 : 0xffff00;
-    this.sprite = scene.add.rectangle(x, y, DROP_SIZE, DROP_SIZE, color);
+  constructor(scene: Phaser.Scene, x: number, y: number, _kind: string) {
+    this.sprite = scene.add.sprite(x, y, 'heart');
     this.sprite.setDepth(5);
   }
 

@@ -285,7 +285,7 @@ export class World {
         const dy = player.y - drop.y;
         if (Math.sqrt(dx * dx + dy * dy) < 24) {
           if (drop.kind === 'heal') {
-            player.hp = Math.min(player.hp + 20, player.maxHp);
+            player.hp = Math.min(player.hp + 5, player.maxHp);
           }
           this.drops.delete(dropId);
           break;

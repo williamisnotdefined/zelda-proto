@@ -48,6 +48,8 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 16,
       frameHeight: 16,
     });
+
+    this.load.image('heart', 'assets/sprites/heart/heart_16x16.png');
   }
 
   create(): void {
