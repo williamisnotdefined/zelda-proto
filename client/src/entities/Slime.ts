@@ -31,6 +31,7 @@ export class SlimeEntity {
     this.facing = 'down';
 
     this.sprite = scene.add.sprite(x, y, 'slime');
+    this.sprite.setScale(2);
     this.sprite.setDepth(8);
 
     this.hpBarBg = scene.add.rectangle(x, y - 20, 24, 3, 0x333333);

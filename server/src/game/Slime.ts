@@ -6,8 +6,8 @@ export const SLIME_HP = 30;
 export const SLIME_SPEED = 60;
 export const SLIME_DAMAGE = 5;
 export const SLIME_AGGRO_RADIUS = 600;
-export const SLIME_WIDTH = 28;
-export const SLIME_HEIGHT = 28;
+export const SLIME_WIDTH = 48;
+export const SLIME_HEIGHT = 48;
 export const SLIME_DAMAGE_COOLDOWN = 1000;
 export const SLIME_RESPAWN_TIME = 10000;
 

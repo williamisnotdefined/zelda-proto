@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 const LERP_SPEED = 0.25;
-const BOSS_SCALE = 2;
+const BOSS_SCALE = 2.5;
 
 interface IceZoneData {
   x: number;

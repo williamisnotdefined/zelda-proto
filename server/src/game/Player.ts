@@ -4,10 +4,10 @@ export const PLAYER_SPEED = 150;
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_DAMAGE = 10;
 export const PLAYER_ATTACK_COOLDOWN = 400;
-export const PLAYER_WIDTH = 28;
-export const PLAYER_HEIGHT = 28;
-export const PLAYER_ATTACK_RANGE = 32;
-export const PLAYER_ATTACK_WIDTH = 24;
+export const PLAYER_WIDTH = 48;
+export const PLAYER_HEIGHT = 48;
+export const PLAYER_ATTACK_RANGE = 48;
+export const PLAYER_ATTACK_WIDTH = 36;
 export const PVP_DAMAGE = 25;
 
 export class Player {

@@ -30,6 +30,7 @@ export class PlayerEntity {
     this.deathPlayed = false;
 
     this.sprite = scene.add.sprite(x, y, 'player');
+    this.sprite.setScale(2);
     this.sprite.setDepth(10);
 
     this.hpBarBg = scene.add.rectangle(x, y - 26, 32, 4, 0x333333);

@@ -12,8 +12,8 @@ import { nanoid } from 'nanoid';
 
 export const BOSS_MAX_HP = 1000;
 export const BOSS_SPEED = 80;
-export const BOSS_WIDTH = 64;
-export const BOSS_HEIGHT = 64;
+export const BOSS_WIDTH = 96;
+export const BOSS_HEIGHT = 96;
 export const BOSS_ACTIVATION_RADIUS = 500;
 export const BOSS_RESPAWN_TIME = 15000;
 
