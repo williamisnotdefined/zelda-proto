@@ -24,3 +24,10 @@ npm run dev:client   # Vite dev server on :5173
 - **Server** (Node.js + ws): Authoritative game server with 60-tick game loop
 - **Client** (Vite + React + Phaser 3): Rendering, input, and HUD
 - Communication via JSON over WebSocket
+
+## Next Steps
+
+- [ ] Linting and formatting
+- [ ] Table of players online with kills and deaths in HUD
+- [ ] Chat UI
+- [ ] Modal requiring username on first connection
