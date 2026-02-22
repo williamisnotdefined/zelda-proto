@@ -17,8 +17,8 @@ export function App() {
   }, []);
 
   return (
-    <div style={{ position: 'relative', width: 800, height: 600 }}>
-      <div id="game-container" style={{ width: 800, height: 600 }} />
+    <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+      <div id="game-container" style={{ width: '100%', height: '100%' }} />
       <HUD />
     </div>
   );
