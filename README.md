@@ -135,3 +135,17 @@ Se quiser, posso te gerar:
 ✅ Design de estados (State Machine) para Player, Slime e Boss
 
 Basta dizer o que quer focar primeiro! 👊
+
+## Separação client / server
+
+O uso de workspaces (client, server) indica uma arquitetura monorepo com duas partes distintas:
+
+client (frontend)
+
+server (backend multiplayer)
+
+Possíveis melhorias:
+
+Isolar lógica reutilizável em pacotes internos — por exemplo uma pasta shared/ com tipos, mensagens e enums que tanto o client quanto o server consomem.
+
+Evitar duplicação de código entre client e server (especialmente a definição de pacotes de dados enviados por WebSocket).
