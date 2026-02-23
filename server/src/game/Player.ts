@@ -6,7 +6,10 @@ export const PLAYER_DAMAGE = 10;
 export const PLAYER_ATTACK_COOLDOWN = 400;
 export const PLAYER_WIDTH = 48;
 export const PLAYER_HEIGHT = 48;
-export const PLAYER_ATTACK_RANGE = 48;
+export const PLAYER_ATTACK_RANGE_UP = 20;
+export const PLAYER_ATTACK_RANGE_DOWN = 28;
+export const PLAYER_ATTACK_RANGE_LEFT = 24;
+export const PLAYER_ATTACK_RANGE_RIGHT = 24;
 export const PLAYER_ATTACK_WIDTH = 36;
 export const PVP_DAMAGE = 25;
 
@@ -114,16 +117,16 @@ export class Player {
 
     switch (this.direction) {
       case 'up':
-        hy -= PLAYER_ATTACK_RANGE;
+        hy -= PLAYER_ATTACK_RANGE_UP;
         break;
       case 'down':
-        hy += PLAYER_ATTACK_RANGE;
+        hy += PLAYER_ATTACK_RANGE_DOWN;
         break;
       case 'left':
-        hx -= PLAYER_ATTACK_RANGE;
+        hx -= PLAYER_ATTACK_RANGE_LEFT;
         break;
       case 'right':
-        hx += PLAYER_ATTACK_RANGE;
+        hx += PLAYER_ATTACK_RANGE_RIGHT;
         break;
     }
 
