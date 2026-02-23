@@ -16,6 +16,9 @@ export const PLAYER_SPAWN_X = 200;
 export const PLAYER_SPAWN_Y = 200;
 export const SPAWN_SAFE_ZONE_RADIUS = 150;
 const PLAYER_RESPAWN_TIME = 3000;
+const SAFE_ZONE_DURATION = 3000; // 3 seconds
+
+export let isSafeZoneActive = false; // Global flag for safe zone state
 
 const CHUNK_SIZE = 512;
 const SLIMES_PER_CHUNK = 4;
@@ -64,6 +67,7 @@ export class World {
   private spawnChunks: Map<string, SpawnChunk>;
   private bossRegions: Map<string, BossRegion>;
   private now: number;
+  private safeZoneTimer: number;
 
   constructor() {
     this.players = new Map();
@@ -73,11 +77,17 @@ export class World {
     this.spawnChunks = new Map();
     this.bossRegions = new Map();
     this.now = Date.now();
+    this.safeZoneTimer = 0;
   }
 
   addPlayer(id: string, nickname: string = 'Player'): Player {
     const player = new Player(id, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, nickname);
     this.players.set(id, player);
+    // Activate safe zone when first player joins
+    if (this.players.size === 1) {
+      isSafeZoneActive = true;
+      this.safeZoneTimer = SAFE_ZONE_DURATION;
+    }
     return player;
   }
 
@@ -94,6 +104,14 @@ export class World {
 
   update(dt: number): void {
     this.now = Date.now();
+
+    // Update safe zone timer
+    if (isSafeZoneActive && this.safeZoneTimer > 0) {
+      this.safeZoneTimer -= dt;
+      if (this.safeZoneTimer <= 0) {
+        isSafeZoneActive = false;
+      }
+    }
 
     for (const player of this.players.values()) {
       let speedMult = 1;

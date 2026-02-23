@@ -1,6 +1,12 @@
 import { SlimeSnapshot, SlimeState } from '../network/MessageTypes.js';
+import { aabbOverlap, distance, entityAABB, isInSafeZone } from './Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import { aabbOverlap, distance, entityAABB } from './Physics.js';
+import {
+  isSafeZoneActive,
+  PLAYER_SPAWN_X,
+  PLAYER_SPAWN_Y,
+  SPAWN_SAFE_ZONE_RADIUS,
+} from './World.js';
 
 export const SLIME_HP = 30;
 export const SLIME_SPEED = 60;
@@ -82,14 +88,52 @@ export class Slime {
     const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
 
     if (target && target.state !== 'dead') {
+      // Stop chasing if target is in safe zone AND safe zone is active
+      const isTargetInSafeZone =
+        isSafeZoneActive &&
+        isInSafeZone(target.x, target.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS);
+
+      if (isTargetInSafeZone) {
+        this.targetPlayerId = null;
+        this.state = 'idle';
+        return;
+      }
+
       this.state = 'chasing';
 
       const dx = target.x - this.x;
       const dy = target.y - this.y;
       const len = Math.sqrt(dx * dx + dy * dy);
+
       if (len > 0) {
-        this.x += (dx / len) * this.speed * (dt / 1000);
-        this.y += (dy / len) * this.speed * (dt / 1000);
+        // Calculate next position
+        let nextX = this.x + (dx / len) * this.speed * (dt / 1000);
+        let nextY = this.y + (dy / len) * this.speed * (dt / 1000);
+
+        // Check if next position would enter safe zone (only if active)
+        const wouldEnterSafeZone =
+          isSafeZoneActive &&
+          isInSafeZone(nextX, nextY, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS);
+
+        if (wouldEnterSafeZone) {
+          // Calculate tangent movement to go around safe zone
+          const toSpawnX = PLAYER_SPAWN_X - this.x;
+          const toSpawnY = PLAYER_SPAWN_Y - this.y;
+          const perpX = -toSpawnY; // Perpendicular vector
+          const perpY = toSpawnX;
+          const perpLen = Math.sqrt(perpX * perpX + perpY * perpY);
+
+          if (perpLen > 0) {
+            // Move tangent to safe zone
+            const tangentX = perpX / perpLen;
+            const tangentY = perpY / perpLen;
+            nextX = this.x + tangentX * this.speed * (dt / 1000);
+            nextY = this.y + tangentY * this.speed * (dt / 1000);
+          }
+        }
+
+        this.x = nextX;
+        this.y = nextY;
       }
 
       const slimeBox = entityAABB(this.x, this.y, SLIME_WIDTH, SLIME_HEIGHT);
@@ -101,6 +145,24 @@ export class Slime {
         this.damageCooldown = SLIME_DAMAGE_COOLDOWN;
       }
     } else {
+      this.targetPlayerId = null;
+      this.state = 'idle';
+    }
+
+    // Push slime out if somehow inside safe zone (only if active)
+    if (
+      isSafeZoneActive &&
+      isInSafeZone(this.x, this.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+    ) {
+      const dx = this.x - PLAYER_SPAWN_X;
+      const dy = this.y - PLAYER_SPAWN_Y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 0) {
+        // Push slime to just outside the safe zone
+        const pushDist = SPAWN_SAFE_ZONE_RADIUS + 10;
+        this.x = PLAYER_SPAWN_X + (dx / dist) * pushDist;
+        this.y = PLAYER_SPAWN_Y + (dy / dist) * pushDist;
+      }
       this.targetPlayerId = null;
       this.state = 'idle';
     }

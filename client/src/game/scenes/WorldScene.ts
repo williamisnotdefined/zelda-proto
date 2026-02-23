@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
-import { send, onMessage } from '../../network/socket';
-import { PlayerEntity } from '../../entities/Player';
-import { SlimeEntity } from '../../entities/Slime';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
+import { PlayerEntity } from '../../entities/Player';
+import { SlimeEntity } from '../../entities/Slime';
+import { onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 
 interface PlayerSnapshot {
   id: string;
+  nickname: string;
   x: number;
   y: number;
   hp: number;
@@ -85,6 +86,9 @@ export class WorldScene extends Phaser.Scene {
     string,
     { circle: Phaser.GameObjects.Arc; ring: Phaser.GameObjects.Arc }
   > = new Map();
+  private safeZoneCircle: Phaser.GameObjects.Arc | null = null;
+  private safeZoneRing: Phaser.GameObjects.Arc | null = null;
+  private safeZoneTimer: Phaser.Time.TimerEvent | null = null;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -104,6 +108,8 @@ export class WorldScene extends Phaser.Scene {
           this.localPlayerId = msg.id as string;
           useGameStore.getState().setLocalPlayerId(msg.id as string);
           useGameStore.getState().setConnected(true);
+          // Create safe zone after player joins
+          this.createSafeZone();
           break;
         case 'snapshot':
           this.handleSnapshot(msg);
@@ -116,6 +122,46 @@ export class WorldScene extends Phaser.Scene {
     const cam = this.cameras.main;
     this.bgTileSprite = this.add.tileSprite(0, 0, cam.width + 256, cam.height + 256, 'grass_tile');
     this.bgTileSprite.setDepth(-1);
+  }
+
+  private createSafeZone(): void {
+    // Don't create if already exists
+    if (this.safeZoneCircle || this.safeZoneRing) return;
+
+    const spawnX = 200;
+    const spawnY = 200;
+    const radius = 150;
+
+    // Semi-transparent green circle for the safe zone
+    this.safeZoneCircle = this.add.circle(spawnX, spawnY, radius, 0x44ff44, 0.15);
+    this.safeZoneCircle.setDepth(0);
+    this.safeZoneCircle.setScrollFactor(1, 1); // Ensure it scrolls with the world
+
+    // Green ring border
+    this.safeZoneRing = this.add.circle(spawnX, spawnY, radius);
+    this.safeZoneRing.setStrokeStyle(3, 0x44ff44, 0.5);
+    this.safeZoneRing.setDepth(0);
+    this.safeZoneRing.setScrollFactor(1, 1); // Ensure it scrolls with the world
+
+    // Hide the safe zone after 3 seconds
+    this.safeZoneTimer = this.time.delayedCall(3000, () => {
+      this.destroySafeZone();
+    });
+  }
+
+  private destroySafeZone(): void {
+    if (this.safeZoneCircle) {
+      this.safeZoneCircle.destroy();
+      this.safeZoneCircle = null;
+    }
+    if (this.safeZoneRing) {
+      this.safeZoneRing.destroy();
+      this.safeZoneRing = null;
+    }
+    if (this.safeZoneTimer) {
+      this.safeZoneTimer.destroy();
+      this.safeZoneTimer = null;
+    }
   }
 
   private ensureBossArena(id: string, x: number, y: number): void {

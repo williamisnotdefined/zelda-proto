@@ -7,7 +7,12 @@ import {
 } from '../network/MessageTypes.js';
 import { aabbOverlap, distance, entityAABB, isInSafeZone } from './Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
+import {
+  isSafeZoneActive,
+  PLAYER_SPAWN_X,
+  PLAYER_SPAWN_Y,
+  SPAWN_SAFE_ZONE_RADIUS,
+} from './World.js';
 
 export const BOSS_MAX_HP = 1000;
 export const BOSS_SPEED = 80;
@@ -263,8 +268,9 @@ export class BossGelehk {
       const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
-        // Skip damage if player is in spawn safe zone
+        // Skip damage if player is in spawn safe zone AND safe zone is active
         if (
+          isSafeZoneActive &&
           isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
         ) {
           continue;
@@ -316,8 +322,9 @@ export class BossGelehk {
       if (aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
-          // Skip damage if player is in spawn safe zone
+          // Skip damage if player is in spawn safe zone AND safe zone is active
           if (
+            isSafeZoneActive &&
             isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
           ) {
             continue;
@@ -344,8 +351,9 @@ export class BossGelehk {
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      // Skip damage if player is in spawn safe zone
+      // Skip damage if player is in spawn safe zone AND safe zone is active
       if (
+        isSafeZoneActive &&
         isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
       ) {
         continue;

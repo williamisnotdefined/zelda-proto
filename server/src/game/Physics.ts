@@ -30,5 +30,5 @@ export function isInSafeZone(
   spawnY: number,
   safeRadius: number
 ): boolean {
-  return distance(x, y, spawnX, spawnY) < safeRadius;
+  return distance(x, y, spawnX, spawnY) <= safeRadius;
 }
