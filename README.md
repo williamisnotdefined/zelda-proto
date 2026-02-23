@@ -27,7 +27,6 @@ npm run dev:client   # Vite dev server on :5173
 
 ## Next Steps
 
-- [ ] Linting and formatting
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
 - [ ] Modal requiring username on first connection
