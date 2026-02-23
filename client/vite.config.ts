@@ -23,7 +23,14 @@ export default defineConfig({
       },
     },
     watch: {
-      ignored: ['**/node_modules/**', '**/dist/**', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.gif'],
+      ignored: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/*.png',
+        '**/*.jpg',
+        '**/*.jpeg',
+        '**/*.gif',
+      ],
     },
   },
 });
