@@ -3,7 +3,7 @@ import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
 import { PlayerEntity } from '../../entities/Player';
 import { SlimeEntity } from '../../entities/Slime';
-import { onMessage, send } from '../../network/socket';
+import { onError, onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 
 interface PlayerSnapshot {
@@ -71,6 +71,7 @@ function seededRandom(cx: number, cy: number, index: number): number {
 
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
+  private previousLocalState: string | null = null;
   private playerEntities: Map<string, PlayerEntity> = new Map();
   private slimeEntities: Map<string, SlimeEntity> = new Map();
   private bossEntities: Map<string, BossGelehkEntity> = new Map();
@@ -79,6 +80,7 @@ export class WorldScene extends Phaser.Scene {
   private attackKey!: Phaser.Input.Keyboard.Key;
   private prevAttack = false;
   private removeMessageHandler: (() => void) | null = null;
+  private removeErrorHandler: (() => void) | null = null;
 
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
@@ -101,20 +103,26 @@ export class WorldScene extends Phaser.Scene {
     this.createInfiniteBackground();
 
     // Connection is now initiated from NicknameModal after user enters nickname
+    // Message handlers for 'welcome' are set up globally in BootScene
+    // This handler is just for snapshot updates
+
+    // Track connection attempts
+    useGameStore.getState().setLastConnectionAttempt(Date.now());
 
     this.removeMessageHandler = onMessage((msg) => {
       switch (msg.type) {
         case 'welcome':
           this.localPlayerId = msg.id as string;
-          useGameStore.getState().setLocalPlayerId(msg.id as string);
-          useGameStore.getState().setConnected(true);
-          // Create safe zone after player joins
           this.createSafeZone();
           break;
         case 'snapshot':
           this.handleSnapshot(msg);
           break;
       }
+    });
+
+    this.removeErrorHandler = onError((error) => {
+      useGameStore.getState().setConnectionError(error);
     });
   }
 
@@ -135,13 +143,13 @@ export class WorldScene extends Phaser.Scene {
     // Semi-transparent green circle for the safe zone
     this.safeZoneCircle = this.add.circle(spawnX, spawnY, radius, 0x44ff44, 0.15);
     this.safeZoneCircle.setDepth(0);
-    this.safeZoneCircle.setScrollFactor(1, 1); // Ensure it scrolls with the world
+    this.safeZoneCircle.setScrollFactor(1, 1);
 
     // Green ring border
     this.safeZoneRing = this.add.circle(spawnX, spawnY, radius);
     this.safeZoneRing.setStrokeStyle(3, 0x44ff44, 0.5);
     this.safeZoneRing.setDepth(0);
-    this.safeZoneRing.setScrollFactor(1, 1); // Ensure it scrolls with the world
+    this.safeZoneRing.setScrollFactor(1, 1);
 
     // Hide the safe zone after 3 seconds
     this.safeZoneTimer = this.time.delayedCall(3000, () => {
@@ -269,6 +277,12 @@ export class WorldScene extends Phaser.Scene {
       entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction);
 
       if (p.id === this.localPlayerId) {
+        if (this.previousLocalState === 'dead' && p.state !== 'dead') {
+          this.destroySafeZone();
+          this.createSafeZone();
+        }
+        this.previousLocalState = p.state;
+
         useGameStore.getState().setLocalPlayer({
           id: p.id,
           nickname: p.nickname,
@@ -417,5 +431,6 @@ export class WorldScene extends Phaser.Scene {
 
   shutdown(): void {
     this.removeMessageHandler?.();
+    this.removeErrorHandler?.();
   }
 }

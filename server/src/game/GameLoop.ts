@@ -19,7 +19,6 @@ export class GameLoop {
   start(): void {
     this.lastTime = Date.now();
     this.intervalId = setInterval(() => this.tick(), TICK_INTERVAL);
-    console.log(`Game loop started at ${TICK_RATE} ticks/s`);
   }
 
   stop(): void {

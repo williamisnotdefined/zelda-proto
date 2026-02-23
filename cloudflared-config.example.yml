@@ -1,0 +1,32 @@
+# Cloudflare Tunnel Configuration for Legends of Gelehk
+# 
+# This is an example configuration file for cloudflared.
+# Copy this to your ~/.cloudflared/config.yml and update the values.
+
+# Replace with your actual tunnel ID (get from: cloudflared tunnel list)
+tunnel: YOUR_TUNNEL_ID_HERE
+
+# Replace with your actual credentials file path
+credentials-file: /home/YOUR_USERNAME/.cloudflared/YOUR_TUNNEL_ID.json
+
+# Ingress rules - defines how traffic is routed
+ingress:
+  # Route traffic from your domain to the local server
+  - hostname: wilho.com.br
+    service: http://localhost:3001
+    # IMPORTANT: Use port 3001 for production (not 3002)
+    # This service handles both HTTP and WebSocket connections
+  
+  # Catch-all rule (required) - returns 404 for unmatched requests
+  - service: http_status:404
+
+# Optional: Additional settings
+# originRequest:
+#   noTLSVerify: false
+#   connectTimeout: 30s
+#   keepAliveTimeout: 90s
+
+# WebSocket Configuration:
+# Cloudflare Tunnel automatically supports WebSocket connections.
+# No additional configuration is required for WebSocket upgrades.
+# The tunnel will properly forward the Upgrade headers needed for /ws endpoint.

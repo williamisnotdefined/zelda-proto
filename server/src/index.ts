@@ -1,14 +1,15 @@
+import { nanoid } from 'nanoid';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { nanoid } from 'nanoid';
 import { WebSocket, WebSocketServer } from 'ws';
 import { GameLoop } from './game/GameLoop.js';
 import { MAP_HEIGHT, MAP_WIDTH } from './game/World.js';
 import { ClientMessage, ServerMessage } from './network/MessageTypes.js';
 
-const PORT = Number(process.env.PORT) || 3001;
+const isDev = process.env.NODE_ENV !== 'production';
+const PORT = Number(process.env.PORT) || (isDev ? 3002 : 3001);
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIST = resolve(__dirname, '../../client/dist');
@@ -56,14 +57,12 @@ const gameLoop = new GameLoop((world) => {
   }
 });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const playerId = nanoid(12);
   let hasJoined = false;
 
   // Store the WebSocket but don't create player until join message
   clients.set(playerId, ws);
-
-  console.log(`Connection ${playerId} established, waiting for join...`);
 
   ws.on('message', (data) => {
     try {
@@ -87,26 +86,26 @@ wss.on('connection', (ws) => {
           mapHeight: MAP_HEIGHT,
         };
         ws.send(JSON.stringify(welcome));
-
-        console.log(`Player ${nickname} (${playerId}) joined (${clients.size} online)`);
       } else if (msg.type === 'input' && hasJoined) {
         gameLoop.world.handleInput(playerId, msg);
       }
-    } catch {
+    } catch (err) {
+      console.error(`[WebSocket] Error parsing message from ${playerId}:`, err);
       // ignore malformed messages
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
     clients.delete(playerId);
     if (hasJoined) {
       gameLoop.world.removePlayer(playerId);
     }
-    console.log(`Player ${playerId} disconnected (${clients.size} online)`);
+  });
+
+  ws.on('error', (error) => {
+    console.error(`[WebSocket] Error on connection ${playerId}:`, error.message);
   });
 });
 
 gameLoop.start();
-httpServer.listen(PORT, () => {
-  console.log(`Legends of Gelehk server running on http://localhost:${PORT}`);
-});
+httpServer.listen(PORT);

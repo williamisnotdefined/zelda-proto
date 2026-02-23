@@ -1,14 +1,10 @@
 import { nanoid } from 'nanoid';
 import { InputMessage, SnapshotMessage } from '../network/MessageTypes.js';
-import { BossGelehk, ICE_ZONE_SLOW } from './BossGelehk.js';
-import {
-  resolveEnemyContactDamage,
-  resolvePlayerAttacks,
-  resolvePlayerVsPlayer,
-} from './Combat.js';
-import { distance } from './Physics.js';
 import { Player } from './Player.js';
 import { Slime } from './Slime.js';
+import { BossGelehk, ICE_ZONE_SLOW, BOSS_RESPAWN_TIME } from './BossGelehk.js';
+import { resolvePlayerAttacks, resolvePlayerVsPlayer, resolveEnemyContactDamage } from './Combat.js';
+import { distance } from './Physics.js';
 
 export const MAP_WIDTH = 0;
 export const MAP_HEIGHT = 0;
@@ -16,9 +12,9 @@ export const PLAYER_SPAWN_X = 200;
 export const PLAYER_SPAWN_Y = 200;
 export const SPAWN_SAFE_ZONE_RADIUS = 150;
 const PLAYER_RESPAWN_TIME = 3000;
-const SAFE_ZONE_DURATION = 3000; // 3 seconds
+const SAFE_ZONE_DURATION = 3000;
 
-export let isSafeZoneActive = false; // Global flag for safe zone state
+export let isSafeZoneActive = false;
 
 const CHUNK_SIZE = 512;
 const SLIMES_PER_CHUNK = 4;
@@ -83,11 +79,8 @@ export class World {
   addPlayer(id: string, nickname: string = 'Player'): Player {
     const player = new Player(id, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, nickname);
     this.players.set(id, player);
-    // Activate safe zone when first player joins
-    if (this.players.size === 1) {
-      isSafeZoneActive = true;
-      this.safeZoneTimer = SAFE_ZONE_DURATION;
-    }
+    isSafeZoneActive = true;
+    this.safeZoneTimer = SAFE_ZONE_DURATION;
     return player;
   }
 
@@ -105,7 +98,6 @@ export class World {
   update(dt: number): void {
     this.now = Date.now();
 
-    // Update safe zone timer
     if (isSafeZoneActive && this.safeZoneTimer > 0) {
       this.safeZoneTimer -= dt;
       if (this.safeZoneTimer <= 0) {
@@ -129,6 +121,8 @@ export class World {
         player.respawnTimer += dt;
         if (player.respawnTimer >= PLAYER_RESPAWN_TIME) {
           player.respawn(PLAYER_SPAWN_X, PLAYER_SPAWN_Y);
+          isSafeZoneActive = true;
+          this.safeZoneTimer = SAFE_ZONE_DURATION;
         }
       }
     }
@@ -140,10 +134,10 @@ export class World {
       slime.tryRespawn(dt);
     }
 
-    this.updateBossRegions();
+    this.updateBossRegions(dt);
 
     for (const boss of this.bosses.values()) {
-      boss.update(dt, this.players, (x, y) => {
+      boss.update(dt, this.players, (x, y, count) => {
         this.spawnMinions(x, y);
       });
       boss.tryRespawn(dt);
@@ -221,7 +215,7 @@ export class World {
     };
   }
 
-  private updateBossRegions(): void {
+  private updateBossRegions(dt: number): void {
     const activeRegionKeys = new Set<string>();
 
     for (const player of this.players.values()) {
@@ -324,14 +318,12 @@ export class World {
     for (const boss of this.bosses.values()) {
       if (boss.state === 'dead') continue;
       allIceZones.push(...boss.iceZones);
-      allAoeIndicators.push(
-        ...boss.aoeIndicators.map((a) => ({
-          x: Math.round(a.x),
-          y: Math.round(a.y),
-          radius: a.radius,
-          timer: Math.round(a.timer),
-        }))
-      );
+      allAoeIndicators.push(...boss.aoeIndicators.map((a) => ({
+        x: Math.round(a.x),
+        y: Math.round(a.y),
+        radius: a.radius,
+        timer: Math.round(a.timer),
+      })));
     }
 
     return {

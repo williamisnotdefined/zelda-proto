@@ -45,6 +45,8 @@ export interface GameStore {
   playerCount: number;
   nickname: string | null;
   showNicknameModal: boolean;
+  connectionError: string | null;
+  lastConnectionAttempt: number | null;
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
   setBoss: (b: BossData | null) => void;
@@ -52,6 +54,8 @@ export interface GameStore {
   setPlayerCount: (n: number) => void;
   setNickname: (name: string) => void;
   hideNicknameModal: () => void;
+  setConnectionError: (error: string | null) => void;
+  setLastConnectionAttempt: (time: number) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -62,6 +66,8 @@ export const useGameStore = create<GameStore>((set) => ({
   playerCount: 0,
   nickname: null,
   showNicknameModal: true,
+  connectionError: null,
+  lastConnectionAttempt: null,
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
   setLocalPlayer: (p) => set({ localPlayer: p }),
   setBoss: (b) => set({ boss: b }),
@@ -69,4 +75,6 @@ export const useGameStore = create<GameStore>((set) => ({
   setPlayerCount: (n) => set({ playerCount: n }),
   setNickname: (name) => set({ nickname: name }),
   hideNicknameModal: () => set({ showNicknameModal: false }),
+  setConnectionError: (error) => set({ connectionError: error }),
+  setLastConnectionAttempt: (time) => set({ lastConnectionAttempt: time }),
 }));

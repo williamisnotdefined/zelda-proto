@@ -13,7 +13,7 @@
     "build:server": "npm run build --workspace=server",
     "build": "npm run build:server && npm run build:client",
     "start:server": "npm run start --workspace=server",
-    "start": "NODE_ENV=production npm run start:server",
+    "start": "NODE_ENV=production PORT=3001 npm run start:server",
     "lint": "eslint client/src server/src --ext .ts,.tsx",
     "lint:fix": "eslint client/src server/src --ext .ts,.tsx --fix",
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",

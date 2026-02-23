@@ -1,11 +1,19 @@
-import { useGameStore } from './store';
+import { connect } from '../network/socket';
 import { NicknameModal } from './NicknameModal';
+import { useGameStore } from './store';
 
 export function HUD() {
   const localPlayer = useGameStore((s) => s.localPlayer);
   const boss = useGameStore((s) => s.boss);
   const connected = useGameStore((s) => s.connected);
   const playerCount = useGameStore((s) => s.playerCount);
+  const connectionError = useGameStore((s) => s.connectionError);
+  const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
+
+  const handleRetry = () => {
+    useGameStore.getState().setConnectionError(null);
+    connect();
+  };
 
   return (
     <div
@@ -33,7 +41,38 @@ export function HUD() {
           opacity: 0.7,
         }}
       >
-        {connected ? `Online (${playerCount} players)` : 'Connecting...'}
+        {connected ? (
+          `Online (${playerCount} players)`
+        ) : connectionError ? (
+          <div style={{ color: '#ff6666', opacity: 1 }}>
+            <div>❌ {connectionError}</div>
+            <button
+              onClick={handleRetry}
+              style={{
+                marginTop: 4,
+                padding: '4px 8px',
+                fontSize: '10px',
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+                background: '#444',
+                border: '1px solid #666',
+                color: '#fff',
+                borderRadius: 3,
+              }}
+            >
+              Retry Connection
+            </button>
+          </div>
+        ) : (
+          <div>
+            Connecting...
+            {lastConnectionAttempt && (
+              <div style={{ fontSize: '9px', marginTop: 2 }}>
+                Last attempt: {new Date(lastConnectionAttempt).toLocaleTimeString()}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Player HP */}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { connect, sendJoin } from '../network/socket';
+import { connect, onceOpen, sendJoin } from '../network/socket';
 import { useGameStore } from './store';
 
 export function NicknameModal() {
@@ -31,10 +31,7 @@ export function NicknameModal() {
     setNickname(trimmed);
     hideNicknameModal();
     connect();
-    // Small delay to ensure connection is established
-    setTimeout(() => {
-      sendJoin(trimmed);
-    }, 100);
+    onceOpen(() => sendJoin(trimmed));
   };
 
   return (
