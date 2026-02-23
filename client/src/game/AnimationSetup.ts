@@ -5,7 +5,13 @@ function createRowAnims(
   textureKey: string,
   prefix: string,
   colsPerRow: number,
-  definitions: { key: string; row: number; repeat?: number; frameRate?: number; frameCount?: number }[]
+  definitions: {
+    key: string;
+    row: number;
+    repeat?: number;
+    frameRate?: number;
+    frameCount?: number;
+  }[]
 ): void {
   for (const def of definitions) {
     const startFrame = def.row * colsPerRow;

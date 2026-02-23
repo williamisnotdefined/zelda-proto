@@ -12,6 +12,7 @@ export const PVP_DAMAGE = 25;
 
 export class Player {
   id: string;
+  nickname: string;
   x: number;
   y: number;
   hp: number;
@@ -25,8 +26,9 @@ export class Player {
   lastInput: InputMessage | null;
   respawnTimer: number;
 
-  constructor(id: string, x: number, y: number) {
+  constructor(id: string, x: number, y: number, nickname: string = 'Player') {
     this.id = id;
+    this.nickname = nickname;
     this.x = x;
     this.y = y;
     this.hp = PLAYER_MAX_HP;
@@ -153,6 +155,7 @@ export class Player {
   toSnapshot(): PlayerSnapshot {
     return {
       id: this.id,
+      nickname: this.nickname,
       x: Math.round(this.x),
       y: Math.round(this.y),
       hp: this.hp,

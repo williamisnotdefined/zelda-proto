@@ -1,14 +1,13 @@
 import {
+  AoeIndicator,
   BossPhase,
   BossSnapshot,
   BossState,
   IceZone,
-  AoeIndicator,
 } from '../network/MessageTypes.js';
-import { Player, PLAYER_WIDTH, PLAYER_HEIGHT } from './Player.js';
-import { Slime } from './Slime.js';
-import { aabbOverlap, distance, entityAABB } from './Physics.js';
-import { nanoid } from 'nanoid';
+import { aabbOverlap, distance, entityAABB, isInSafeZone } from './Physics.js';
+import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
+import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
 
 export const BOSS_MAX_HP = 1000;
 export const BOSS_SPEED = 80;
@@ -264,6 +263,12 @@ export class BossGelehk {
       const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
+        // Skip damage if player is in spawn safe zone
+        if (
+          isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+        ) {
+          continue;
+        }
         const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
         if (aabbOverlap(bossBox, playerBox)) {
           player.takeDamage(CHARGE_DAMAGE);
@@ -311,6 +316,12 @@ export class BossGelehk {
       if (aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
+          // Skip damage if player is in spawn safe zone
+          if (
+            isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+          ) {
+            continue;
+          }
           if (distance(player.x, player.y, aoe.x, aoe.y) < aoe.radius) {
             player.takeDamage(AOE_DAMAGE);
           }
@@ -333,6 +344,12 @@ export class BossGelehk {
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
+      // Skip damage if player is in spawn safe zone
+      if (
+        isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+      ) {
+        continue;
+      }
       const dist = distance(this.x, this.y, player.x, player.y);
       if (dist >= prevRadius && dist <= this.waveRadius) {
         player.takeDamage(WAVE_DAMAGE);
@@ -355,12 +372,7 @@ export class BossGelehk {
 
   isInIceZone(px: number, py: number): boolean {
     for (const zone of this.iceZones) {
-      if (
-        px >= zone.x &&
-        px <= zone.x + zone.width &&
-        py >= zone.y &&
-        py <= zone.y + zone.height
-      ) {
+      if (px >= zone.x && px <= zone.x + zone.width && py >= zone.y && py <= zone.y + zone.height) {
         return true;
       }
     }

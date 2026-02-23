@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { connect, send, onMessage } from '../../network/socket';
+import { send, onMessage } from '../../network/socket';
 import { PlayerEntity } from '../../entities/Player';
 import { SlimeEntity } from '../../entities/Slime';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
@@ -81,7 +81,10 @@ export class WorldScene extends Phaser.Scene {
 
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
-  private bossArenas: Map<string, { circle: Phaser.GameObjects.Arc; ring: Phaser.GameObjects.Arc }> = new Map();
+  private bossArenas: Map<
+    string,
+    { circle: Phaser.GameObjects.Arc; ring: Phaser.GameObjects.Arc }
+  > = new Map();
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -93,7 +96,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.createInfiniteBackground();
 
-    connect();
+    // Connection is now initiated from NicknameModal after user enters nickname
 
     this.removeMessageHandler = onMessage((msg) => {
       switch (msg.type) {
@@ -111,9 +114,7 @@ export class WorldScene extends Phaser.Scene {
 
   private createInfiniteBackground(): void {
     const cam = this.cameras.main;
-    this.bgTileSprite = this.add.tileSprite(
-      0, 0, cam.width + 256, cam.height + 256, 'grass_tile'
-    );
+    this.bgTileSprite = this.add.tileSprite(0, 0, cam.width + 256, cam.height + 256, 'grass_tile');
     this.bgTileSprite.setDepth(-1);
   }
 
@@ -216,7 +217,7 @@ export class WorldScene extends Phaser.Scene {
       seenPlayerIds.add(p.id);
       let entity = this.playerEntities.get(p.id);
       if (!entity) {
-        entity = new PlayerEntity(this, p.x, p.y, p.id === this.localPlayerId, p.id);
+        entity = new PlayerEntity(this, p.x, p.y, p.id === this.localPlayerId, p.nickname);
         this.playerEntities.set(p.id, entity);
       }
       entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction);
@@ -224,6 +225,7 @@ export class WorldScene extends Phaser.Scene {
       if (p.id === this.localPlayerId) {
         useGameStore.getState().setLocalPlayer({
           id: p.id,
+          nickname: p.nickname,
           x: p.x,
           y: p.y,
           hp: p.hp,
@@ -276,10 +278,7 @@ export class WorldScene extends Phaser.Scene {
         this.bossEntities.set(b.id, entity);
         this.ensureBossArena(b.id, b.x, b.y);
       }
-      entity.updateFromServer(
-        b.x, b.y, b.hp, b.maxHp,
-        b.state, b.phase, iceZones, aoeIndicators
-      );
+      entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state, b.phase, iceZones, aoeIndicators);
 
       if (localPlayer) {
         const dx = localPlayer.x - b.x;

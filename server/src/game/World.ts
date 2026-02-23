@@ -1,15 +1,20 @@
 import { nanoid } from 'nanoid';
 import { InputMessage, SnapshotMessage } from '../network/MessageTypes.js';
+import { BossGelehk, ICE_ZONE_SLOW } from './BossGelehk.js';
+import {
+  resolveEnemyContactDamage,
+  resolvePlayerAttacks,
+  resolvePlayerVsPlayer,
+} from './Combat.js';
+import { distance } from './Physics.js';
 import { Player } from './Player.js';
 import { Slime } from './Slime.js';
-import { BossGelehk, ICE_ZONE_SLOW, BOSS_RESPAWN_TIME } from './BossGelehk.js';
-import { resolvePlayerAttacks, resolvePlayerVsPlayer, resolveEnemyContactDamage } from './Combat.js';
-import { distance } from './Physics.js';
 
 export const MAP_WIDTH = 0;
 export const MAP_HEIGHT = 0;
-const PLAYER_SPAWN_X = 200;
-const PLAYER_SPAWN_Y = 200;
+export const PLAYER_SPAWN_X = 200;
+export const PLAYER_SPAWN_Y = 200;
+export const SPAWN_SAFE_ZONE_RADIUS = 150;
 const PLAYER_RESPAWN_TIME = 3000;
 
 const CHUNK_SIZE = 512;
@@ -70,8 +75,8 @@ export class World {
     this.now = Date.now();
   }
 
-  addPlayer(id: string): Player {
-    const player = new Player(id, PLAYER_SPAWN_X, PLAYER_SPAWN_Y);
+  addPlayer(id: string, nickname: string = 'Player'): Player {
+    const player = new Player(id, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, nickname);
     this.players.set(id, player);
     return player;
   }
@@ -117,10 +122,10 @@ export class World {
       slime.tryRespawn(dt);
     }
 
-    this.updateBossRegions(dt);
+    this.updateBossRegions();
 
     for (const boss of this.bosses.values()) {
-      boss.update(dt, this.players, (x, y, count) => {
+      boss.update(dt, this.players, (x, y) => {
         this.spawnMinions(x, y);
       });
       boss.tryRespawn(dt);
@@ -198,7 +203,7 @@ export class World {
     };
   }
 
-  private updateBossRegions(dt: number): void {
+  private updateBossRegions(): void {
     const activeRegionKeys = new Set<string>();
 
     for (const player of this.players.values()) {
@@ -301,12 +306,14 @@ export class World {
     for (const boss of this.bosses.values()) {
       if (boss.state === 'dead') continue;
       allIceZones.push(...boss.iceZones);
-      allAoeIndicators.push(...boss.aoeIndicators.map((a) => ({
-        x: Math.round(a.x),
-        y: Math.round(a.y),
-        radius: a.radius,
-        timer: Math.round(a.timer),
-      })));
+      allAoeIndicators.push(
+        ...boss.aoeIndicators.map((a) => ({
+          x: Math.round(a.x),
+          y: Math.round(a.y),
+          radius: a.radius,
+          timer: Math.round(a.timer),
+        }))
+      );
     }
 
     return {

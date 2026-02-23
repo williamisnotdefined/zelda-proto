@@ -1,7 +1,8 @@
 import { Player, PLAYER_DAMAGE, PVP_DAMAGE, PLAYER_WIDTH, PLAYER_HEIGHT } from './Player.js';
 import { Slime, SLIME_WIDTH, SLIME_HEIGHT } from './Slime.js';
 import { BossGelehk, BOSS_WIDTH, BOSS_HEIGHT } from './BossGelehk.js';
-import { aabbOverlap, entityAABB } from './Physics.js';
+import { aabbOverlap, entityAABB, isInSafeZone } from './Physics.js';
+import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
@@ -30,9 +31,7 @@ export function resolvePlayerAttacks(
   }
 }
 
-export function resolvePlayerVsPlayer(
-  players: Map<string, Player>
-): void {
+export function resolvePlayerVsPlayer(players: Map<string, Player>): void {
   for (const attacker of players.values()) {
     const hitbox = attacker.getAttackHitbox();
     if (!hitbox) continue;
@@ -62,6 +61,12 @@ export function resolveEnemyContactDamage(
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
+      // Skip damage if player is in spawn safe zone
+      if (
+        isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+      ) {
+        continue;
+      }
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
       if (aabbOverlap(slimeBox, playerBox)) {
         player.takeDamage(slime.damage);

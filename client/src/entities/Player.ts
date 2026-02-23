@@ -14,11 +14,12 @@ export class PlayerEntity {
   serverDirection: string;
   hp: number;
   maxHp: number;
+  nickname: string;
 
   private currentAnimKey: string;
   private deathPlayed: boolean;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, id: string) {
+  constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
     this.targetX = x;
     this.targetY = y;
@@ -28,6 +29,7 @@ export class PlayerEntity {
     this.maxHp = 100;
     this.currentAnimKey = '';
     this.deathPlayed = false;
+    this.nickname = nickname;
 
     this.sprite = scene.add.sprite(x, y, 'player');
     this.sprite.setScale(2);
@@ -39,7 +41,7 @@ export class PlayerEntity {
     this.hpBar = scene.add.rectangle(x, y - 26, 32, 4, 0x44ff44);
     this.hpBar.setDepth(12);
 
-    const label = isLocal ? 'YOU' : id.substring(0, 5);
+    const label = isLocal ? 'YOU' : nickname;
     this.nameText = scene.add.text(x, y - 34, label, {
       fontSize: '10px',
       color: '#ffffff',
@@ -53,7 +55,14 @@ export class PlayerEntity {
     }
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, direction: string): void {
+  updateFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    direction: string
+  ): void {
     this.targetX = x;
     this.targetY = y;
     this.hp = hp;

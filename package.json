@@ -13,9 +13,20 @@
     "build:server": "npm run build --workspace=server",
     "build": "npm run build:server && npm run build:client",
     "start:server": "npm run start --workspace=server",
-    "start": "NODE_ENV=production npm run start:server"
+    "start": "NODE_ENV=production npm run start:server",
+    "lint": "eslint client/src server/src --ext .ts,.tsx",
+    "lint:fix": "eslint client/src server/src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",
+    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\""
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@typescript-eslint/eslint-plugin": "^8.32.0",
+    "@typescript-eslint/parser": "^8.32.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.5.3"
   }
 }

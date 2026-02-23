@@ -5,7 +5,7 @@ type ServerMessage = {
 
 type MessageHandler = (msg: ServerMessage) => void;
 
-const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${protocol}//${window.location.host}/ws`;
 
 let ws: WebSocket | null = null;
@@ -13,17 +13,14 @@ let handlers: MessageHandler[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function connect(): void {
-  if (
-    ws &&
-    (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
-  ) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
 
   ws = new WebSocket(WS_URL);
 
   ws.onopen = () => {
-    console.log("Connected to server");
+    console.log('Connected to server');
   };
 
   ws.onmessage = (event) => {
@@ -38,7 +35,7 @@ export function connect(): void {
   };
 
   ws.onclose = () => {
-    console.log("Disconnected from server");
+    console.log('Disconnected from server');
     ws = null;
     if (!reconnectTimer) {
       reconnectTimer = setTimeout(() => {
@@ -57,6 +54,10 @@ export function send(msg: object): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(msg));
   }
+}
+
+export function sendJoin(nickname: string): void {
+  send({ type: 'join', nickname });
 }
 
 export function onMessage(handler: MessageHandler): () => void {

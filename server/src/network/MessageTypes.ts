@@ -24,8 +24,14 @@ export interface InputMessage {
   attack: boolean;
 }
 
+export interface JoinMessage {
+  type: 'join';
+  nickname: string;
+}
+
 export interface PlayerSnapshot {
   id: string;
+  nickname: string;
   x: number;
   y: number;
   hp: number;
@@ -109,4 +115,4 @@ export type ServerMessage =
   | PlayerJoinMessage
   | PlayerLeaveMessage;
 
-export type ClientMessage = InputMessage;
+export type ClientMessage = InputMessage | JoinMessage;
