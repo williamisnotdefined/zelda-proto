@@ -134,6 +134,7 @@ If users get stuck on "Connecting..." in production:
 - [ ] Minimap
 - [ ] Lerp interpolation for player movement
 - [ ] Attack while moving
+- [ ] Fix slime attack range
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
 - [ ] Modal requiring username on first connection
