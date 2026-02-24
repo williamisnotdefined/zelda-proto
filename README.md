@@ -131,10 +131,12 @@ If users get stuck on "Connecting..." in production:
 
 ## Next Steps
 
+- [ ] Minimap
+- [ ] Lerp interpolation for player movement
+- [ ] Attack while moving
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
 - [ ] Modal requiring username on first connection
-- [ ] Minimap
 
 
 ## Next Steps ChatGPT
