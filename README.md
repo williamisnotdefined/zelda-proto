@@ -135,6 +135,7 @@ If users get stuck on "Connecting..." in production:
 - [ ] Lerp interpolation for player movement
 - [ ] Attack while moving
 - [ ] Fix slime attack range
+- [ ] Add a dragon stronger than Gelehk
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
 - [ ] Modal requiring username on first connection
