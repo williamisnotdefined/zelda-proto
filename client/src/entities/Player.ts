@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
 const LERP_SPEED = 0.3;
+const INTERP_DURATION = 50; // ms – smoothing window (~3 server ticks)
+const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -19,6 +21,11 @@ export class PlayerEntity {
   private currentAnimKey: string;
   private deathPlayed: boolean;
 
+  // Interpolation fields for local player
+  private prevServerX: number;
+  private prevServerY: number;
+  private interpElapsed: number;
+
   constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
     this.targetX = x;
@@ -30,6 +37,9 @@ export class PlayerEntity {
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.nickname = nickname;
+    this.prevServerX = x;
+    this.prevServerY = y;
+    this.interpElapsed = INTERP_DURATION;
 
     this.sprite = scene.add.sprite(x, y, 'player');
     this.sprite.setScale(2);
@@ -63,6 +73,22 @@ export class PlayerEntity {
     state: string,
     direction: string
   ): void {
+    // For local player lerp: start interpolating from current visual position
+    if (this.isLocal) {
+      const dx = x - this.sprite.x;
+      const dy = y - this.sprite.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > SNAP_THRESHOLD) {
+        // Teleport / respawn – snap immediately
+        this.prevServerX = x;
+        this.prevServerY = y;
+        this.interpElapsed = INTERP_DURATION;
+      } else {
+        this.prevServerX = this.sprite.x;
+        this.prevServerY = this.sprite.y;
+        this.interpElapsed = 0;
+      }
+    }
     this.targetX = x;
     this.targetY = y;
     this.hp = hp;
@@ -71,13 +97,18 @@ export class PlayerEntity {
     this.serverDirection = direction;
   }
 
-  update(_scene: Phaser.Scene, _dt: number): void {
+  update(_scene: Phaser.Scene, dt: number): void {
     if (this.isLocal) {
-      this.sprite.x = this.targetX;
-      this.sprite.y = this.targetY;
+      // Time-based interpolation between last visual pos and server target
+      this.interpElapsed += dt;
+      const t = Math.min(this.interpElapsed / INTERP_DURATION, 1);
+      this.sprite.x = this.prevServerX + (this.targetX - this.prevServerX) * t;
+      this.sprite.y = this.prevServerY + (this.targetY - this.prevServerY) * t;
     } else {
-      this.sprite.x += (this.targetX - this.sprite.x) * LERP_SPEED;
-      this.sprite.y += (this.targetY - this.sprite.y) * LERP_SPEED;
+      // Remote players: time-based exponential lerp (frame-rate independent)
+      const factor = 1 - Math.pow(1 - LERP_SPEED, dt / 16.667);
+      this.sprite.x += (this.targetX - this.sprite.x) * factor;
+      this.sprite.y += (this.targetY - this.sprite.y) * factor;
     }
 
     this.hpBarBg.x = this.sprite.x;
@@ -119,6 +150,12 @@ export class PlayerEntity {
 
     if (state === 'attacking') {
       animKey = `player_attack_${dirSuffix}`;
+      // Don't restart attack anim if already playing one
+      if (this.currentAnimKey.startsWith('player_attack_') && this.sprite.anims.isPlaying) {
+        // Still apply flip from the original attack direction
+        this.sprite.setFlipX(flipX);
+        return;
+      }
     } else if (state === 'moving') {
       animKey = `player_move_${dirSuffix}`;
     } else {

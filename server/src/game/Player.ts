@@ -79,7 +79,7 @@ export class Player {
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
       this.attackStateTimer = 300;
       this.attackHitIds.clear();
-      return;
+      // No return – allow movement to continue below with speed penalty
     }
 
     let dx = 0;
@@ -94,15 +94,22 @@ export class Player {
       dx /= len;
       dy /= len;
 
-      this.x += dx * this.speed * speedMultiplier * (dt / 1000);
-      this.y += dy * this.speed * speedMultiplier * (dt / 1000);
+      // 50% speed penalty while attacking
+      const attackPenalty = this.state === 'attacking' ? 0.5 : 1;
+      this.x += dx * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
+      this.y += dy * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
 
-      this.state = 'moving';
+      if (this.state !== 'attacking') {
+        this.state = 'moving';
+      }
 
-      if (Math.abs(dx) > Math.abs(dy)) {
-        this.direction = dx > 0 ? 'right' : 'left';
-      } else {
-        this.direction = dy > 0 ? 'down' : 'up';
+      // Don't change direction while attacking (keeps hitbox consistent)
+      if (this.state !== 'attacking') {
+        if (Math.abs(dx) > Math.abs(dy)) {
+          this.direction = dx > 0 ? 'right' : 'left';
+        } else {
+          this.direction = dy > 0 ? 'down' : 'up';
+        }
       }
     } else if (this.state !== 'attacking') {
       this.state = 'idle';

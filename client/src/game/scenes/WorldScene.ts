@@ -5,6 +5,7 @@ import { PlayerEntity } from '../../entities/Player';
 import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
+import { Minimap } from '../Minimap';
 
 interface PlayerSnapshot {
   id: string;
@@ -91,6 +92,7 @@ export class WorldScene extends Phaser.Scene {
   private safeZoneCircle: Phaser.GameObjects.Arc | null = null;
   private safeZoneRing: Phaser.GameObjects.Arc | null = null;
   private safeZoneTimer: Phaser.Time.TimerEvent | null = null;
+  private minimap!: Minimap;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -101,6 +103,7 @@ export class WorldScene extends Phaser.Scene {
     this.attackKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.createInfiniteBackground();
+    this.minimap = new Minimap(this);
 
     // Connection is now initiated from NicknameModal after user enters nickname
     // Message handlers for 'welcome' are set up globally in BootScene
@@ -423,6 +426,14 @@ export class WorldScene extends Phaser.Scene {
     const localEntity = this.playerEntities.get(this.localPlayerId);
     if (localEntity) {
       this.cameras.main.centerOn(localEntity.sprite.x, localEntity.sprite.y);
+      this.minimap.draw(
+        localEntity.sprite.x,
+        localEntity.sprite.y,
+        this.playerEntities,
+        this.slimeEntities,
+        this.bossEntities,
+        this.localPlayerId
+      );
     }
 
     this.updateBackground();
@@ -432,5 +443,6 @@ export class WorldScene extends Phaser.Scene {
   shutdown(): void {
     this.removeMessageHandler?.();
     this.removeErrorHandler?.();
+    this.minimap?.destroy();
   }
 }
