@@ -139,7 +139,6 @@ If users get stuck on "Connecting..." in production:
 - [ ] Gelehk drops a machine gun that can be picked up and used by players
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
-- [ ] Modal requiring username on first connection
 
 
 ## Next Steps ChatGPT
