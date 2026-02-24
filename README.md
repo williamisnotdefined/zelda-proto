@@ -136,6 +136,7 @@ If users get stuck on "Connecting..." in production:
 - [ ] Attack while moving
 - [ ] Fix slime attack range
 - [ ] Add a dragon stronger than Gelehk
+- [ ] Gelehk drops a machine gun that can be picked up and used by players
 - [ ] Table of players online with kills and deaths in HUD
 - [ ] Chat UI
 - [ ] Modal requiring username on first connection
