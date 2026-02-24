@@ -108,10 +108,23 @@ wss.on('connection', (ws, req) => {
     }
   });
 
-  ws.on('close', (code, reason) => {
+  ws.on('close', (_code, _reason) => {
     clients.delete(playerId);
     if (hasJoined) {
+      const nickname = gameLoop.world.players.get(playerId)?.nickname ?? 'Unknown';
       gameLoop.world.removePlayer(playerId);
+      const now = new Date();
+      const dateTime = now.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+      console.log(
+        `[Game] Player disconnected: ${nickname} | ${dateTime} | ${gameLoop.world.players.size} player(s) online`
+      );
     }
   });
 
