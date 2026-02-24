@@ -176,40 +176,12 @@ Um chat simples via WebSocket — ótimo pra engajar players.
 
 K/D, vida, nível — útil pra feedback.
 
-🔹 Username no login
-
-Hoje players provavelmente têm nomes aleatórios — algo para identidade.
-
-🔹 Slime spawn e respawn
-
-Adicionar lógica de spawn automático no mundo.
-
-🔹 Boss “Gelehk”
-
-Integrar boss reforçado com fases e ataques únicos.
-
-🧠 Avaliação geral
-
-Seu projeto não é mais protótipo — já é uma base sólida para:
-
-coop online real
-
-combate sincronizado
-
-inimigos AI
-
-futuras features como loot, classes, dungeons
-
-Isso coloca o jogo num patamar que muitas devs indie demoram meses pra alcançar.
-
 📊 Sugestões de estrutura pra próxima evolução
 🔧 Client
 
 entities/ → separar VisualEntity (render) de NetworkEntity (estado)
 
 network/ → abstrair WebSocket para enviar apenas inputs e receber updates
-
-interpolator → função que suaviza posições baseadas em ticks
 
 🧪 Server
 
@@ -225,20 +197,9 @@ network/SnapshotManager.ts → diffs e compressão opcional
 
 Aqui estão as prioridades mais sensatas para o que vem depois:
 
-➡️ 1. Interpolação/lerp no client
-➡️ 2. Hitbox de ataque autoritativo no servidor
-➡️ 3. UI de chat e leaderboard
-➡️ 4. Sistema de respawn de inimigos
-➡️ 5. Boss final (Gelehk) com fases e ataques especiais
+➡️ 1. Hitbox de ataque autoritativo no servidor
+➡️ 2. UI de chat e leaderboard
 
-Se quiser, posso te gerar:
-
-✅ Diagrama de arquitetura do projeto
-✅ Código base para interpolação + diff snapshots
-✅ Sistema de hitbox de ataque pronto pra integrar
-✅ Design de estados (State Machine) para Player, Slime e Boss
-
-Basta dizer o que quer focar primeiro! 👊
 
 ## Separação client / server
 
