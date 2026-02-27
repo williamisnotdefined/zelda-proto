@@ -18,7 +18,8 @@
     "lint": "eslint client/src server/src --ext .ts,.tsx",
     "lint:fix": "eslint client/src server/src --ext .ts,.tsx --fix",
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",
-    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\""
+    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",
+    "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\""
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.32.0",
