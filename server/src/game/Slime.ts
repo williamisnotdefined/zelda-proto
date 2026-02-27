@@ -1,12 +1,7 @@
 import { SlimeSnapshot, SlimeState } from '../network/MessageTypes.js';
-import { aabbOverlap, distance, entityAABB, isInSafeZone } from './Physics.js';
+import { aabbOverlap, distanceSquared, entityAABB, isInSafeZone } from './Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import {
-  isSafeZoneActive,
-  PLAYER_SPAWN_X,
-  PLAYER_SPAWN_Y,
-  SPAWN_SAFE_ZONE_RADIUS,
-} from './World.js';
+import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
 
 export const SLIME_HP = 30;
 export const SLIME_SPEED = 60;
@@ -35,6 +30,7 @@ export class Slime {
   respawnTimer: number;
   chunkKey: string;
   targetPlayerId: string | null;
+  hasDropped: boolean;
 
   constructor(id: string, x: number, y: number, chunkKey: string = '') {
     this.id = id;
@@ -52,9 +48,10 @@ export class Slime {
     this.respawnTimer = 0;
     this.chunkKey = chunkKey;
     this.targetPlayerId = null;
+    this.hasDropped = false;
   }
 
-  update(dt: number, players: Map<string, Player>): void {
+  update(dt: number, players: Map<string, Player>, spawnSafeZoneActive: boolean = false): void {
     if (this.state === 'dead') return;
 
     if (this.damageCooldown > 0) {
@@ -62,13 +59,13 @@ export class Slime {
     }
 
     let nearestPlayer: Player | null = null;
-    let nearestDist = Infinity;
+    let nearestDistSq = Infinity;
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      const dist = distance(this.x, this.y, player.x, player.y);
-      if (dist < nearestDist) {
-        nearestDist = dist;
+      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
+      if (dSq < nearestDistSq) {
+        nearestDistSq = dSq;
         nearestPlayer = player;
       }
     }
@@ -83,19 +80,14 @@ export class Slime {
       }
     }
 
-    if (!this.targetPlayerId && nearestPlayer && nearestDist <= this.aggroRadius) {
+    if (!this.targetPlayerId && nearestPlayer && nearestDistSq <= this.aggroRadius * this.aggroRadius) {
       this.targetPlayerId = nearestPlayer.id;
     }
 
     const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
 
     if (target && target.state !== 'dead') {
-      // Stop chasing if target is in safe zone AND safe zone is active
-      const isTargetInSafeZone =
-        isSafeZoneActive &&
-        isInSafeZone(target.x, target.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS);
-
-      if (isTargetInSafeZone) {
+      if (target.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) {
         this.targetPlayerId = null;
         this.state = 'idle';
         return;
@@ -112,9 +104,8 @@ export class Slime {
         let nextX = this.x + (dx / len) * this.speed * (dt / 1000);
         let nextY = this.y + (dy / len) * this.speed * (dt / 1000);
 
-        // Check if next position would enter safe zone (only if active)
         const wouldEnterSafeZone =
-          isSafeZoneActive &&
+          spawnSafeZoneActive &&
           isInSafeZone(nextX, nextY, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS);
 
         if (wouldEnterSafeZone) {
@@ -138,22 +129,20 @@ export class Slime {
         this.y = nextY;
       }
 
-      const slimeBox = entityAABB(this.x, this.y, SLIME_WIDTH, SLIME_HEIGHT);
-      const playerBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-
-      if (aabbOverlap(slimeBox, playerBox) && this.damageCooldown <= 0) {
-        this.state = 'attacking';
-        target.takeDamage(this.damage);
-        this.damageCooldown = SLIME_DAMAGE_COOLDOWN;
+      if (this.damageCooldown <= 0) {
+        const slimeBox = entityAABB(this.x, this.y, SLIME_WIDTH, SLIME_HEIGHT);
+        const playerBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+        if (aabbOverlap(slimeBox, playerBox)) {
+          this.state = 'attacking';
+        }
       }
     } else {
       this.targetPlayerId = null;
       this.state = 'idle';
     }
 
-    // Push slime out if somehow inside safe zone (only if active)
     if (
-      isSafeZoneActive &&
+      spawnSafeZoneActive &&
       isInSafeZone(this.x, this.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
     ) {
       const dx = this.x - PLAYER_SPAWN_X;
@@ -191,6 +180,7 @@ export class Slime {
       this.state = 'idle';
       this.damageCooldown = 0;
       this.targetPlayerId = null;
+      this.hasDropped = false;
       return true;
     }
     return false;

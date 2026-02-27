@@ -7,6 +7,11 @@
       "types": "./src/types.ts",
       "import": "./src/types.ts",
       "default": "./src/types.ts"
+    },
+    "./utils": {
+      "types": "./src/utils.ts",
+      "import": "./src/utils.ts",
+      "default": "./src/utils.ts"
     }
   }
 }

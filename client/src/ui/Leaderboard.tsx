@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGameStore } from './store';
 
 export function Leaderboard() {
@@ -24,9 +24,12 @@ export function Leaderboard() {
     };
   }, []);
 
-  if (!visible) return null;
+  const sorted = useMemo(
+    () => [...allPlayers].sort((a, b) => b.playerKills - a.playerKills),
+    [allPlayers]
+  );
 
-  const sorted = [...allPlayers].sort((a, b) => b.playerKills - a.playerKills);
+  if (!visible) return null;
 
   return (
     <div

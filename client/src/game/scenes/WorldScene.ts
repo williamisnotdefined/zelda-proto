@@ -7,6 +7,7 @@ import type {
   ServerChatMessage,
   SlimeSnapshot,
 } from '@gelehka/shared';
+import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
@@ -20,13 +21,6 @@ const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
 const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
 const DECOR_PER_CHUNK = 6;
-
-function seededRandom(cx: number, cy: number, index: number): number {
-  let h = (cx * 374761393 + cy * 668265263 + index * 1013904223) | 0;
-  h = ((h ^ (h >> 13)) * 1274126177) | 0;
-  h = (h ^ (h >> 16)) | 0;
-  return (h >>> 0) / 4294967296;
-}
 
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
@@ -308,9 +302,9 @@ export class WorldScene extends Phaser.Scene {
       if (localPlayer) {
         const dx = localPlayer.x - b.x;
         const dy = localPlayer.y - b.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < nearestBossDist) {
-          nearestBossDist = dist;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < nearestBossDist) {
+          nearestBossDist = distSq;
           nearestBoss = b;
         }
       }
@@ -406,5 +400,31 @@ export class WorldScene extends Phaser.Scene {
     this.removeMessageHandler?.();
     this.removeErrorHandler?.();
     this.minimap?.destroy();
+    this.destroySafeZone();
+
+    for (const entity of this.playerEntities.values()) entity.destroy();
+    this.playerEntities.clear();
+
+    for (const entity of this.slimeEntities.values()) entity.destroy();
+    this.slimeEntities.clear();
+
+    for (const entity of this.bossEntities.values()) entity.destroy();
+    this.bossEntities.clear();
+
+    for (const entity of this.dropEntities.values()) entity.destroy();
+    this.dropEntities.clear();
+
+    for (const sprites of this.activeChunks.values()) {
+      for (const s of sprites) s.destroy();
+    }
+    this.activeChunks.clear();
+
+    for (const arena of this.bossArenas.values()) {
+      arena.circle.destroy();
+      arena.ring.destroy();
+    }
+    this.bossArenas.clear();
+
+    this.bgTileSprite?.destroy();
   }
 }

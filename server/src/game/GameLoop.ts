@@ -33,7 +33,11 @@ export class GameLoop {
     const dt = now - this.lastTime;
     this.lastTime = now;
 
-    this.world.update(dt);
-    this.onTick(this.world);
+    try {
+      this.world.update(dt);
+      this.onTick(this.world);
+    } catch (err) {
+      console.error('[GameLoop] Error in tick:', err);
+    }
   }
 }

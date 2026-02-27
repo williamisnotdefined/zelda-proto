@@ -13,10 +13,14 @@ export function entityAABB(x: number, y: number, w: number, h: number): AABB {
   return { x: x - w / 2, y: y - h / 2, w, h };
 }
 
-export function distance(x1: number, y1: number, x2: number, y2: number): number {
+export function distanceSquared(x1: number, y1: number, x2: number, y2: number): number {
   const dx = x2 - x1;
   const dy = y2 - y1;
-  return Math.sqrt(dx * dx + dy * dy);
+  return dx * dx + dy * dy;
+}
+
+export function distance(x1: number, y1: number, x2: number, y2: number): number {
+  return Math.sqrt(distanceSquared(x1, y1, x2, y2));
 }
 
 export function clamp(value: number, min: number, max: number): number {
@@ -30,5 +34,5 @@ export function isInSafeZone(
   spawnY: number,
   safeRadius: number
 ): boolean {
-  return distance(x, y, spawnX, spawnY) <= safeRadius;
+  return distanceSquared(x, y, spawnX, spawnY) <= safeRadius * safeRadius;
 }

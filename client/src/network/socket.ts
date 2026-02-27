@@ -15,8 +15,7 @@ let errorHandlers: ErrorHandler[] = [];
 let openCallbacks: (() => void)[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
-let connectionAttempts = 0;
-const MAX_CONNECTION_TIMEOUT = 30000; // 30 seconds
+const MAX_CONNECTION_TIMEOUT = 30000;
 
 function notifyError(error: string): void {
   console.error('[WebSocket Error]', error);
@@ -29,8 +28,6 @@ export function connect(): void {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
-
-  connectionAttempts++;
 
   try {
     ws = new WebSocket(WS_URL);
@@ -57,7 +54,6 @@ export function connect(): void {
       clearTimeout(connectionTimeout);
       connectionTimeout = null;
     }
-    connectionAttempts = 0;
     for (const cb of openCallbacks) cb();
     openCallbacks = [];
   };

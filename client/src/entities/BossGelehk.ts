@@ -36,6 +36,8 @@ export class BossGelehkEntity {
   private iceZoneGraphics: Phaser.GameObjects.Rectangle[];
   private aoeGraphics: Phaser.GameObjects.Arc[];
   private scene: Phaser.Scene;
+  private lastIceZoneCount: number;
+  private lastAoeCount: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -52,6 +54,8 @@ export class BossGelehkEntity {
     this.deathPlayed = false;
     this.iceZoneGraphics = [];
     this.aoeGraphics = [];
+    this.lastIceZoneCount = 0;
+    this.lastAoeCount = 0;
 
     this.sprite = scene.add.sprite(x, y, 'skeleton');
     this.sprite.setScale(BOSS_SCALE);
@@ -101,6 +105,16 @@ export class BossGelehkEntity {
   }
 
   private updateIceZones(zones: IceZoneData[]): void {
+    if (zones.length === this.lastIceZoneCount && zones.length === this.iceZoneGraphics.length) {
+      for (let i = 0; i < zones.length; i++) {
+        const zone = zones[i];
+        const rect = this.iceZoneGraphics[i];
+        rect.setPosition(zone.x + zone.width / 2, zone.y + zone.height / 2);
+        rect.setSize(zone.width, zone.height);
+      }
+      return;
+    }
+
     for (const g of this.iceZoneGraphics) g.destroy();
     this.iceZoneGraphics = [];
 
@@ -116,9 +130,20 @@ export class BossGelehkEntity {
       rect.setDepth(2);
       this.iceZoneGraphics.push(rect);
     }
+    this.lastIceZoneCount = zones.length;
   }
 
   private updateAoeIndicators(aoes: AoeData[]): void {
+    if (aoes.length === this.lastAoeCount && aoes.length === this.aoeGraphics.length) {
+      for (let i = 0; i < aoes.length; i++) {
+        const aoe = aoes[i];
+        const circle = this.aoeGraphics[i];
+        circle.setPosition(aoe.x, aoe.y);
+        circle.setRadius(aoe.radius);
+      }
+      return;
+    }
+
     for (const g of this.aoeGraphics) g.destroy();
     this.aoeGraphics = [];
 
@@ -127,6 +152,7 @@ export class BossGelehkEntity {
       circle.setDepth(3);
       this.aoeGraphics.push(circle);
     }
+    this.lastAoeCount = aoes.length;
   }
 
   update(dt: number): void {

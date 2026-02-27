@@ -1,9 +1,12 @@
 import { Direction, InputMessage, PlayerSnapshot, PlayerState } from '../network/MessageTypes.js';
+import { isInSafeZone } from './Physics.js';
 
 export const PLAYER_SPEED = 150;
 export const PLAYER_MAX_HP = 100;
 export const PLAYER_DAMAGE = 10;
 export const PLAYER_ATTACK_COOLDOWN = 400;
+export const PLAYER_ATTACK_STATE_DURATION = 300;
+export const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
 export const PLAYER_WIDTH = 48;
 export const PLAYER_HEIGHT = 48;
 export const PLAYER_ATTACK_RANGE_UP = 20;
@@ -12,6 +15,7 @@ export const PLAYER_ATTACK_RANGE_LEFT = 24;
 export const PLAYER_ATTACK_RANGE_RIGHT = 24;
 export const PLAYER_ATTACK_WIDTH = 36;
 export const PVP_DAMAGE = 25;
+export const SAFE_ZONE_DURATION = 3000;
 
 export class Player {
   id: string;
@@ -34,6 +38,7 @@ export class Player {
   playerKills: number;
   monsterKills: number;
   deaths: number;
+  safeZoneTimer: number;
 
   constructor(id: string, x: number, y: number, nickname: string = 'Player') {
     this.id = id;
@@ -54,6 +59,7 @@ export class Player {
     this.playerKills = 0;
     this.monsterKills = 0;
     this.deaths = 0;
+    this.safeZoneTimer = SAFE_ZONE_DURATION;
   }
 
   applyInput(input: InputMessage): void {
@@ -88,10 +94,9 @@ export class Player {
     if (input.attack && this.attackCooldownTimer <= 0) {
       this.state = 'attacking';
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
-      this.attackStateTimer = 300;
+      this.attackStateTimer = PLAYER_ATTACK_STATE_DURATION;
       this.attackHitIds.clear();
       this.attackHitEnemyIds.clear();
-      // No return – allow movement to continue below with speed penalty
     }
 
     let dx = 0;
@@ -106,8 +111,7 @@ export class Player {
       dx /= len;
       dy /= len;
 
-      // 50% speed penalty while attacking
-      const attackPenalty = this.state === 'attacking' ? 0.5 : 1;
+      const attackPenalty = this.state === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
       this.x += dx * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
       this.y += dy * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
 
@@ -167,12 +171,17 @@ export class Player {
     }
   }
 
+  isProtected(spawnX: number, spawnY: number, safeRadius: number): boolean {
+    return this.safeZoneTimer > 0 && isInSafeZone(this.x, this.y, spawnX, spawnY, safeRadius);
+  }
+
   respawn(x: number, y: number): void {
     this.x = x;
     this.y = y;
     this.hp = this.maxHp;
     this.state = 'idle';
     this.respawnTimer = 0;
+    this.safeZoneTimer = SAFE_ZONE_DURATION;
   }
 
   toSnapshot(): PlayerSnapshot {

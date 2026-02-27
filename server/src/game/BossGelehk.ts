@@ -5,14 +5,9 @@ import {
   BossState,
   IceZone,
 } from '../network/MessageTypes.js';
-import { aabbOverlap, distance, entityAABB, isInSafeZone } from './Physics.js';
+import { aabbOverlap, distance, distanceSquared, entityAABB } from './Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import {
-  isSafeZoneActive,
-  PLAYER_SPAWN_X,
-  PLAYER_SPAWN_Y,
-  SPAWN_SAFE_ZONE_RADIUS,
-} from './World.js';
+import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
 
 export const BOSS_MAX_HP = 1000;
 export const BOSS_SPEED = 80;
@@ -24,12 +19,23 @@ export const BOSS_RESPAWN_TIME = 15000;
 const AOE_TELEGRAPH_TIME = 1000;
 const AOE_DAMAGE = 30;
 const AOE_RADIUS = 80;
+const AOE_ATTACK_RANGE = 400;
 const CHARGE_SPEED = 300;
 const CHARGE_DAMAGE = 20;
+const CHARGE_DURATION = 1500;
+const CHARGE_STOP_DIST = 20;
 const WAVE_DAMAGE = 15;
+const WAVE_MAX_RADIUS = 400;
+const WAVE_SPEED = 200;
 const PHASE1_COOLDOWN = 3000;
 const PHASE2_COOLDOWN = 2500;
 const PHASE3_COOLDOWN = 2000;
+const TARGETING_DURATION = 500;
+const JUMPING_DURATION = 400;
+const SPAWNING_DURATION = 500;
+const ENRAGED_TRANSITION_TIME = 1000;
+const PHASE2_SPEED_MULT = 1.15;
+const PHASE3_SPEED_MULT = 1.3;
 const ICE_ZONE_SLOW = 0.4;
 
 export { ICE_ZONE_SLOW };
@@ -133,9 +139,10 @@ export class BossGelehk {
     if (this.state === 'dead') return;
 
     if (!this.active) {
+      const activationRadiusSq = BOSS_ACTIVATION_RADIUS * BOSS_ACTIVATION_RADIUS;
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
-        if (distance(this.x, this.y, player.x, player.y) < BOSS_ACTIVATION_RADIUS) {
+        if (distanceSquared(this.x, this.y, player.x, player.y) < activationRadiusSq) {
           this.active = true;
           break;
         }
@@ -179,13 +186,13 @@ export class BossGelehk {
       this.phase = 3;
       this.state = 'enraged';
       this.stateTimer = 0;
-      this.speed = BOSS_SPEED * 1.3;
+      this.speed = BOSS_SPEED * PHASE3_SPEED_MULT;
       this.createIceZones();
     } else if (hpPercent <= 0.5 && this.phase < 2) {
       this.phase = 2;
       this.state = 'spawning_minions';
       this.stateTimer = 0;
-      this.speed = BOSS_SPEED * 1.15;
+      this.speed = BOSS_SPEED * PHASE2_SPEED_MULT;
     }
   }
 
@@ -200,7 +207,8 @@ export class BossGelehk {
     if (!nearest) return;
 
     switch (this.phase) {
-      case 1:
+      case 1: {
+        if (distanceSquared(this.x, this.y, nearest.x, nearest.y) > AOE_ATTACK_RANGE * AOE_ATTACK_RANGE) return;
         this.state = 'targeting';
         this.targetPlayerId = nearest.id;
         this.stateTimer = AOE_TELEGRAPH_TIME;
@@ -211,10 +219,11 @@ export class BossGelehk {
           timer: AOE_TELEGRAPH_TIME,
         });
         break;
+      }
       case 2:
         this.state = 'targeting';
         this.targetPlayerId = nearest.id;
-        this.stateTimer = 500;
+        this.stateTimer = TARGETING_DURATION;
         break;
       case 3:
         this.startWaveAttack();
@@ -228,7 +237,7 @@ export class BossGelehk {
     if (this.stateTimer <= 0) {
       if (this.phase === 1) {
         this.state = 'jumping';
-        this.stateTimer = 400;
+        this.stateTimer = JUMPING_DURATION;
       } else {
         const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
         if (target && target.state !== 'dead') {
@@ -241,7 +250,7 @@ export class BossGelehk {
           this.chargeDy = dy / len;
           this.hasDealtChargeDamage = false;
           this.state = 'charging';
-          this.stateTimer = 1500;
+          this.stateTimer = CHARGE_DURATION;
         } else {
           this.state = 'idle';
           this.attackTimer = PHASE2_COOLDOWN;
@@ -268,13 +277,7 @@ export class BossGelehk {
       const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
-        // Skip damage if player is in spawn safe zone AND safe zone is active
-        if (
-          isSafeZoneActive &&
-          isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
-        ) {
-          continue;
-        }
+        if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
         const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
         if (aabbOverlap(bossBox, playerBox)) {
           player.takeDamage(CHARGE_DAMAGE);
@@ -284,8 +287,8 @@ export class BossGelehk {
       }
     }
 
-    const distToTarget = distance(this.x, this.y, this.chargeTargetX, this.chargeTargetY);
-    if (this.stateTimer <= 0 || distToTarget < 20) {
+    const distToTargetSq = distanceSquared(this.x, this.y, this.chargeTargetX, this.chargeTargetY);
+    if (this.stateTimer <= 0 || distToTargetSq < CHARGE_STOP_DIST * CHARGE_STOP_DIST) {
       this.state = 'idle';
       this.attackTimer = PHASE2_COOLDOWN;
     }
@@ -296,7 +299,7 @@ export class BossGelehk {
     spawnMinions: (x: number, y: number, count: number) => void
   ): void {
     this.stateTimer += dt;
-    if (this.stateTimer > 500) {
+    if (this.stateTimer > SPAWNING_DURATION) {
       spawnMinions(this.x, this.y, 3);
       this.state = 'idle';
       this.attackTimer = PHASE2_COOLDOWN;
@@ -309,7 +312,7 @@ export class BossGelehk {
     _spawnMinions: (x: number, y: number, count: number) => void
   ): void {
     this.stateTimer += dt;
-    if (this.stateTimer > 1000) {
+    if (this.stateTimer > ENRAGED_TRANSITION_TIME) {
       this.stateTimer = 0;
       this.state = 'idle';
     }
@@ -322,14 +325,8 @@ export class BossGelehk {
       if (aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
-          // Skip damage if player is in spawn safe zone AND safe zone is active
-          if (
-            isSafeZoneActive &&
-            isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
-          ) {
-            continue;
-          }
-          if (distance(player.x, player.y, aoe.x, aoe.y) < aoe.radius) {
+          if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
+          if (distanceSquared(player.x, player.y, aoe.x, aoe.y) < aoe.radius * aoe.radius) {
             player.takeDamage(AOE_DAMAGE);
           }
         }
@@ -347,24 +344,18 @@ export class BossGelehk {
     if (!this.waveActive) return;
 
     const prevRadius = this.waveRadius;
-    this.waveRadius += 200 * (dt / 1000);
+    this.waveRadius += WAVE_SPEED * (dt / 1000);
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      // Skip damage if player is in spawn safe zone AND safe zone is active
-      if (
-        isSafeZoneActive &&
-        isInSafeZone(player.x, player.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
-      ) {
-        continue;
-      }
+      if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
       const dist = distance(this.x, this.y, player.x, player.y);
       if (dist >= prevRadius && dist <= this.waveRadius) {
         player.takeDamage(WAVE_DAMAGE);
       }
     }
 
-    if (this.waveRadius > 400) {
+    if (this.waveRadius > WAVE_MAX_RADIUS) {
       this.waveActive = false;
       this.waveRadius = 0;
     }
@@ -389,13 +380,13 @@ export class BossGelehk {
 
   private findNearestPlayer(players: Map<string, Player>): Player | null {
     let nearest: Player | null = null;
-    let minDist = Infinity;
+    let minDistSq = Infinity;
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      const dist = distance(this.x, this.y, player.x, player.y);
-      if (dist < minDist) {
-        minDist = dist;
+      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
+      if (dSq < minDistSq) {
+        minDistSq = dSq;
         nearest = player;
       }
     }
