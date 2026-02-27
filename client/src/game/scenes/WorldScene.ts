@@ -1,3 +1,12 @@
+import type {
+  AoeIndicator,
+  BossSnapshot,
+  DropSnapshot,
+  IceZone,
+  PlayerSnapshot,
+  ServerChatMessage,
+  SlimeSnapshot,
+} from '@gelehka/shared';
 import Phaser from 'phaser';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
@@ -6,57 +15,6 @@ import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 import { Minimap } from '../Minimap';
-
-interface PlayerSnapshot {
-  id: string;
-  nickname: string;
-  x: number;
-  y: number;
-  hp: number;
-  maxHp: number;
-  state: string;
-  direction: string;
-}
-
-interface SlimeSnapshot {
-  id: string;
-  x: number;
-  y: number;
-  hp: number;
-  maxHp: number;
-  state: string;
-}
-
-interface BossSnapshot {
-  id: string;
-  x: number;
-  y: number;
-  hp: number;
-  maxHp: number;
-  state: string;
-  phase: number;
-}
-
-interface DropSnapshot {
-  id: string;
-  x: number;
-  y: number;
-  kind: string;
-}
-
-interface IceZone {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface AoeIndicator {
-  x: number;
-  y: number;
-  radius: number;
-  timer: number;
-}
 
 const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
@@ -120,6 +78,9 @@ export class WorldScene extends Phaser.Scene {
           break;
         case 'snapshot':
           this.handleSnapshot(msg);
+          break;
+        case 'chat':
+          useGameStore.getState().addChatMessage(msg as unknown as ServerChatMessage);
           break;
       }
     });
@@ -267,6 +228,7 @@ export class WorldScene extends Phaser.Scene {
     const aoeIndicators = (msg.aoeIndicators as AoeIndicator[]) || [];
 
     useGameStore.getState().setPlayerCount(players.length);
+    useGameStore.getState().setAllPlayers(players);
 
     // --- Players ---
     const seenPlayerIds = new Set<string>();
@@ -416,11 +378,11 @@ export class WorldScene extends Phaser.Scene {
     }
 
     for (const entity of this.slimeEntities.values()) {
-      entity.update();
+      entity.update(delta);
     }
 
     for (const entity of this.bossEntities.values()) {
-      entity.update();
+      entity.update(delta);
     }
 
     const localEntity = this.playerEntities.get(this.localPlayerId);

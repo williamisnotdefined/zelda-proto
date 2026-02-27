@@ -1,3 +1,4 @@
+import type { PlayerSnapshot, ServerChatMessage } from '@gelehka/shared';
 import { create } from 'zustand';
 
 export interface PlayerData {
@@ -47,6 +48,8 @@ export interface GameStore {
   showNicknameModal: boolean;
   connectionError: string | null;
   lastConnectionAttempt: number | null;
+  chatMessages: ServerChatMessage[];
+  allPlayers: PlayerSnapshot[];
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
   setBoss: (b: BossData | null) => void;
@@ -56,6 +59,8 @@ export interface GameStore {
   hideNicknameModal: () => void;
   setConnectionError: (error: string | null) => void;
   setLastConnectionAttempt: (time: number) => void;
+  addChatMessage: (msg: ServerChatMessage) => void;
+  setAllPlayers: (players: PlayerSnapshot[]) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -68,6 +73,8 @@ export const useGameStore = create<GameStore>((set) => ({
   showNicknameModal: true,
   connectionError: null,
   lastConnectionAttempt: null,
+  chatMessages: [],
+  allPlayers: [],
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
   setLocalPlayer: (p) => set({ localPlayer: p }),
   setBoss: (b) => set({ boss: b }),
@@ -77,4 +84,9 @@ export const useGameStore = create<GameStore>((set) => ({
   hideNicknameModal: () => set({ showNicknameModal: false }),
   setConnectionError: (error) => set({ connectionError: error }),
   setLastConnectionAttempt: (time) => set({ lastConnectionAttempt: time }),
+  addChatMessage: (msg) =>
+    set((state) => ({
+      chatMessages: [...state.chatMessages.slice(-49), msg],
+    })),
+  setAllPlayers: (players) => set({ allPlayers: players }),
 }));

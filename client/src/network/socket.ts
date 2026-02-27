@@ -122,6 +122,10 @@ export function sendJoin(nickname: string): void {
   send({ type: 'join', nickname });
 }
 
+export function sendChat(text: string): void {
+  send({ type: 'chat', text });
+}
+
 export function onceOpen(cb: () => void): void {
   if (ws && ws.readyState === WebSocket.OPEN) {
     cb();

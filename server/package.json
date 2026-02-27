@@ -9,6 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@gelehka/shared": "*",
     "nanoid": "^5.1.6",
     "ws": "^8.19.0"
   },

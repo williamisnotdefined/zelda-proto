@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createGame } from './game/Game';
+import { setPhaserGame } from './game/instance';
 import { HUD } from './ui/HUD';
 
 export function App() {
@@ -8,6 +9,7 @@ export function App() {
   useEffect(() => {
     if (!gameRef.current) {
       gameRef.current = createGame('game-container');
+      setPhaserGame(gameRef.current);
     }
 
     return () => {

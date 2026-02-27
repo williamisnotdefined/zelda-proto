@@ -1,4 +1,6 @@
 import { connect } from '../network/socket';
+import { Chat } from './Chat';
+import { Leaderboard } from './Leaderboard';
 import { NicknameModal } from './NicknameModal';
 import { useGameStore } from './store';
 
@@ -174,8 +176,14 @@ export function HUD() {
           opacity: 0.4,
         }}
       >
-        Arrow keys: move | Space: attack
+        Arrow keys: move | Space: attack | Tab: players
       </div>
+
+      {/* Chat */}
+      <Chat />
+
+      {/* Leaderboard */}
+      <Leaderboard />
     </div>
   );
 }

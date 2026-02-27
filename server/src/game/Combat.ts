@@ -1,7 +1,13 @@
 import { BOSS_HEIGHT, BOSS_WIDTH, BossGelehk } from './BossGelehk.js';
 import { aabbOverlap, entityAABB, isInSafeZone } from './Physics.js';
 import { Player, PLAYER_DAMAGE, PLAYER_HEIGHT, PLAYER_WIDTH, PVP_DAMAGE } from './Player.js';
-import { Slime, SLIME_HEIGHT, SLIME_WIDTH } from './Slime.js';
+import {
+  Slime,
+  SLIME_CONTACT_HEIGHT,
+  SLIME_CONTACT_WIDTH,
+  SLIME_HEIGHT,
+  SLIME_WIDTH,
+} from './Slime.js';
 import {
   isSafeZoneActive,
   PLAYER_SPAWN_X,
@@ -20,17 +26,28 @@ export function resolvePlayerAttacks(
 
     for (const slime of slimes.values()) {
       if (slime.state === 'dead') continue;
+      // One hit per enemy per swing
+      if (player.attackHitEnemyIds.has(slime.id)) continue;
       const slimeBox = entityAABB(slime.x, slime.y, SLIME_WIDTH, SLIME_HEIGHT);
       if (aabbOverlap(hitbox, slimeBox)) {
         slime.takeDamage(PLAYER_DAMAGE);
+        player.attackHitEnemyIds.add(slime.id);
+        if (slime.hp <= 0) {
+          player.monsterKills++;
+        }
       }
     }
 
     for (const boss of bosses.values()) {
       if (boss.state === 'dead') continue;
+      if (player.attackHitEnemyIds.has(boss.id)) continue;
       const bossBox = entityAABB(boss.x, boss.y, BOSS_WIDTH, BOSS_HEIGHT);
       if (aabbOverlap(hitbox, bossBox)) {
         boss.takeDamage(PLAYER_DAMAGE);
+        player.attackHitEnemyIds.add(boss.id);
+        if (boss.hp <= 0) {
+          player.monsterKills++;
+        }
       }
     }
   }
@@ -65,6 +82,9 @@ export function resolvePlayerVsPlayer(players: Map<string, Player>): void {
       if (aabbOverlap(hitbox, targetBox)) {
         target.takeDamage(PVP_DAMAGE);
         attacker.attackHitIds.add(target.id);
+        if (target.hp <= 0) {
+          attacker.playerKills++;
+        }
       }
     }
   }
@@ -78,7 +98,7 @@ export function resolveEnemyContactDamage(
     if (slime.state === 'dead') continue;
     if (slime.damageCooldown > 0) continue;
 
-    const slimeBox = entityAABB(slime.x, slime.y, SLIME_WIDTH, SLIME_HEIGHT);
+    const slimeBox = entityAABB(slime.x, slime.y, SLIME_CONTACT_WIDTH, SLIME_CONTACT_HEIGHT);
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;

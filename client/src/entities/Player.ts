@@ -3,6 +3,9 @@ import Phaser from 'phaser';
 const LERP_SPEED = 0.3;
 const INTERP_DURATION = 50; // ms – smoothing window (~3 server ticks)
 const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
+// Offset the sprite DOWN so the character body visually centers on the server hitbox
+const SPRITE_Y_OFFSET = -16;
+
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -41,7 +44,7 @@ export class PlayerEntity {
     this.prevServerY = y;
     this.interpElapsed = INTERP_DURATION;
 
-    this.sprite = scene.add.sprite(x, y, 'player');
+    this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
     this.sprite.setDepth(10);
 
@@ -63,6 +66,7 @@ export class PlayerEntity {
     if (isLocal) {
       this.sprite.setTint(0xaaffaa);
     }
+
   }
 
   updateFromServer(
@@ -76,7 +80,8 @@ export class PlayerEntity {
     // For local player lerp: start interpolating from current visual position
     if (this.isLocal) {
       const dx = x - this.sprite.x;
-      const dy = y - this.sprite.y;
+      // Compare against server position (strip the visual offset)
+      const dy = y - (this.sprite.y - SPRITE_Y_OFFSET);
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > SNAP_THRESHOLD) {
         // Teleport / respawn – snap immediately
@@ -85,7 +90,8 @@ export class PlayerEntity {
         this.interpElapsed = INTERP_DURATION;
       } else {
         this.prevServerX = this.sprite.x;
-        this.prevServerY = this.sprite.y;
+        // Store server position without the visual offset so the formula doesn't double-add it
+        this.prevServerY = this.sprite.y - SPRITE_Y_OFFSET;
         this.interpElapsed = 0;
       }
     }
@@ -103,12 +109,12 @@ export class PlayerEntity {
       this.interpElapsed += dt;
       const t = Math.min(this.interpElapsed / INTERP_DURATION, 1);
       this.sprite.x = this.prevServerX + (this.targetX - this.prevServerX) * t;
-      this.sprite.y = this.prevServerY + (this.targetY - this.prevServerY) * t;
+      this.sprite.y = this.prevServerY + (this.targetY - this.prevServerY) * t + SPRITE_Y_OFFSET;
     } else {
       // Remote players: time-based exponential lerp (frame-rate independent)
       const factor = 1 - Math.pow(1 - LERP_SPEED, dt / 16.667);
       this.sprite.x += (this.targetX - this.sprite.x) * factor;
-      this.sprite.y += (this.targetY - this.sprite.y) * factor;
+      this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
     }
 
     this.hpBarBg.x = this.sprite.x;
@@ -147,12 +153,12 @@ export class PlayerEntity {
     this.sprite.setAlpha(1);
 
     const dirSuffix = dir === 'left' ? 'right' : dir;
+    flipX = dir === 'left';
 
     if (state === 'attacking') {
       animKey = `player_attack_${dirSuffix}`;
       // Don't restart attack anim if already playing one
       if (this.currentAnimKey.startsWith('player_attack_') && this.sprite.anims.isPlaying) {
-        // Still apply flip from the original attack direction
         this.sprite.setFlipX(flipX);
         return;
       }
@@ -162,7 +168,6 @@ export class PlayerEntity {
       animKey = `player_idle_${dirSuffix}`;
     }
 
-    flipX = dir === 'left';
     this.sprite.setFlipX(flipX);
 
     if (this.currentAnimKey !== animKey) {

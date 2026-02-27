@@ -25,9 +25,15 @@ export class Player {
   direction: Direction;
   attackCooldownTimer: number;
   attackStateTimer: number;
+  /** Per-swing PvP hit registry (cleared on swing end) */
   attackHitIds: Set<string>;
+  /** Per-swing PvE hit registry (cleared on swing end) */
+  attackHitEnemyIds: Set<string>;
   lastInput: InputMessage | null;
   respawnTimer: number;
+  playerKills: number;
+  monsterKills: number;
+  deaths: number;
 
   constructor(id: string, x: number, y: number, nickname: string = 'Player') {
     this.id = id;
@@ -42,8 +48,12 @@ export class Player {
     this.attackCooldownTimer = 0;
     this.attackStateTimer = 0;
     this.attackHitIds = new Set();
+    this.attackHitEnemyIds = new Set();
     this.lastInput = null;
     this.respawnTimer = 0;
+    this.playerKills = 0;
+    this.monsterKills = 0;
+    this.deaths = 0;
   }
 
   applyInput(input: InputMessage): void {
@@ -71,6 +81,7 @@ export class Player {
         this.state = 'idle';
         this.attackStateTimer = 0;
         this.attackHitIds.clear();
+        this.attackHitEnemyIds.clear();
       }
     }
 
@@ -79,6 +90,7 @@ export class Player {
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
       this.attackStateTimer = 300;
       this.attackHitIds.clear();
+      this.attackHitEnemyIds.clear();
       // No return – allow movement to continue below with speed penalty
     }
 
@@ -151,6 +163,7 @@ export class Player {
     if (this.hp <= 0) {
       this.hp = 0;
       this.state = 'dead';
+      this.deaths++;
     }
   }
 
@@ -172,6 +185,9 @@ export class Player {
       maxHp: this.maxHp,
       state: this.state,
       direction: this.direction,
+      playerKills: this.playerKills,
+      monsterKills: this.monsterKills,
+      deaths: this.deaths,
     };
   }
 }

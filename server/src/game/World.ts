@@ -1,10 +1,14 @@
 import { nanoid } from 'nanoid';
-import { InputMessage, SnapshotMessage } from '../network/MessageTypes.js';
+import { AoeIndicator, IceZone, InputMessage, SnapshotMessage } from '../network/MessageTypes.js';
+import { BossGelehk, ICE_ZONE_SLOW } from './BossGelehk.js';
+import {
+  resolveEnemyContactDamage,
+  resolvePlayerAttacks,
+  resolvePlayerVsPlayer,
+} from './Combat.js';
+import { distance } from './Physics.js';
 import { Player } from './Player.js';
 import { Slime } from './Slime.js';
-import { BossGelehk, ICE_ZONE_SLOW, BOSS_RESPAWN_TIME } from './BossGelehk.js';
-import { resolvePlayerAttacks, resolvePlayerVsPlayer, resolveEnemyContactDamage } from './Combat.js';
-import { distance } from './Physics.js';
 
 export const MAP_WIDTH = 0;
 export const MAP_HEIGHT = 0;
@@ -318,12 +322,14 @@ export class World {
     for (const boss of this.bosses.values()) {
       if (boss.state === 'dead') continue;
       allIceZones.push(...boss.iceZones);
-      allAoeIndicators.push(...boss.aoeIndicators.map((a) => ({
-        x: Math.round(a.x),
-        y: Math.round(a.y),
-        radius: a.radius,
-        timer: Math.round(a.timer),
-      })));
+      allAoeIndicators.push(
+        ...boss.aoeIndicators.map((a) => ({
+          x: Math.round(a.x),
+          y: Math.round(a.y),
+          radius: a.radius,
+          timer: Math.round(a.timer),
+        }))
+      );
     }
 
     return {
@@ -336,6 +342,59 @@ export class World {
       iceZones: allIceZones,
       aoeIndicators: allAoeIndicators,
       drops: Array.from(this.drops.values()),
+    };
+  }
+
+  /**
+   * Returns a snapshot filtered to entities within VIEW_RADIUS of the given player.
+   * All players are always included (needed for the leaderboard).
+   * Falls back to full snapshot if the player id is not found (e.g. pre-join).
+   */
+  getSnapshotForPlayer(playerId: string): SnapshotMessage {
+    const viewer = this.players.get(playerId);
+    if (!viewer) return this.getSnapshot();
+
+    const VIEW_RADIUS = 2000;
+    const vx = viewer.x;
+    const vy = viewer.y;
+
+    const inRange = (ex: number, ey: number) => {
+      const dx = ex - vx;
+      const dy = ey - vy;
+      return dx * dx + dy * dy <= VIEW_RADIUS * VIEW_RADIUS;
+    };
+
+    const allIceZones: IceZone[] = [];
+    const allAoeIndicators: AoeIndicator[] = [];
+
+    for (const boss of this.bosses.values()) {
+      if (boss.state === 'dead') continue;
+      if (inRange(boss.x, boss.y)) {
+        allIceZones.push(...boss.iceZones);
+        allAoeIndicators.push(
+          ...boss.aoeIndicators.map((a) => ({
+            x: Math.round(a.x),
+            y: Math.round(a.y),
+            radius: a.radius,
+            timer: Math.round(a.timer),
+          }))
+        );
+      }
+    }
+
+    return {
+      type: 'snapshot',
+      // Always send all players: needed for leaderboard and awareness
+      players: Array.from(this.players.values()).map((p) => p.toSnapshot()),
+      enemies: Array.from(this.slimes.values())
+        .filter((s) => s.state !== 'dead' && inRange(s.x, s.y))
+        .map((s) => s.toSnapshot()),
+      bosses: Array.from(this.bosses.values())
+        .filter((b) => inRange(b.x, b.y))
+        .map((b) => b.toSnapshot()),
+      iceZones: allIceZones,
+      aoeIndicators: allAoeIndicators,
+      drops: Array.from(this.drops.values()).filter((d) => inRange(d.x, d.y)),
     };
   }
 }

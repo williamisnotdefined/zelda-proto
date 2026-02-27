@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-const LERP_SPEED = 0.25;
+/** Base lerp factors per 16.667ms (60fps) frame. */
+const LERP_BASE = 0.25;
 const BOSS_SCALE = 2.5;
 
 interface IceZoneData {
@@ -128,9 +129,10 @@ export class BossGelehkEntity {
     }
   }
 
-  update(): void {
-    this.sprite.x += (this.targetX - this.sprite.x) * LERP_SPEED;
-    this.sprite.y += (this.targetY - this.sprite.y) * LERP_SPEED;
+  update(dt: number): void {
+    const factor = 1 - Math.pow(1 - LERP_BASE, dt / 16.667);
+    this.sprite.x += (this.targetX - this.sprite.x) * factor;
+    this.sprite.y += (this.targetY - this.sprite.y) * factor;
 
     this.label.x = this.sprite.x;
     this.label.y = this.sprite.y - 56;

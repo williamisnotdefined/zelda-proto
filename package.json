@@ -2,6 +2,7 @@
   "name": "legends-of-gelehk",
   "private": true,
   "workspaces": [
+    "shared",
     "client",
     "server"
   ],

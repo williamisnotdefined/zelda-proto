@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { GameLoop } from './game/GameLoop.js';
 import { MAP_HEIGHT, MAP_WIDTH } from './game/World.js';
-import { ClientMessage, ServerMessage } from './network/MessageTypes.js';
+import { ClientMessage, ServerChatMessage, ServerMessage } from './network/MessageTypes.js';
 
 const isDev = process.env.NODE_ENV !== 'production';
 const PORT = Number(process.env.PORT) || (isDev ? 3002 : 3001);
@@ -48,11 +48,10 @@ const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 const clients = new Map<string, WebSocket>();
 
 const gameLoop = new GameLoop((world) => {
-  const snapshot = world.getSnapshot();
-  const msg = JSON.stringify(snapshot);
-  for (const ws of clients.values()) {
+  for (const [playerId, ws] of clients.entries()) {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(msg);
+      const snapshot = world.getSnapshotForPlayer(playerId);
+      ws.send(JSON.stringify(snapshot));
     }
   }
 });
@@ -101,6 +100,27 @@ wss.on('connection', (ws, req) => {
         ws.send(JSON.stringify(welcome));
       } else if (msg.type === 'input' && hasJoined) {
         gameLoop.world.handleInput(playerId, msg);
+      } else if (msg.type === 'chat' && hasJoined) {
+        const player = gameLoop.world.players.get(playerId);
+        if (player) {
+          // Validate: 1-100 chars, trim whitespace
+          const text = String(msg.text ?? '')
+            .trim()
+            .slice(0, 100);
+          if (text.length > 0) {
+            const chatMsg: ServerChatMessage = {
+              type: 'chat',
+              id: playerId,
+              nickname: player.nickname,
+              text,
+              timestamp: Date.now(),
+            };
+            const raw = JSON.stringify(chatMsg);
+            for (const ws of clients.values()) {
+              if (ws.readyState === WebSocket.OPEN) ws.send(raw);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error(`[WebSocket] Error parsing message from ${playerId}:`, err);
