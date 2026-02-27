@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 /** Base lerp factor per 16.667ms (60fps) frame. */
 const LERP_BASE = 0.3;
 
-
 export class SlimeEntity {
   sprite: Phaser.GameObjects.Sprite;
   hpBar: Phaser.GameObjects.Rectangle;
@@ -41,7 +40,6 @@ export class SlimeEntity {
 
     this.hpBar = scene.add.rectangle(x, y - 20, 24, 3, 0xff4444);
     this.hpBar.setDepth(10);
-
   }
 
   updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {

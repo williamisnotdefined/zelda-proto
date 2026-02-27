@@ -6,7 +6,6 @@ const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
 // Offset the sprite DOWN so the character body visually centers on the server hitbox
 const SPRITE_Y_OFFSET = -16;
 
-
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
   nameText: Phaser.GameObjects.Text;
@@ -66,7 +65,6 @@ export class PlayerEntity {
     if (isLocal) {
       this.sprite.setTint(0xaaffaa);
     }
-
   }
 
   updateFromServer(
