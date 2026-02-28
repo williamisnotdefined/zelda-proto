@@ -9,7 +9,7 @@ import { aabbOverlap, distance, distanceSquared, entityAABB } from './Physics.js
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
 import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
 
-export const BOSS_MAX_HP = 1000;
+export const BOSS_MAX_HP = 250;
 export const BOSS_SPEED = 80;
 export const BOSS_WIDTH = 96;
 export const BOSS_HEIGHT = 96;
@@ -208,7 +208,11 @@ export class BossGelehk {
 
     switch (this.phase) {
       case 1: {
-        if (distanceSquared(this.x, this.y, nearest.x, nearest.y) > AOE_ATTACK_RANGE * AOE_ATTACK_RANGE) return;
+        if (
+          distanceSquared(this.x, this.y, nearest.x, nearest.y) >
+          AOE_ATTACK_RANGE * AOE_ATTACK_RANGE
+        )
+          return;
         this.state = 'targeting';
         this.targetPlayerId = nearest.id;
         this.stateTimer = AOE_TELEGRAPH_TIME;
