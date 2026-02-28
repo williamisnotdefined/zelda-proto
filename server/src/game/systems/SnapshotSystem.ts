@@ -8,6 +8,12 @@ import {
 import { SnapshotBundle } from '../../network/SnapshotSerializer.js';
 import { World } from '../World.js';
 
+const SNAPSHOT_POSITION_PRECISION = 10;
+
+function quantizePosition(value: number): number {
+  return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
+
 export class SnapshotSystem {
   private cachedPlayerSnapshots: PlayerSnapshot[] | null = null;
 
@@ -129,8 +135,8 @@ export class SnapshotSystem {
       }
       for (const aoe of boss.aoeIndicators) {
         aoeIndicators.push({
-          x: Math.round(aoe.x),
-          y: Math.round(aoe.y),
+          x: quantizePosition(aoe.x),
+          y: quantizePosition(aoe.y),
           radius: aoe.radius,
           timer: Math.round(aoe.timer),
         });

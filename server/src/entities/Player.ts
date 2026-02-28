@@ -18,6 +18,11 @@ export const PLAYER_ATTACK_RANGE_RIGHT = 24;
 export const PLAYER_ATTACK_WIDTH = 36;
 export const PVP_DAMAGE = 25;
 export const SAFE_ZONE_DURATION = 3000;
+const SNAPSHOT_POSITION_PRECISION = 10;
+
+function quantizePosition(value: number): number {
+  return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
 
 export class Player extends Entity {
   nickname: string;
@@ -204,8 +209,8 @@ export class Player extends Entity {
     return {
       id: this.id,
       nickname: this.nickname,
-      x: Math.round(this.x),
-      y: Math.round(this.y),
+      x: quantizePosition(this.x),
+      y: quantizePosition(this.y),
       hp: this.hp,
       maxHp: this.maxHp,
       state: this.state,

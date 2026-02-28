@@ -34,8 +34,11 @@ const INPUT_SEND_INTERVAL_MS = 33;
 const MAX_PENDING_INPUTS = 128;
 const MAX_PENDING_INPUT_AGE_MS = 1500;
 const RECONCILE_SNAP_DISTANCE = 120;
-const RECONCILE_BLEND = 0.35;
-const BACKGROUND_MUSIC_VOLUME = 0.05;
+const RECONCILE_MIN_BLEND = 0.08;
+const RECONCILE_MAX_BLEND = 0.24;
+const RECONCILE_BLEND_RAMP_DISTANCE = 40;
+const RECONCILE_DEADZONE_DISTANCE = 0.75;
+const BACKGROUND_MUSIC_VOLUME = 0.02;
 
 interface PendingInput {
   input: InputMessage;
@@ -509,6 +512,10 @@ export class WorldScene extends Phaser.Scene {
       entity.update(delta);
     }
 
+    for (const entity of this.dropEntities.values()) {
+      entity.update(delta);
+    }
+
     if (localEntity) {
       this.cameras.main.centerOn(localEntity.sprite.x, localEntity.sprite.y);
       this.minimap.draw(
@@ -655,14 +662,22 @@ export class WorldScene extends Phaser.Scene {
       const errorX = predictedX - localEntity.targetX;
       const errorY = predictedY - localEntity.targetY;
       const errorDist = Math.sqrt(errorX * errorX + errorY * errorY);
-      const correctedX =
-        errorDist > RECONCILE_SNAP_DISTANCE
-          ? predictedX
-          : localEntity.targetX + (predictedX - localEntity.targetX) * RECONCILE_BLEND;
-      const correctedY =
-        errorDist > RECONCILE_SNAP_DISTANCE
-          ? predictedY
-          : localEntity.targetY + (predictedY - localEntity.targetY) * RECONCILE_BLEND;
+      const shouldSnap = errorDist > RECONCILE_SNAP_DISTANCE;
+      const shouldIgnoreTinyError = errorDist <= RECONCILE_DEADZONE_DISTANCE;
+
+      const blendProgress = Phaser.Math.Clamp(errorDist / RECONCILE_BLEND_RAMP_DISTANCE, 0, 1);
+      const blend = Phaser.Math.Linear(RECONCILE_MIN_BLEND, RECONCILE_MAX_BLEND, blendProgress);
+
+      const correctedX = shouldSnap
+        ? predictedX
+        : shouldIgnoreTinyError
+          ? localEntity.targetX
+          : localEntity.targetX + (predictedX - localEntity.targetX) * blend;
+      const correctedY = shouldSnap
+        ? predictedY
+        : shouldIgnoreTinyError
+          ? localEntity.targetY
+          : localEntity.targetY + (predictedY - localEntity.targetY) * blend;
 
       localEntity.updateFromServer(
         correctedX,

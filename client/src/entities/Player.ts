@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 
-const LERP_SPEED = 0.3;
-const INTERP_DURATION = 50; // ms – smoothing window (~3 server ticks)
+const REMOTE_LERP_BASE = 0.3;
+const LOCAL_LERP_BASE = 0.48;
 const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
+const MAX_LERP_DT_MS = 50;
 // Offset the sprite DOWN so the character body visually centers on the server hitbox
 const SPRITE_Y_OFFSET = -16;
 
@@ -22,11 +23,6 @@ export class PlayerEntity {
   private currentAnimKey: string;
   private deathPlayed: boolean;
 
-  // Interpolation fields for local player
-  private prevServerX: number;
-  private prevServerY: number;
-  private interpElapsed: number;
-
   constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
     this.targetX = x;
@@ -38,10 +34,6 @@ export class PlayerEntity {
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.nickname = nickname;
-    this.prevServerX = x;
-    this.prevServerY = y;
-    this.interpElapsed = INTERP_DURATION;
-
     this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
     this.sprite.setDepth(10);
@@ -65,24 +57,18 @@ export class PlayerEntity {
     state: string,
     direction: string
   ): void {
-    // For local player lerp: start interpolating from current visual position
+    const targetSpriteY = y + SPRITE_Y_OFFSET;
+
     if (this.isLocal) {
       const dx = x - this.sprite.x;
-      // Compare against server position (strip the visual offset)
-      const dy = y - (this.sprite.y - SPRITE_Y_OFFSET);
+      const dy = targetSpriteY - this.sprite.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > SNAP_THRESHOLD) {
-        // Teleport / respawn – snap immediately
-        this.prevServerX = x;
-        this.prevServerY = y;
-        this.interpElapsed = INTERP_DURATION;
-      } else {
-        this.prevServerX = this.sprite.x;
-        // Store server position without the visual offset so the formula doesn't double-add it
-        this.prevServerY = this.sprite.y - SPRITE_Y_OFFSET;
-        this.interpElapsed = 0;
+        this.sprite.x = x;
+        this.sprite.y = targetSpriteY;
       }
     }
+
     this.targetX = x;
     this.targetY = y;
     this.hp = hp;
@@ -92,15 +78,15 @@ export class PlayerEntity {
   }
 
   update(_scene: Phaser.Scene, dt: number): void {
+    const dtMs = Math.min(dt, MAX_LERP_DT_MS);
+
     if (this.isLocal) {
-      // Time-based interpolation between last visual pos and server target
-      this.interpElapsed += dt;
-      const t = Math.min(this.interpElapsed / INTERP_DURATION, 1);
-      this.sprite.x = this.prevServerX + (this.targetX - this.prevServerX) * t;
-      this.sprite.y = this.prevServerY + (this.targetY - this.prevServerY) * t + SPRITE_Y_OFFSET;
+      const factor = 1 - Math.pow(1 - LOCAL_LERP_BASE, dtMs / 16.667);
+      this.sprite.x += (this.targetX - this.sprite.x) * factor;
+      this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
     } else {
       // Remote players: time-based exponential lerp (frame-rate independent)
-      const factor = 1 - Math.pow(1 - LERP_SPEED, dt / 16.667);
+      const factor = 1 - Math.pow(1 - REMOTE_LERP_BASE, dtMs / 16.667);
       this.sprite.x += (this.targetX - this.sprite.x) * factor;
       this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
     }

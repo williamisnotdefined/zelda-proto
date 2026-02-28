@@ -18,6 +18,11 @@ export const BLOB_CONTACT_WIDTH = 28;
 export const BLOB_CONTACT_HEIGHT = 28;
 export const BLOB_DAMAGE_COOLDOWN = 1000;
 export const BLOB_RESPAWN_TIME = 10000;
+const SNAPSHOT_POSITION_PRECISION = 10;
+
+function quantizePosition(value: number): number {
+  return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
 
 export class Blob extends Entity {
   hp: number;
@@ -189,8 +194,8 @@ export class Blob extends Entity {
   toSnapshot(): BlobSnapshot {
     return {
       id: this.id,
-      x: Math.round(this.x),
-      y: Math.round(this.y),
+      x: quantizePosition(this.x),
+      y: quantizePosition(this.y),
       hp: this.hp,
       maxHp: this.maxHp,
       state: this.state,

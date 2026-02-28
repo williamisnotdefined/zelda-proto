@@ -42,6 +42,11 @@ const ENRAGED_TRANSITION_TIME = 1000;
 const PHASE2_SPEED_MULT = 1.15;
 const PHASE3_SPEED_MULT = 1.3;
 const ICE_ZONE_SLOW = 0.4;
+const SNAPSHOT_POSITION_PRECISION = 10;
+
+function quantizePosition(value: number): number {
+  return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
 
 export { ICE_ZONE_SLOW };
 
@@ -408,8 +413,8 @@ export class BossGelehk extends Entity {
   toSnapshot(): BossSnapshot {
     return {
       id: this.id,
-      x: Math.round(this.x),
-      y: Math.round(this.y),
+      x: quantizePosition(this.x),
+      y: quantizePosition(this.y),
       hp: this.hp,
       maxHp: this.maxHp,
       state: this.state,

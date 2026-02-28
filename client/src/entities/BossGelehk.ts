@@ -3,6 +3,8 @@ import Phaser from 'phaser';
 /** Base lerp factors per 16.667ms (60fps) frame. */
 const LERP_BASE = 0.25;
 const BOSS_SCALE = 2.5;
+const MAX_LERP_DT_MS = 50;
+const SNAP_DISTANCE = 260;
 
 interface IceZoneData {
   x: number;
@@ -164,7 +166,16 @@ export class BossGelehkEntity {
   }
 
   update(dt: number): void {
-    const factor = 1 - Math.pow(1 - LERP_BASE, dt / 16.667);
+    const dx = this.targetX - this.sprite.x;
+    const dy = this.targetY - this.sprite.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > SNAP_DISTANCE) {
+      this.sprite.x = this.targetX;
+      this.sprite.y = this.targetY;
+    }
+
+    const dtMs = Math.min(dt, MAX_LERP_DT_MS);
+    const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
     this.sprite.x += (this.targetX - this.sprite.x) * factor;
     this.sprite.y += (this.targetY - this.sprite.y) * factor;
 
