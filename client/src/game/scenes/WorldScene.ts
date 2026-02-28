@@ -39,6 +39,15 @@ const RECONCILE_MAX_BLEND = 0.24;
 const RECONCILE_BLEND_RAMP_DISTANCE = 40;
 const RECONCILE_DEADZONE_DISTANCE = 0.75;
 const BACKGROUND_MUSIC_VOLUME = 0.02;
+const TOASTY_SFX_VOLUME = 0.8;
+const TOASTY_MARGIN_TOP = 20;
+const TOASTY_MARGIN_RIGHT = 20;
+const TOASTY_OFFSCREEN_OFFSET_X = 220;
+const TOASTY_SCALE = 0.42;
+const TOASTY_DEPTH = 1000;
+const TOASTY_SLIDE_IN_DURATION_MS = 120;
+const TOASTY_HOLD_DURATION_MS = 550;
+const TOASTY_SLIDE_OUT_DURATION_MS = 120;
 
 interface PendingInput {
   input: InputMessage;
@@ -86,6 +95,10 @@ export class WorldScene extends Phaser.Scene {
   private safeZoneTimer: Phaser.Time.TimerEvent | null = null;
   private minimap!: Minimap;
   private backgroundMusic: Phaser.Sound.BaseSound | null = null;
+  private toastyImage: Phaser.GameObjects.Image | null = null;
+  private toastyHideTimer: Phaser.Time.TimerEvent | null = null;
+  private toastyTween: Phaser.Tweens.Tween | null = null;
+  private lastLocalToastyCount: number | null = null;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -123,6 +136,7 @@ export class WorldScene extends Phaser.Scene {
           this.pendingInputs = [];
           this.inputSendAccumulatorMs = 0;
           this.lastSentInputState = null;
+          this.lastLocalToastyCount = null;
           this.createSafeZone();
           break;
         case 'snapshot':
@@ -303,6 +317,7 @@ export class WorldScene extends Phaser.Scene {
 
       if (p.id === this.localPlayerId) {
         this.reconcileLocalPrediction(p);
+        this.handleLocalToastyCounter(p.toastyCount);
         if (this.previousLocalState === 'dead' && p.state !== 'dead') {
           this.destroySafeZone();
           this.createSafeZone();
@@ -335,6 +350,7 @@ export class WorldScene extends Phaser.Scene {
       this.pendingInputs = [];
       this.inputSendAccumulatorMs = 0;
       this.lastSentInputState = null;
+      this.lastLocalToastyCount = null;
       useGameStore.getState().setLocalPlayer(null);
     }
   }
@@ -570,6 +586,20 @@ export class WorldScene extends Phaser.Scene {
     }
     this.bossArenas.clear();
 
+    if (this.toastyTween) {
+      this.toastyTween.stop();
+      this.toastyTween = null;
+    }
+    if (this.toastyHideTimer) {
+      this.toastyHideTimer.destroy();
+      this.toastyHideTimer = null;
+    }
+    if (this.toastyImage) {
+      this.toastyImage.destroy();
+      this.toastyImage = null;
+    }
+    this.lastLocalToastyCount = null;
+
     this.bgTileSprite?.destroy();
   }
 
@@ -596,6 +626,81 @@ export class WorldScene extends Phaser.Scene {
 
     entity.targetX += nx * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
     entity.targetY += ny * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
+  }
+
+  private handleLocalToastyCounter(toastyCount: number): void {
+    if (this.lastLocalToastyCount === null) {
+      this.lastLocalToastyCount = toastyCount;
+      return;
+    }
+
+    if (toastyCount > this.lastLocalToastyCount) {
+      this.playToastyEffect();
+    }
+
+    this.lastLocalToastyCount = toastyCount;
+  }
+
+  private playToastyEffect(): void {
+    this.sound.play('toasty_sfx', { volume: TOASTY_SFX_VOLUME });
+
+    const cam = this.cameras.main;
+    const toastyVisibleX = cam.width - TOASTY_MARGIN_RIGHT;
+    const toastyHiddenX = cam.width + TOASTY_OFFSCREEN_OFFSET_X;
+    const toastyY = TOASTY_MARGIN_TOP;
+
+    if (!this.toastyImage) {
+      this.toastyImage = this.add.image(toastyHiddenX, toastyY, 'toasty');
+      this.toastyImage.setScrollFactor(0, 0);
+      this.toastyImage.setOrigin(1, 0);
+      this.toastyImage.setDepth(TOASTY_DEPTH);
+    }
+
+    this.toastyImage.setPosition(toastyHiddenX, toastyY);
+    this.toastyImage.setAlpha(1);
+    this.toastyImage.setScale(TOASTY_SCALE);
+
+    if (this.toastyTween) {
+      this.toastyTween.stop();
+      this.toastyTween = null;
+    }
+
+    if (this.toastyHideTimer) {
+      this.toastyHideTimer.destroy();
+      this.toastyHideTimer = null;
+    }
+
+    this.toastyTween = this.tweens.add({
+      targets: this.toastyImage,
+      x: toastyVisibleX,
+      duration: TOASTY_SLIDE_IN_DURATION_MS,
+      ease: 'Cubic.Out',
+      onComplete: () => {
+        this.toastyTween = null;
+      },
+    });
+
+    this.toastyHideTimer = this.time.delayedCall(TOASTY_HOLD_DURATION_MS, () => {
+      if (!this.toastyImage) {
+        this.toastyHideTimer = null;
+        return;
+      }
+
+      this.toastyTween = this.tweens.add({
+        targets: this.toastyImage,
+        x: toastyHiddenX,
+        duration: TOASTY_SLIDE_OUT_DURATION_MS,
+        ease: 'Cubic.In',
+        onComplete: () => {
+          if (this.toastyImage) {
+            this.toastyImage.destroy();
+            this.toastyImage = null;
+          }
+          this.toastyTween = null;
+        },
+      });
+      this.toastyHideTimer = null;
+    });
   }
 
   private startBackgroundMusic(): void {

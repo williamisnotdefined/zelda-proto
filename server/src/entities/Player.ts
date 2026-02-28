@@ -2,6 +2,7 @@ import { Direction, InputMessage, PlayerSnapshot, PlayerState } from '../network
 import { Entity } from '../core/Entity.js';
 import { State, StateMachine } from '../core/StateMachine.js';
 import { isInSafeZone } from '../game/Physics.js';
+import { TOASTY_KILL_THRESHOLD } from '@gelehka/shared/constants';
 
 export const PLAYER_SPEED = 150;
 export const PLAYER_MAX_HP = 100;
@@ -40,6 +41,9 @@ export class Player extends Entity {
   playerKills: number;
   monsterKills: number;
   deaths: number;
+  attackMonsterKills: number;
+  toastyTriggeredThisAttack: boolean;
+  toastyCount: number;
   safeZoneTimer: number;
   lastProcessedInputSeq: number;
   private lastReceivedInputSeq: number;
@@ -64,6 +68,9 @@ export class Player extends Entity {
     this.playerKills = 0;
     this.monsterKills = 0;
     this.deaths = 0;
+    this.attackMonsterKills = 0;
+    this.toastyTriggeredThisAttack = false;
+    this.toastyCount = 0;
     this.safeZoneTimer = SAFE_ZONE_DURATION;
     this.lastProcessedInputSeq = 0;
     this.lastReceivedInputSeq = -1;
@@ -108,8 +115,7 @@ export class Player extends Entity {
       if (this.attackStateTimer <= 0) {
         this.transitionTo('idle');
         this.attackStateTimer = 0;
-        this.attackHitIds.clear();
-        this.attackHitEnemyIds.clear();
+        this.resetAttackTracking();
       }
     }
 
@@ -117,8 +123,7 @@ export class Player extends Entity {
       this.transitionTo('attacking');
       this.attackCooldownTimer = PLAYER_ATTACK_COOLDOWN;
       this.attackStateTimer = PLAYER_ATTACK_STATE_DURATION;
-      this.attackHitIds.clear();
-      this.attackHitEnemyIds.clear();
+      this.resetAttackTracking();
     }
 
     let dx = 0;
@@ -203,6 +208,19 @@ export class Player extends Entity {
     this.transitionTo('idle');
     this.respawnTimer = 0;
     this.safeZoneTimer = SAFE_ZONE_DURATION;
+    this.resetAttackTracking();
+  }
+
+  recordMonsterKillInCurrentAttack(): void {
+    if (this.state !== 'attacking') {
+      return;
+    }
+
+    this.attackMonsterKills += 1;
+    if (!this.toastyTriggeredThisAttack && this.attackMonsterKills >= TOASTY_KILL_THRESHOLD) {
+      this.toastyTriggeredThisAttack = true;
+      this.toastyCount += 1;
+    }
   }
 
   toSnapshot(): PlayerSnapshot {
@@ -218,8 +236,16 @@ export class Player extends Entity {
       playerKills: this.playerKills,
       monsterKills: this.monsterKills,
       deaths: this.deaths,
+      toastyCount: this.toastyCount,
       lastProcessedInputSeq: this.lastProcessedInputSeq,
     };
+  }
+
+  private resetAttackTracking(): void {
+    this.attackHitIds.clear();
+    this.attackHitEnemyIds.clear();
+    this.attackMonsterKills = 0;
+    this.toastyTriggeredThisAttack = false;
   }
 
   private transitionTo(state: PlayerState): void {

@@ -20,6 +20,7 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.audio('bg_music', 'assets/sounds/bg_music.mp3');
+    this.load.audio('toasty_sfx', 'assets/sounds/toasty.mp3');
 
     this.load.spritesheet('skeleton', 'assets/sprites/monsters/gelehk.png', {
       frameWidth: 48,
@@ -54,6 +55,7 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.image('heart', 'assets/sprites/heart/heart_16x16.png');
+    this.load.image('toasty', 'assets/sprites/eastereggs/toasty.png');
   }
 
   create(): void {

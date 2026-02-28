@@ -30,6 +30,7 @@ export interface PlayerSnapshot {
   playerKills: number;
   monsterKills: number;
   deaths: number;
+  toastyCount: number;
   lastProcessedInputSeq: number;
 }
 

@@ -10,3 +10,5 @@ export const SERVER_MAX_FRAME_DT_MS = 250;
 
 export const WS_MAX_PAYLOAD_BYTES = 1024;
 export const WS_MAX_BUFFERED_BYTES = 512 * 1024;
+
+export const TOASTY_KILL_THRESHOLD = 20;

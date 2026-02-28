@@ -40,6 +40,7 @@ export function resolvePlayerAttacks(
         player.attackHitEnemyIds.add(blob.id);
         if (blob.hp <= 0) {
           player.monsterKills++;
+          player.recordMonsterKillInCurrentAttack();
         }
       }
     }
@@ -53,6 +54,7 @@ export function resolvePlayerAttacks(
         player.attackHitEnemyIds.add(boss.id);
         if (boss.hp <= 0) {
           player.monsterKills++;
+          player.recordMonsterKillInCurrentAttack();
         }
       }
     }
