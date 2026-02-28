@@ -6,20 +6,20 @@ import {
 import { Entity } from '../core/Entity.js';
 import { SpatialHash } from '../core/SpatialHash.js';
 import { World as EntityWorld } from '../core/World.js';
-import { InputMessage } from '../network/MessageTypes.js';
+import { Blob } from '../entities/Blob.js';
 import { BossGelehk, ICE_ZONE_SLOW } from '../entities/BossGelehk.js';
+import { Player } from '../entities/Player.js';
+import { InputMessage } from '../network/MessageTypes.js';
 import {
   resolveEnemyContactDamage,
   resolvePlayerAttacks,
   resolvePlayerVsPlayer,
 } from './Combat.js';
-import { Player } from '../entities/Player.js';
-import { Blob } from '../entities/Blob.js';
 import { BossRegionSystem } from './systems/BossRegionSystem.js';
 import { DropSystem } from './systems/DropSystem.js';
 import { SpawnSystem } from './systems/SpawnSystem.js';
 
-const PLAYER_RESPAWN_TIME = 3000;
+const PLAYER_RESPAWN_TIME = 1500;
 
 export const PLAYER_SPAWN_X = WORLD_SPAWN_X;
 export const PLAYER_SPAWN_Y = WORLD_SPAWN_Y;
