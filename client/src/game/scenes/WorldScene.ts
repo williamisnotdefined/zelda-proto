@@ -165,6 +165,8 @@ export class WorldScene extends Phaser.Scene {
   private createInfiniteBackground(): void {
     const cam = this.cameras.main;
     this.bgTileSprite = this.add.tileSprite(0, 0, cam.width + 256, cam.height + 256, 'grass_tile');
+    this.bgTileSprite.setScrollFactor(0, 0);
+    this.bgTileSprite.setOrigin(0.5, 0.5);
     this.bgTileSprite.setDepth(-1);
   }
 
@@ -227,8 +229,10 @@ export class WorldScene extends Phaser.Scene {
 
   private updateBackground(): void {
     const cam = this.cameras.main;
-    this.bgTileSprite.x = cam.scrollX + cam.width / 2;
-    this.bgTileSprite.y = cam.scrollY + cam.height / 2;
+    this.bgTileSprite.x = cam.width / 2;
+    this.bgTileSprite.y = cam.height / 2;
+    this.bgTileSprite.tilePositionX = cam.scrollX;
+    this.bgTileSprite.tilePositionY = cam.scrollY;
   }
 
   private getChunkKey(cx: number, cy: number): string {
@@ -476,6 +480,10 @@ export class WorldScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.trimPendingInputs();
+
+    this.updateBackground();
+    this.updateChunks();
+
     if (!this.localPlayerId) return;
 
     const localEntity = this.playerEntities.get(this.localPlayerId);
@@ -565,9 +573,6 @@ export class WorldScene extends Phaser.Scene {
         this.localPlayerId
       );
     }
-
-    this.updateBackground();
-    this.updateChunks();
   }
 
   private trimPendingInputs(): void {
