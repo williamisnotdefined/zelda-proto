@@ -35,7 +35,7 @@ const MAX_PENDING_INPUTS = 128;
 const MAX_PENDING_INPUT_AGE_MS = 1500;
 const RECONCILE_SNAP_DISTANCE = 120;
 const RECONCILE_BLEND = 0.35;
-const BACKGROUND_MUSIC_VOLUME = 0.08;
+const BACKGROUND_MUSIC_VOLUME = 0.05;
 
 interface PendingInput {
   input: InputMessage;
