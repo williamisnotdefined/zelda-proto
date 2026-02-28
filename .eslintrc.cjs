@@ -7,13 +7,11 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module',
+    tsconfigRootDir: __dirname,
+    project: ['./client/tsconfig.json', './server/tsconfig.json', './shared/tsconfig.json'],
   },
   plugins: ['@typescript-eslint'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'prettier',
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'prettier'],
   ignorePatterns: ['dist', 'node_modules', '*.js', '*.cjs'],
   overrides: [
     {
@@ -42,12 +40,19 @@ module.exports = {
         node: true,
       },
     },
+    {
+      files: ['shared/src/**/*.ts'],
+      env: {
+        es2022: true,
+      },
+    },
   ],
   rules: {
     '@typescript-eslint/no-unused-vars': [
-      'warn',
+      'error',
       { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
+    '@typescript-eslint/no-floating-promises': 'warn',
   },
 };

@@ -110,6 +110,11 @@ export interface ServerChatMessage {
   timestamp: number;
 }
 
+export interface LeaderboardMessage {
+  type: 'leaderboard';
+  players: PlayerSnapshot[];
+}
+
 export interface SnapshotDeltaMessage {
   type: 'snapshot_delta';
   tick: number;
@@ -129,6 +134,7 @@ export interface SnapshotDeltaMessage {
 export type ServerMessage =
   | SnapshotMessage
   | SnapshotDeltaMessage
+  | LeaderboardMessage
   | WelcomeMessage
   | PlayerJoinMessage
   | PlayerLeaveMessage

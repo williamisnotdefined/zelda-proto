@@ -12,6 +12,11 @@
       "types": "./src/utils.ts",
       "import": "./src/utils.ts",
       "default": "./src/utils.ts"
+    },
+    "./constants": {
+      "types": "./src/constants.ts",
+      "import": "./src/constants.ts",
+      "default": "./src/constants.ts"
     }
   }
 }

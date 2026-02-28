@@ -1,7 +1,11 @@
+import {
+  WORLD_SPAWN_SAFE_ZONE_RADIUS,
+  WORLD_SPAWN_X,
+  WORLD_SPAWN_Y,
+} from '@gelehka/shared/constants';
 import { SlimeSnapshot, SlimeState } from '../network/MessageTypes.js';
 import { aabbOverlap, distanceSquared, entityAABB, isInSafeZone } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from '../game/World.js';
 import { Entity } from '../core/Entity.js';
 
 export const SLIME_HP = 30;
@@ -87,7 +91,7 @@ export class Slime extends Entity {
     const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
 
     if (target && target.state !== 'dead') {
-      if (target.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) {
+      if (target.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)) {
         this.targetPlayerId = null;
         this.state = 'idle';
         return;
@@ -105,11 +109,11 @@ export class Slime extends Entity {
 
         const wouldEnterSafeZone =
           spawnSafeZoneActive &&
-          isInSafeZone(nextX, nextY, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS);
+          isInSafeZone(nextX, nextY, WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS);
 
         if (wouldEnterSafeZone) {
-          const toSpawnX = PLAYER_SPAWN_X - this.x;
-          const toSpawnY = PLAYER_SPAWN_Y - this.y;
+          const toSpawnX = WORLD_SPAWN_X - this.x;
+          const toSpawnY = WORLD_SPAWN_Y - this.y;
           const perpX = -toSpawnY;
           const perpY = toSpawnX;
           const perpLen = Math.sqrt(perpX * perpX + perpY * perpY);
@@ -140,15 +144,15 @@ export class Slime extends Entity {
 
     if (
       spawnSafeZoneActive &&
-      isInSafeZone(this.x, this.y, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+      isInSafeZone(this.x, this.y, WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)
     ) {
-      const dx = this.x - PLAYER_SPAWN_X;
-      const dy = this.y - PLAYER_SPAWN_Y;
+      const dx = this.x - WORLD_SPAWN_X;
+      const dy = this.y - WORLD_SPAWN_Y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0) {
-        const pushDist = SPAWN_SAFE_ZONE_RADIUS + 10;
-        this.x = PLAYER_SPAWN_X + (dx / dist) * pushDist;
-        this.y = PLAYER_SPAWN_Y + (dy / dist) * pushDist;
+        const pushDist = WORLD_SPAWN_SAFE_ZONE_RADIUS + 10;
+        this.x = WORLD_SPAWN_X + (dx / dist) * pushDist;
+        this.y = WORLD_SPAWN_Y + (dy / dist) * pushDist;
       }
       this.targetPlayerId = null;
       this.state = 'idle';

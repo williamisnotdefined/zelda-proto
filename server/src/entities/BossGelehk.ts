@@ -1,4 +1,9 @@
 import {
+  WORLD_SPAWN_SAFE_ZONE_RADIUS,
+  WORLD_SPAWN_X,
+  WORLD_SPAWN_Y,
+} from '@gelehka/shared/constants';
+import {
   AoeIndicator,
   BossPhase,
   BossSnapshot,
@@ -7,7 +12,6 @@ import {
 } from '../network/MessageTypes.js';
 import { aabbOverlap, distance, distanceSquared, entityAABB } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from '../game/World.js';
 import { Entity } from '../core/Entity.js';
 
 export const BOSS_MAX_HP = 250;
@@ -273,7 +277,8 @@ export class BossGelehk extends Entity {
       const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
-        if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
+        if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS))
+          continue;
         const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
         if (aabbOverlap(bossBox, playerBox)) {
           player.takeDamage(CHARGE_DAMAGE);
@@ -317,7 +322,8 @@ export class BossGelehk extends Entity {
       if (aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
-          if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
+          if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS))
+            continue;
           if (distanceSquared(player.x, player.y, aoe.x, aoe.y) < aoe.radius * aoe.radius) {
             player.takeDamage(AOE_DAMAGE);
           }
@@ -340,7 +346,7 @@ export class BossGelehk extends Entity {
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) continue;
+      if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)) continue;
       const dist = distance(this.x, this.y, player.x, player.y);
       if (dist >= prevRadius && dist <= this.waveRadius) {
         player.takeDamage(WAVE_DAMAGE);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { onError, onMessage } from '../../network/socket';
+import { onConnectionState, onError, onMessage } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 import { setupAnimations } from '../AnimationSetup';
 
@@ -79,9 +79,17 @@ export class BootScene extends Phaser.Scene {
       useGameStore.getState().setConnectionError(error);
     });
 
+    const connectionStateHandler = onConnectionState((state) => {
+      useGameStore.getState().setConnected(state === 'CONNECTED');
+      if (state === 'CONNECTING') {
+        useGameStore.getState().setLastConnectionAttempt(Date.now());
+      }
+    });
+
     // Store handlers for cleanup if needed
     this.registry.set('globalMessageHandler', messageHandler);
     this.registry.set('globalErrorHandler', errorHandler);
+    this.registry.set('globalConnectionStateHandler', connectionStateHandler);
 
     this.scene.start('WorldScene');
   }

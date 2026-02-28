@@ -12,6 +12,7 @@ export type {
   IceZone,
   InputMessage,
   JoinMessage,
+  LeaderboardMessage,
   PlayerJoinMessage,
   PlayerLeaveMessage,
   PlayerSnapshot,

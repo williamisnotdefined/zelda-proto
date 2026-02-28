@@ -1,6 +1,17 @@
-import { BOSS_HEIGHT, BOSS_WIDTH, BossGelehk } from './BossGelehk.js';
+import {
+  WORLD_SPAWN_SAFE_ZONE_RADIUS,
+  WORLD_SPAWN_X,
+  WORLD_SPAWN_Y,
+} from '@gelehka/shared/constants';
+import { BOSS_HEIGHT, BOSS_WIDTH, BossGelehk } from '../entities/BossGelehk.js';
 import { aabbOverlap, entityAABB } from './Physics.js';
-import { Player, PLAYER_DAMAGE, PLAYER_HEIGHT, PLAYER_WIDTH, PVP_DAMAGE } from './Player.js';
+import {
+  Player,
+  PLAYER_DAMAGE,
+  PLAYER_HEIGHT,
+  PLAYER_WIDTH,
+  PVP_DAMAGE,
+} from '../entities/Player.js';
 import {
   Slime,
   SLIME_CONTACT_HEIGHT,
@@ -8,8 +19,7 @@ import {
   SLIME_DAMAGE_COOLDOWN,
   SLIME_HEIGHT,
   SLIME_WIDTH,
-} from './Slime.js';
-import { PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS } from './World.js';
+} from '../entities/Slime.js';
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
@@ -60,8 +70,8 @@ export function resolvePlayerVsPlayer(players: Map<string, Player>): void {
       if (attacker.attackHitIds.has(target.id)) continue;
 
       if (
-        attacker.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS) ||
-        target.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)
+        attacker.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS) ||
+        target.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)
       ) {
         continue;
       }
@@ -91,7 +101,7 @@ export function resolveEnemyContactDamage(
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
 
-      if (player.isProtected(PLAYER_SPAWN_X, PLAYER_SPAWN_Y, SPAWN_SAFE_ZONE_RADIUS)) {
+      if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)) {
         continue;
       }
 

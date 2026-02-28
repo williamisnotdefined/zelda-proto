@@ -1,12 +1,17 @@
 import { Server } from 'node:http';
+import {
+  SERVER_LEADERBOARD_TICK_RATE,
+  SERVER_NET_TICK_RATE,
+  WS_MAX_PAYLOAD_BYTES,
+} from '@gelehka/shared/constants';
 import { nanoid } from 'nanoid';
 import { WebSocket, WebSocketServer } from 'ws';
 import { World } from '../game/World.js';
 import { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
+import { SnapshotSystem } from '../game/systems/SnapshotSystem.js';
 import { NetworkManager } from './NetworkManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
 
-const MAX_PAYLOAD_BYTES = 1024;
 const MAX_CONNECTIONS = 200;
 const INPUT_RATE_LIMIT = 65;
 const CHAT_RATE_LIMIT = 5;
@@ -14,6 +19,10 @@ const RATE_WINDOW_MS = 1000;
 const MAX_NICKNAME_LENGTH = 16;
 const MAX_CHAT_LENGTH = 100;
 const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 40;
+const LEADERBOARD_INTERVAL_TICKS = Math.max(
+  1,
+  Math.round(SERVER_NET_TICK_RATE / SERVER_LEADERBOARD_TICK_RATE)
+);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -58,6 +67,7 @@ export class WebSocketHandler {
   private wss: WebSocketServer;
   readonly clients: Map<string, WebSocket> = new Map();
   private readonly networkManager: NetworkManager;
+  private readonly snapshotSystem: SnapshotSystem;
   private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
   private readonly forceFullSnapshotFor: Set<string> = new Set();
   private snapshotTick = 0;
@@ -66,9 +76,10 @@ export class WebSocketHandler {
     this.wss = new WebSocketServer({
       server: httpServer,
       path: '/ws',
-      maxPayload: MAX_PAYLOAD_BYTES,
+      maxPayload: WS_MAX_PAYLOAD_BYTES,
     });
     this.networkManager = new NetworkManager();
+    this.snapshotSystem = new SnapshotSystem();
   }
 
   start(world: World): void {
@@ -119,6 +130,7 @@ export class WebSocketHandler {
               mapHeight: 0,
             };
             this.networkManager.send(ws, welcome);
+            this.networkManager.send(ws, this.snapshotSystem.getLeaderboard(world));
           } else if (isInputMessage(msg) && hasJoined) {
             if (++inputCount > INPUT_RATE_LIMIT) return;
             world.handleInput(playerId, msg);
@@ -173,10 +185,20 @@ export class WebSocketHandler {
 
   broadcastSnapshots(world: World): void {
     this.snapshotTick += 1;
-    world.cachePlayerSnapshots();
+    this.snapshotSystem.beginTick(world);
+
+    if (this.snapshotTick % LEADERBOARD_INTERVAL_TICKS === 0) {
+      const leaderboard = this.snapshotSystem.getLeaderboard(world);
+      for (const ws of this.clients.values()) {
+        if (ws.readyState === WebSocket.OPEN) {
+          this.networkManager.send(ws, leaderboard);
+        }
+      }
+    }
+
     for (const [playerId, ws] of this.clients.entries()) {
       if (ws.readyState === WebSocket.OPEN) {
-        const snapshot = world.getSnapshotForPlayer(playerId);
+        const snapshot = this.snapshotSystem.getSnapshotForPlayer(world, playerId);
         const previous = this.previousSnapshots.get(playerId) ?? null;
         const full =
           this.forceFullSnapshotFor.has(playerId) ||

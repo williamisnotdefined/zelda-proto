@@ -9,6 +9,11 @@ import type {
   ServerMessage,
   SlimeSnapshot,
 } from '@gelehka/shared';
+import {
+  WORLD_SPAWN_SAFE_ZONE_RADIUS,
+  WORLD_SPAWN_X,
+  WORLD_SPAWN_Y,
+} from '@gelehka/shared/constants';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
@@ -104,6 +109,10 @@ export class WorldScene extends Phaser.Scene {
         case 'snapshot':
           this.handleSnapshot(msg);
           break;
+        case 'leaderboard':
+          useGameStore.getState().setAllPlayers(msg.players);
+          useGameStore.getState().setPlayerCount(msg.players.length);
+          break;
         case 'chat':
           useGameStore.getState().addChatMessage(msg as ServerChatMessage);
           break;
@@ -125,17 +134,15 @@ export class WorldScene extends Phaser.Scene {
     // Don't create if already exists
     if (this.safeZoneCircle || this.safeZoneRing) return;
 
-    const spawnX = 200;
-    const spawnY = 200;
-    const radius = 150;
+    const radius = WORLD_SPAWN_SAFE_ZONE_RADIUS;
 
     // Semi-transparent green circle for the safe zone
-    this.safeZoneCircle = this.add.circle(spawnX, spawnY, radius, 0x44ff44, 0.15);
+    this.safeZoneCircle = this.add.circle(WORLD_SPAWN_X, WORLD_SPAWN_Y, radius, 0x44ff44, 0.15);
     this.safeZoneCircle.setDepth(0);
     this.safeZoneCircle.setScrollFactor(1, 1);
 
     // Green ring border
-    this.safeZoneRing = this.add.circle(spawnX, spawnY, radius);
+    this.safeZoneRing = this.add.circle(WORLD_SPAWN_X, WORLD_SPAWN_Y, radius);
     this.safeZoneRing.setStrokeStyle(3, 0x44ff44, 0.5);
     this.safeZoneRing.setDepth(0);
     this.safeZoneRing.setScrollFactor(1, 1);
@@ -259,10 +266,13 @@ export class WorldScene extends Phaser.Scene {
     const iceZones = msg.iceZones || [];
     const aoeIndicators = msg.aoeIndicators || [];
 
-    useGameStore.getState().setPlayerCount(players.length);
-    useGameStore.getState().setAllPlayers(players);
+    this.syncPlayers(players);
+    this.syncSlimes(enemies);
+    this.syncBosses(players, bosses, iceZones, aoeIndicators);
+    this.syncDrops(drops);
+  }
 
-    // --- Players ---
+  private syncPlayers(players: PlayerSnapshot[]): void {
     const seenPlayerIds = new Set<string>();
     for (const p of players) {
       seenPlayerIds.add(p.id);
@@ -308,8 +318,9 @@ export class WorldScene extends Phaser.Scene {
       this.lastSentInputState = null;
       useGameStore.getState().setLocalPlayer(null);
     }
+  }
 
-    // --- Slimes ---
+  private syncSlimes(enemies: SlimeSnapshot[]): void {
     const seenSlimeIds = new Set<string>();
     for (const s of enemies) {
       seenSlimeIds.add(s.id);
@@ -327,8 +338,14 @@ export class WorldScene extends Phaser.Scene {
         this.slimeEntities.delete(id);
       }
     }
+  }
 
-    // --- Bosses ---
+  private syncBosses(
+    players: PlayerSnapshot[],
+    bosses: BossSnapshot[],
+    iceZones: IceZone[],
+    aoeIndicators: AoeIndicator[]
+  ): void {
     const seenBossIds = new Set<string>();
     let nearestBoss: BossSnapshot | null = null;
     let nearestBossDist = Infinity;
@@ -378,8 +395,9 @@ export class WorldScene extends Phaser.Scene {
     } else {
       useGameStore.getState().setBoss(null);
     }
+  }
 
-    // --- Drops ---
+  private syncDrops(drops: DropSnapshot[]): void {
     const seenDropIds = new Set<string>();
     for (const d of drops) {
       seenDropIds.add(d.id);
@@ -400,6 +418,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    this.trimPendingInputs();
     if (!this.localPlayerId) return;
 
     const attack = this.attackKey.isDown && !this.prevAttack;
@@ -480,6 +499,12 @@ export class WorldScene extends Phaser.Scene {
 
     this.updateBackground();
     this.updateChunks();
+  }
+
+  private trimPendingInputs(): void {
+    if (this.pendingInputs.length > MAX_PENDING_INPUTS) {
+      this.pendingInputs.splice(0, this.pendingInputs.length - MAX_PENDING_INPUTS);
+    }
   }
 
   shutdown(): void {

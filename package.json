@@ -15,10 +15,10 @@
     "build": "npm run build:server && npm run build:client",
     "start:server": "npm run start --workspace=server",
     "start": "NODE_ENV=production PORT=3001 npm run start:server",
-    "lint": "eslint client/src server/src --ext .ts,.tsx",
-    "lint:fix": "eslint client/src server/src --ext .ts,.tsx --fix",
-    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",
-    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\"",
+    "lint": "eslint client/src server/src shared/src --ext .ts,.tsx",
+    "lint:fix": "eslint client/src server/src shared/src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\"",
+    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\"",
     "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\""
   },
   "devDependencies": {

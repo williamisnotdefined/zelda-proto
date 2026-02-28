@@ -1,4 +1,5 @@
 import { pack, unpack } from 'msgpackr';
+import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import type {
   ClientMessage,
   ServerMessage,
@@ -8,11 +9,13 @@ import type {
 
 type MessageHandler = (msg: ServerMessage) => void;
 type ErrorHandler = (error: string) => void;
+type ConnectionStateHandler = (state: ConnectionState) => void;
 
 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const WS_URL = `${protocol}//${window.location.host}/ws`;
 const MAX_CONNECTION_TIMEOUT = 30000;
-const MAX_BUFFERED_BYTES = 512 * 1024;
+
+export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
 type SnapshotCache = Omit<SnapshotMessage, 'type'>;
 
@@ -31,10 +34,12 @@ export class NetworkManager {
   private ws: WebSocket | null = null;
   private handlers: MessageHandler[] = [];
   private errorHandlers: ErrorHandler[] = [];
+  private connectionStateHandlers: ConnectionStateHandler[] = [];
   private openCallbacks: (() => void)[] = [];
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private snapshotCache: SnapshotCache | null = null;
+  private connectionState: ConnectionState = 'DISCONNECTED';
 
   connect(): void {
     if (
@@ -50,8 +55,11 @@ export class NetworkManager {
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.notifyError(errorMsg);
+      this.setConnectionState('ERROR');
       return;
     }
+
+    this.setConnectionState('CONNECTING');
 
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout);
@@ -59,6 +67,7 @@ export class NetworkManager {
     this.connectionTimeout = setTimeout(() => {
       if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
         this.notifyError('Connection timeout - server may be unreachable');
+        this.setConnectionState('ERROR');
         this.ws.close();
       }
     }, MAX_CONNECTION_TIMEOUT);
@@ -73,6 +82,7 @@ export class NetworkManager {
       for (const cb of this.openCallbacks) cb();
       this.openCallbacks = [];
       this.snapshotCache = null;
+      this.setConnectionState('CONNECTED');
     };
 
     this.ws.onmessage = (event) => {
@@ -101,6 +111,7 @@ export class NetworkManager {
       }
 
       this.ws = null;
+      this.setConnectionState('DISCONNECTED');
       if (!this.reconnectTimer) {
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
@@ -111,6 +122,7 @@ export class NetworkManager {
 
     this.ws.onerror = () => {
       this.notifyError('WebSocket error occurred - connection may have failed');
+      this.setConnectionState('ERROR');
     };
   }
 
@@ -118,7 +130,7 @@ export class NetworkManager {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       return;
     }
-    if (this.ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+    if (this.ws.bufferedAmount > WS_MAX_BUFFERED_BYTES) {
       return;
     }
     this.ws.send(pack(msg));
@@ -146,6 +158,14 @@ export class NetworkManager {
     };
   }
 
+  onConnectionState(handler: ConnectionStateHandler): () => void {
+    this.connectionStateHandlers.push(handler);
+    handler(this.connectionState);
+    return () => {
+      this.connectionStateHandlers = this.connectionStateHandlers.filter((h) => h !== handler);
+    };
+  }
+
   disconnect(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -160,27 +180,24 @@ export class NetworkManager {
       this.ws = null;
     }
     this.snapshotCache = null;
+    this.setConnectionState('DISCONNECTED');
   }
 
-  getConnectionState(): string {
-    if (!this.ws) return 'DISCONNECTED';
-    switch (this.ws.readyState) {
-      case WebSocket.CONNECTING:
-        return 'CONNECTING';
-      case WebSocket.OPEN:
-        return 'OPEN';
-      case WebSocket.CLOSING:
-        return 'CLOSING';
-      case WebSocket.CLOSED:
-        return 'CLOSED';
-      default:
-        return 'UNKNOWN';
-    }
+  getConnectionState(): ConnectionState {
+    return this.connectionState;
   }
 
   private notifyError(error: string): void {
     for (const handler of this.errorHandlers) {
       handler(error);
+    }
+  }
+
+  private setConnectionState(state: ConnectionState): void {
+    if (this.connectionState === state) return;
+    this.connectionState = state;
+    for (const handler of this.connectionStateHandlers) {
+      handler(state);
     }
   }
 

@@ -1,8 +1,7 @@
+import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import { pack, unpack } from 'msgpackr';
 import { RawData, WebSocket } from 'ws';
 import { ClientMessage, ServerMessage } from './MessageTypes.js';
-
-const MAX_BUFFERED_BYTES = 512 * 1024;
 
 export class NetworkManager {
   decodeClientMessage(data: RawData): ClientMessage | null {
@@ -36,7 +35,7 @@ export class NetworkManager {
   send(ws: WebSocket, message: ServerMessage): boolean {
     if (ws.readyState !== WebSocket.OPEN) return false;
 
-    if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
+    if (ws.bufferedAmount > WS_MAX_BUFFERED_BYTES) {
       return false;
     }
 

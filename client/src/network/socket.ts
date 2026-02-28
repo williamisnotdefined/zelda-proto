@@ -1,8 +1,9 @@
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
-import { NetworkManager } from './NetworkManager';
+import { ConnectionState, NetworkManager } from './NetworkManager';
 
 type MessageHandler = (msg: ServerMessage) => void;
 type ErrorHandler = (error: string) => void;
+type ConnectionStateHandler = (state: ConnectionState) => void;
 
 const networkManager = new NetworkManager();
 
@@ -34,7 +35,11 @@ export function onError(handler: ErrorHandler): () => void {
   return networkManager.onError(handler);
 }
 
-export function getConnectionState(): string {
+export function onConnectionState(handler: ConnectionStateHandler): () => void {
+  return networkManager.onConnectionState(handler);
+}
+
+export function getConnectionState(): ConnectionState {
   return networkManager.getConnectionState();
 }
 
