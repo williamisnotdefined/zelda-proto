@@ -8,7 +8,6 @@ const SPRITE_Y_OFFSET = -16;
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
-  nameText: Phaser.GameObjects.Text;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
   isLocal: boolean;
@@ -52,15 +51,6 @@ export class PlayerEntity {
 
     this.hpBar = scene.add.rectangle(x, y - 26, 32, 4, 0x44ff44);
     this.hpBar.setDepth(12);
-
-    const label = isLocal ? 'YOU' : nickname;
-    this.nameText = scene.add.text(x, y - 34, label, {
-      fontSize: '10px',
-      color: '#ffffff',
-      align: 'center',
-    });
-    this.nameText.setOrigin(0.5, 1);
-    this.nameText.setDepth(13);
 
     if (isLocal) {
       this.sprite.setTint(0xaaffaa);
@@ -123,9 +113,6 @@ export class PlayerEntity {
     this.hpBar.y = this.sprite.y - 26;
     this.hpBar.fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff4444;
 
-    this.nameText.x = this.sprite.x;
-    this.nameText.y = this.sprite.y - 32;
-
     this.updateAnimation();
   }
 
@@ -176,7 +163,6 @@ export class PlayerEntity {
 
   destroy(): void {
     this.sprite.destroy();
-    this.nameText.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();
   }

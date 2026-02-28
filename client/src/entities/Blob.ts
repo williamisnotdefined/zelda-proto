@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 /** Base lerp factor per 16.667ms (60fps) frame. */
 const LERP_BASE = 0.3;
 
-export class SlimeEntity {
+export class BlobEntity {
   sprite: Phaser.GameObjects.Sprite;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
@@ -31,7 +31,7 @@ export class SlimeEntity {
     this.deathPlayed = false;
     this.facing = 'down';
 
-    this.sprite = scene.add.sprite(x, y, 'slime');
+    this.sprite = scene.add.sprite(x, y, 'blob');
     this.sprite.setScale(2);
     this.sprite.setDepth(8);
 
@@ -85,7 +85,7 @@ export class SlimeEntity {
     let flipX = false;
 
     if (state === 'dead') {
-      animKey = 'slime_death';
+      animKey = 'blob_death';
       if (!this.deathPlayed) {
         this.sprite.play(animKey);
         this.deathPlayed = true;
@@ -99,11 +99,11 @@ export class SlimeEntity {
     flipX = this.facing === 'left';
 
     if (state === 'attacking') {
-      animKey = `slime_attack_${dirSuffix}`;
+      animKey = `blob_attack_${dirSuffix}`;
     } else if (state === 'chasing') {
-      animKey = `slime_move_${dirSuffix}`;
+      animKey = `blob_move_${dirSuffix}`;
     } else {
-      animKey = `slime_idle_${dirSuffix}`;
+      animKey = `blob_idle_${dirSuffix}`;
     }
 
     this.sprite.setFlipX(flipX);

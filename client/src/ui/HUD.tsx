@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import { phaserGame } from '../game/instance';
 import { connect } from '../network/socket';
 import { Chat } from './Chat';
 import { Leaderboard } from './Leaderboard';
@@ -6,15 +8,27 @@ import { useGameStore } from './store';
 
 export function HUD() {
   const localPlayer = useGameStore((s) => s.localPlayer);
-  const boss = useGameStore((s) => s.boss);
   const connected = useGameStore((s) => s.connected);
   const playerCount = useGameStore((s) => s.playerCount);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
+  const [musicMuted, setMusicMuted] = useState(false);
+
+  useEffect(() => {
+    const muted = phaserGame?.sound.mute ?? false;
+    setMusicMuted(muted);
+  }, []);
 
   const handleRetry = () => {
     useGameStore.getState().setConnectionError(null);
     connect();
+  };
+
+  const toggleMusicMute = () => {
+    const soundManager = phaserGame?.sound;
+    if (!soundManager) return;
+    soundManager.mute = !soundManager.mute;
+    setMusicMuted(soundManager.mute);
   };
 
   return (
@@ -33,53 +47,73 @@ export function HUD() {
       {/* Nickname modal */}
       <NicknameModal />
 
-      {/* Connection status */}
+      {/* Top-right status + music button */}
       <div
         style={{
           position: 'absolute',
           top: 8,
           right: 8,
-          fontSize: '11px',
-          opacity: 0.7,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: 6,
         }}
       >
-        {connected ? (
-          `Online (${playerCount} players)`
-        ) : connectionError ? (
-          <div style={{ color: '#ff6666', opacity: 1 }}>
-            <div>❌ {connectionError}</div>
-            <button
-              onClick={handleRetry}
-              style={{
-                marginTop: 4,
-                padding: '4px 8px',
-                fontSize: '10px',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-                background: '#444',
-                border: '1px solid #666',
-                color: '#fff',
-                borderRadius: 3,
-              }}
-            >
-              Retry Connection
-            </button>
-          </div>
-        ) : (
-          <div>
-            Connecting...
-            {lastConnectionAttempt && (
-              <div style={{ fontSize: '9px', marginTop: 2 }}>
-                Last attempt: {new Date(lastConnectionAttempt).toLocaleTimeString()}
-              </div>
-            )}
-          </div>
-        )}
+        <button
+          onClick={toggleMusicMute}
+          style={{
+            pointerEvents: 'auto',
+            padding: '4px 8px',
+            fontSize: '11px',
+            cursor: 'pointer',
+            background: 'rgba(0, 0, 0, 0.55)',
+            border: '1px solid #666',
+            color: '#fff',
+            borderRadius: 3,
+          }}
+        >
+          {musicMuted ? 'Unmute Music' : 'Mute Music'}
+        </button>
+
+        <div style={{ fontSize: '11px', opacity: 0.7, textAlign: 'right' }}>
+          {connected ? (
+            `Online (${playerCount} players)`
+          ) : connectionError ? (
+            <div style={{ color: '#ff6666', opacity: 1 }}>
+              <div>❌ {connectionError}</div>
+              <button
+                onClick={handleRetry}
+                style={{
+                  marginTop: 4,
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  cursor: 'pointer',
+                  pointerEvents: 'auto',
+                  background: '#444',
+                  border: '1px solid #666',
+                  color: '#fff',
+                  borderRadius: 3,
+                }}
+              >
+                Retry Connection
+              </button>
+            </div>
+          ) : (
+            <div>
+              Connecting...
+              {lastConnectionAttempt && (
+                <div style={{ fontSize: '9px', marginTop: 2 }}>
+                  Last attempt: {new Date(lastConnectionAttempt).toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Player HP */}
       {localPlayer && (
-        <div style={{ position: 'absolute', bottom: 16, left: 16 }}>
+        <div style={{ position: 'absolute', top: 16, left: 16 }}>
           <div style={{ fontSize: '12px', marginBottom: 4 }}>HP</div>
           <div
             style={{
@@ -128,44 +162,6 @@ export function HUD() {
         </div>
       )}
 
-      {/* Boss HP bar */}
-      {boss && boss.state !== 'dead' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            textAlign: 'center',
-          }}
-        >
-          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#aaaaff', marginBottom: 4 }}>
-            GELEHK {boss.phase > 1 ? `(Phase ${boss.phase})` : ''}
-          </div>
-          <div
-            style={{
-              width: 300,
-              height: 12,
-              background: '#333',
-              borderRadius: 3,
-              overflow: 'hidden',
-            }}
-          >
-            <div
-              style={{
-                width: `${(boss.hp / boss.maxHp) * 100}%`,
-                height: '100%',
-                background: boss.phase === 3 ? '#ff4444' : boss.phase === 2 ? '#8844ff' : '#6666ff',
-                transition: 'width 0.1s',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '10px', marginTop: 2, opacity: 0.7 }}>
-            {boss.hp} / {boss.maxHp}
-          </div>
-        </div>
-      )}
-
       {/* Controls hint */}
       <div
         style={{
@@ -176,7 +172,7 @@ export function HUD() {
           opacity: 0.4,
         }}
       >
-        Arrow keys: move | Space: attack | Tab: players
+        Arrow keys / WASD: move | Space: attack | Tab: players
       </div>
 
       {/* Chat */}

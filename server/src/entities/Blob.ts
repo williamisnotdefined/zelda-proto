@@ -3,29 +3,29 @@ import {
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import { SlimeSnapshot, SlimeState } from '../network/MessageTypes.js';
+import { BlobSnapshot, BlobState } from '../network/MessageTypes.js';
 import { aabbOverlap, distanceSquared, entityAABB, isInSafeZone } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
 import { Entity } from '../core/Entity.js';
 
-export const SLIME_HP = 30;
-export const SLIME_SPEED = 60;
-export const SLIME_DAMAGE = 5;
-export const SLIME_AGGRO_RADIUS = 600;
-export const SLIME_WIDTH = 48;
-export const SLIME_HEIGHT = 48;
-export const SLIME_CONTACT_WIDTH = 28;
-export const SLIME_CONTACT_HEIGHT = 28;
-export const SLIME_DAMAGE_COOLDOWN = 1000;
-export const SLIME_RESPAWN_TIME = 10000;
+export const BLOB_HP = 30;
+export const BLOB_SPEED = 60;
+export const BLOB_DAMAGE = 5;
+export const BLOB_AGGRO_RADIUS = 600;
+export const BLOB_WIDTH = 48;
+export const BLOB_HEIGHT = 48;
+export const BLOB_CONTACT_WIDTH = 28;
+export const BLOB_CONTACT_HEIGHT = 28;
+export const BLOB_DAMAGE_COOLDOWN = 1000;
+export const BLOB_RESPAWN_TIME = 10000;
 
-export class Slime extends Entity {
+export class Blob extends Entity {
   hp: number;
   maxHp: number;
   speed: number;
   damage: number;
   aggroRadius: number;
-  state: SlimeState;
+  state: BlobState;
   damageCooldown: number;
   spawnX: number;
   spawnY: number;
@@ -38,11 +38,11 @@ export class Slime extends Entity {
     super(id, x, y);
     this.spawnX = x;
     this.spawnY = y;
-    this.hp = SLIME_HP;
-    this.maxHp = SLIME_HP;
-    this.speed = SLIME_SPEED;
-    this.damage = SLIME_DAMAGE;
-    this.aggroRadius = SLIME_AGGRO_RADIUS;
+    this.hp = BLOB_HP;
+    this.maxHp = BLOB_HP;
+    this.speed = BLOB_SPEED;
+    this.damage = BLOB_DAMAGE;
+    this.aggroRadius = BLOB_AGGRO_RADIUS;
     this.state = 'idle';
     this.damageCooldown = 0;
     this.respawnTimer = 0;
@@ -131,9 +131,9 @@ export class Slime extends Entity {
       }
 
       if (this.damageCooldown <= 0) {
-        const slimeBox = entityAABB(this.x, this.y, SLIME_WIDTH, SLIME_HEIGHT);
+        const blobBox = entityAABB(this.x, this.y, BLOB_WIDTH, BLOB_HEIGHT);
         const playerBox = entityAABB(target.x, target.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-        if (aabbOverlap(slimeBox, playerBox)) {
+        if (aabbOverlap(blobBox, playerBox)) {
           this.state = 'attacking';
         }
       }
@@ -166,7 +166,7 @@ export class Slime extends Entity {
       this.hp = 0;
       this.state = 'dead';
       this.targetPlayerId = null;
-      this.respawnTimer = SLIME_RESPAWN_TIME;
+      this.respawnTimer = BLOB_RESPAWN_TIME;
     }
   }
 
@@ -186,7 +186,7 @@ export class Slime extends Entity {
     return false;
   }
 
-  toSnapshot(): SlimeSnapshot {
+  toSnapshot(): BlobSnapshot {
     return {
       id: this.id,
       x: Math.round(this.x),

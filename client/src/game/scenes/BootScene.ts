@@ -14,10 +14,12 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 48,
     });
 
-    this.load.spritesheet('slime', 'assets/sprites/monsters/blob.png', {
+    this.load.spritesheet('blob', 'assets/sprites/monsters/blob.png', {
       frameWidth: 32,
       frameHeight: 32,
     });
+
+    this.load.audio('bg_music', 'assets/sounds/music_1.mp3');
 
     this.load.spritesheet('skeleton', 'assets/sprites/monsters/gelehk.png', {
       frameWidth: 48,

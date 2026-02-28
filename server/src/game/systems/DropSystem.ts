@@ -1,25 +1,25 @@
 import { nanoid } from 'nanoid';
 import { Player } from '../../entities/Player.js';
-import { Slime } from '../../entities/Slime.js';
+import { Blob } from '../../entities/Blob.js';
 import type { Drop } from '../World.js';
 
 export class DropSystem {
-  update(players: Map<string, Player>, slimes: Map<string, Slime>, drops: Map<string, Drop>): void {
+  update(players: Map<string, Player>, blobs: Map<string, Blob>, drops: Map<string, Drop>): void {
     this.handleDropPickup(players, drops);
-    this.handleEnemyDrops(slimes, drops);
+    this.handleEnemyDrops(blobs, drops);
   }
 
-  private handleEnemyDrops(slimes: Map<string, Slime>, drops: Map<string, Drop>): void {
+  private handleEnemyDrops(blobs: Map<string, Blob>, drops: Map<string, Drop>): void {
     const DROP_CHANCE = 0.5;
-    for (const slime of slimes.values()) {
-      if (slime.state === 'dead' && !slime.hasDropped) {
-        slime.hasDropped = true;
+    for (const blob of blobs.values()) {
+      if (blob.state === 'dead' && !blob.hasDropped) {
+        blob.hasDropped = true;
         if (Math.random() < DROP_CHANCE) {
           const dropId = `drop_${nanoid(8)}`;
           drops.set(dropId, {
             id: dropId,
-            x: slime.x,
-            y: slime.y,
+            x: blob.x,
+            y: blob.y,
             kind: 'heal',
           });
         }

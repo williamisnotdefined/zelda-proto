@@ -5,7 +5,7 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 
 export type PlayerState = 'idle' | 'moving' | 'attacking' | 'dead';
 
-export type SlimeState = 'idle' | 'chasing' | 'attacking' | 'dead';
+export type BlobState = 'idle' | 'chasing' | 'attacking' | 'dead';
 
 export type BossPhase = 1 | 2 | 3;
 
@@ -33,13 +33,13 @@ export interface PlayerSnapshot {
   lastProcessedInputSeq: number;
 }
 
-export interface SlimeSnapshot {
+export interface BlobSnapshot {
   id: string;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
-  state: SlimeState;
+  state: BlobState;
 }
 
 export interface BossSnapshot {
@@ -78,7 +78,7 @@ export interface DropSnapshot {
 export interface SnapshotMessage {
   type: 'snapshot';
   players: PlayerSnapshot[];
-  enemies: SlimeSnapshot[];
+  enemies: BlobSnapshot[];
   bosses: BossSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
@@ -121,7 +121,7 @@ export interface SnapshotDeltaMessage {
   full: boolean;
   players: PlayerSnapshot[];
   removedPlayerIds: string[];
-  enemies: SlimeSnapshot[];
+  enemies: BlobSnapshot[];
   bosses: BossSnapshot[];
   drops: DropSnapshot[];
   removedEnemyIds: string[];

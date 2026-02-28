@@ -13,32 +13,32 @@ import {
   PVP_DAMAGE,
 } from '../entities/Player.js';
 import {
-  Slime,
-  SLIME_CONTACT_HEIGHT,
-  SLIME_CONTACT_WIDTH,
-  SLIME_DAMAGE_COOLDOWN,
-  SLIME_HEIGHT,
-  SLIME_WIDTH,
-} from '../entities/Slime.js';
+  Blob,
+  BLOB_CONTACT_HEIGHT,
+  BLOB_CONTACT_WIDTH,
+  BLOB_DAMAGE_COOLDOWN,
+  BLOB_HEIGHT,
+  BLOB_WIDTH,
+} from '../entities/Blob.js';
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
-  slimes: Map<string, Slime>,
+  blobs: Map<string, Blob>,
   bosses: Map<string, BossGelehk>
 ): void {
   for (const player of players.values()) {
     const hitbox = player.getAttackHitbox();
     if (!hitbox) continue;
 
-    for (const slime of slimes.values()) {
-      if (slime.state === 'dead') continue;
+    for (const blob of blobs.values()) {
+      if (blob.state === 'dead') continue;
       // One hit per enemy per swing
-      if (player.attackHitEnemyIds.has(slime.id)) continue;
-      const slimeBox = entityAABB(slime.x, slime.y, SLIME_WIDTH, SLIME_HEIGHT);
-      if (aabbOverlap(hitbox, slimeBox)) {
-        slime.takeDamage(PLAYER_DAMAGE);
-        player.attackHitEnemyIds.add(slime.id);
-        if (slime.hp <= 0) {
+      if (player.attackHitEnemyIds.has(blob.id)) continue;
+      const blobBox = entityAABB(blob.x, blob.y, BLOB_WIDTH, BLOB_HEIGHT);
+      if (aabbOverlap(hitbox, blobBox)) {
+        blob.takeDamage(PLAYER_DAMAGE);
+        player.attackHitEnemyIds.add(blob.id);
+        if (blob.hp <= 0) {
           player.monsterKills++;
         }
       }
@@ -89,14 +89,14 @@ export function resolvePlayerVsPlayer(players: Map<string, Player>): void {
 }
 
 export function resolveEnemyContactDamage(
-  slimes: Map<string, Slime>,
+  blobs: Map<string, Blob>,
   players: Map<string, Player>
 ): void {
-  for (const slime of slimes.values()) {
-    if (slime.state === 'dead') continue;
-    if (slime.damageCooldown > 0) continue;
+  for (const blob of blobs.values()) {
+    if (blob.state === 'dead') continue;
+    if (blob.damageCooldown > 0) continue;
 
-    const slimeBox = entityAABB(slime.x, slime.y, SLIME_CONTACT_WIDTH, SLIME_CONTACT_HEIGHT);
+    const blobBox = entityAABB(blob.x, blob.y, BLOB_CONTACT_WIDTH, BLOB_CONTACT_HEIGHT);
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
@@ -106,9 +106,9 @@ export function resolveEnemyContactDamage(
       }
 
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-      if (aabbOverlap(slimeBox, playerBox)) {
-        player.takeDamage(slime.damage);
-        slime.damageCooldown = SLIME_DAMAGE_COOLDOWN;
+      if (aabbOverlap(blobBox, playerBox)) {
+        player.takeDamage(blob.damage);
+        blob.damageCooldown = BLOB_DAMAGE_COOLDOWN;
         break;
       }
     }

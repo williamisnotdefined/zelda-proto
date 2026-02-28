@@ -14,7 +14,7 @@ import {
   resolvePlayerVsPlayer,
 } from './Combat.js';
 import { Player } from '../entities/Player.js';
-import { Slime } from '../entities/Slime.js';
+import { Blob } from '../entities/Blob.js';
 import { BossRegionSystem } from './systems/BossRegionSystem.js';
 import { DropSystem } from './systems/DropSystem.js';
 import { SpawnSystem } from './systems/SpawnSystem.js';
@@ -34,13 +34,13 @@ export interface Drop {
 
 export class World extends EntityWorld<Entity> {
   players: Map<string, Player>;
-  slimes: Map<string, Slime>;
+  blobs: Map<string, Blob>;
   bosses: Map<string, BossGelehk>;
   drops: Map<string, Drop>;
 
   private now: number;
   private readonly playerSpatialIndex: SpatialHash<Player>;
-  private readonly enemySpatialIndex: SpatialHash<Slime>;
+  private readonly enemySpatialIndex: SpatialHash<Blob>;
   private readonly bossSpatialIndex: SpatialHash<BossGelehk>;
   private readonly dropSpatialIndex: SpatialHash<Drop>;
   private readonly spawnSystem: SpawnSystem;
@@ -50,7 +50,7 @@ export class World extends EntityWorld<Entity> {
   constructor() {
     super();
     this.players = new Map();
-    this.slimes = new Map();
+    this.blobs = new Map();
     this.bosses = new Map();
     this.drops = new Map();
     this.now = Date.now();
@@ -123,15 +123,15 @@ export class World extends EntityWorld<Entity> {
     this.spawnSystem.update(
       this.now,
       this.players,
-      this.slimes,
+      this.blobs,
       (entity) => this.add(entity),
       (id) => this.remove(id)
     );
 
     const spawnSafeZoneActive = this.isSpawnSafeZoneActive();
-    for (const slime of this.slimes.values()) {
-      slime.update(dt, this.players, spawnSafeZoneActive);
-      slime.tryRespawn(dt);
+    for (const blob of this.blobs.values()) {
+      blob.update(dt, this.players, spawnSafeZoneActive);
+      blob.tryRespawn(dt);
     }
 
     this.bossRegionSystem.update(
@@ -140,15 +140,15 @@ export class World extends EntityWorld<Entity> {
       this.bosses,
       (entity) => this.add(entity),
       (id) => this.remove(id),
-      (x, y) => this.spawnSystem.spawnMinions(x, y, this.slimes, (entity) => this.add(entity)),
+      (x, y) => this.spawnSystem.spawnMinions(x, y, this.blobs, (entity) => this.add(entity)),
       dt
     );
 
-    resolvePlayerAttacks(this.players, this.slimes, this.bosses);
+    resolvePlayerAttacks(this.players, this.blobs, this.bosses);
     resolvePlayerVsPlayer(this.players);
-    resolveEnemyContactDamage(this.slimes, this.players);
+    resolveEnemyContactDamage(this.blobs, this.players);
 
-    this.dropSystem.update(this.players, this.slimes, this.drops);
+    this.dropSystem.update(this.players, this.blobs, this.drops);
     this.rebuildSpatialIndexes();
   }
 
@@ -156,7 +156,7 @@ export class World extends EntityWorld<Entity> {
     return this.playerSpatialIndex.queryRadius(x, y, radius);
   }
 
-  queryEnemiesInRadius(x: number, y: number, radius: number): Slime[] {
+  queryEnemiesInRadius(x: number, y: number, radius: number): Blob[] {
     return this.enemySpatialIndex.queryRadius(x, y, radius);
   }
 
@@ -178,9 +178,9 @@ export class World extends EntityWorld<Entity> {
       this.playerSpatialIndex.insert(player.x, player.y, player);
     }
 
-    for (const slime of this.slimes.values()) {
-      if (slime.state === 'dead') continue;
-      this.enemySpatialIndex.insert(slime.x, slime.y, slime);
+    for (const blob of this.blobs.values()) {
+      if (blob.state === 'dead') continue;
+      this.enemySpatialIndex.insert(blob.x, blob.y, blob);
     }
 
     for (const boss of this.bosses.values()) {

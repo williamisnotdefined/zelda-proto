@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BossGelehkEntity } from '../entities/BossGelehk';
 import { PlayerEntity } from '../entities/Player';
-import { SlimeEntity } from '../entities/Slime';
+import { BlobEntity } from '../entities/Blob';
 
 const MINIMAP_RADIUS = 60;
 const MINIMAP_WORLD_RANGE = 600;
@@ -27,7 +27,7 @@ export class Minimap {
     localX: number,
     localY: number,
     playerEntities: Map<string, PlayerEntity>,
-    slimeEntities: Map<string, SlimeEntity>,
+    blobEntities: Map<string, BlobEntity>,
     bossEntities: Map<string, BossGelehkEntity>,
     localPlayerId: string | null
   ): void {
@@ -44,11 +44,11 @@ export class Minimap {
 
     const scale = MINIMAP_RADIUS / MINIMAP_WORLD_RANGE;
 
-    // Draw slimes (red dots)
+    // Draw blobs (red dots)
     g.fillStyle(0xff4444, 0.9);
-    for (const slime of slimeEntities.values()) {
-      if (slime.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, slime.sprite.x, slime.sprite.y, scale, 1.5);
+    for (const blob of blobEntities.values()) {
+      if (blob.serverState === 'dead') continue;
+      this.drawDot(g, localX, localY, blob.sprite.x, blob.sprite.y, scale, 1.5);
     }
 
     // Draw bosses (purple dots, larger)

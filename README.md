@@ -133,11 +133,6 @@ If users get stuck on "Connecting..." in production:
 
 - [ ] Distance weapon (e.g. bow)
 - [ ] client assets cleanup, delete unused assets
-- [ ] Quando morre não pode continuar "andando" se o player continuar clicando nas setas.
-- [ ] O player pode caminhar por setas ou WASD.
-- [ ] Add "toasty" when hp < 10% for the third time without dying
-- [ ] Add music and mute button top right of the screen.
-- [ ] In top of HUD we can see gelehk name and hp bar, but we should not see the player name and hp bar. Each gelehk should have its own hp bar.
-- [ ] HP bar should be on the top left, not on the bottom left.
-- [ ] Slime now is Blob, rename it all places we use "slime" to "blob".
+- [ ] Add "toasty" when player kills more than 10 monsters at once.
+
 

@@ -1,13 +1,13 @@
 import type {
   AoeIndicator,
+  BlobSnapshot,
   BossSnapshot,
   DropSnapshot,
-  InputMessage,
   IceZone,
+  InputMessage,
   PlayerSnapshot,
   ServerChatMessage,
   ServerMessage,
-  SlimeSnapshot,
 } from '@gelehka/shared';
 import {
   WORLD_SPAWN_SAFE_ZONE_RADIUS,
@@ -16,10 +16,10 @@ import {
 } from '@gelehka/shared/constants';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
+import { BlobEntity } from '../../entities/Blob';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
 import { PlayerEntity } from '../../entities/Player';
-import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 import { Minimap } from '../Minimap';
@@ -35,6 +35,7 @@ const MAX_PENDING_INPUTS = 128;
 const MAX_PENDING_INPUT_AGE_MS = 1500;
 const RECONCILE_SNAP_DISTANCE = 120;
 const RECONCILE_BLEND = 0.35;
+const BACKGROUND_MUSIC_VOLUME = 0.08;
 
 interface PendingInput {
   input: InputMessage;
@@ -54,10 +55,14 @@ export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
   private previousLocalState: string | null = null;
   private playerEntities: Map<string, PlayerEntity> = new Map();
-  private slimeEntities: Map<string, SlimeEntity> = new Map();
+  private blobEntities: Map<string, BlobEntity> = new Map();
   private bossEntities: Map<string, BossGelehkEntity> = new Map();
   private dropEntities: Map<string, DropEntity> = new Map();
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
+  private keyW!: Phaser.Input.Keyboard.Key;
+  private keyA!: Phaser.Input.Keyboard.Key;
+  private keyS!: Phaser.Input.Keyboard.Key;
+  private keyD!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
   private prevAttack = false;
   private removeMessageHandler: (() => void) | null = null;
@@ -77,6 +82,7 @@ export class WorldScene extends Phaser.Scene {
   private safeZoneRing: Phaser.GameObjects.Arc | null = null;
   private safeZoneTimer: Phaser.Time.TimerEvent | null = null;
   private minimap!: Minimap;
+  private backgroundMusic: Phaser.Sound.BaseSound | null = null;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -84,10 +90,20 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     this.cursors = this.input.keyboard!.createCursorKeys();
+    this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W);
+    this.keyA = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+    this.keyS = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
+    this.keyD = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     this.attackKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.createInfiniteBackground();
     this.minimap = new Minimap(this);
+
+    if (this.sound.locked) {
+      this.sound.once(Phaser.Sound.Events.UNLOCKED, () => this.startBackgroundMusic());
+    } else {
+      this.startBackgroundMusic();
+    }
 
     // Connection is now initiated from NicknameModal after user enters nickname
     // Message handlers for 'welcome' are set up globally in BootScene
@@ -253,7 +269,7 @@ export class WorldScene extends Phaser.Scene {
 
   private handleSnapshot(msg: {
     players: PlayerSnapshot[];
-    enemies: SlimeSnapshot[];
+    enemies: BlobSnapshot[];
     bosses: BossSnapshot[];
     drops: DropSnapshot[];
     iceZones: IceZone[];
@@ -267,7 +283,7 @@ export class WorldScene extends Phaser.Scene {
     const aoeIndicators = msg.aoeIndicators || [];
 
     this.syncPlayers(players);
-    this.syncSlimes(enemies);
+    this.syncBlobs(enemies);
     this.syncBosses(players, bosses, iceZones, aoeIndicators);
     this.syncDrops(drops);
   }
@@ -320,22 +336,22 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private syncSlimes(enemies: SlimeSnapshot[]): void {
-    const seenSlimeIds = new Set<string>();
-    for (const s of enemies) {
-      seenSlimeIds.add(s.id);
-      let entity = this.slimeEntities.get(s.id);
+  private syncBlobs(enemies: BlobSnapshot[]): void {
+    const seenBlobIds = new Set<string>();
+    for (const b of enemies) {
+      seenBlobIds.add(b.id);
+      let entity = this.blobEntities.get(b.id);
       if (!entity) {
-        entity = new SlimeEntity(this, s.x, s.y);
-        this.slimeEntities.set(s.id, entity);
+        entity = new BlobEntity(this, b.x, b.y);
+        this.blobEntities.set(b.id, entity);
       }
-      entity.updateFromServer(s.x, s.y, s.hp, s.maxHp, s.state);
+      entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
     }
 
-    for (const [id, entity] of this.slimeEntities) {
-      if (!seenSlimeIds.has(id)) {
+    for (const [id, entity] of this.blobEntities) {
+      if (!seenBlobIds.has(id)) {
         entity.destroy();
-        this.slimeEntities.delete(id);
+        this.blobEntities.delete(id);
       }
     }
   }
@@ -421,15 +437,23 @@ export class WorldScene extends Phaser.Scene {
     this.trimPendingInputs();
     if (!this.localPlayerId) return;
 
+    const localEntity = this.playerEntities.get(this.localPlayerId);
+    const localDead = localEntity?.serverState === 'dead';
+
     const attack = this.attackKey.isDown && !this.prevAttack;
     this.prevAttack = this.attackKey.isDown;
 
+    const upPressed = this.cursors.up.isDown || this.keyW.isDown;
+    const downPressed = this.cursors.down.isDown || this.keyS.isDown;
+    const leftPressed = this.cursors.left.isDown || this.keyA.isDown;
+    const rightPressed = this.cursors.right.isDown || this.keyD.isDown;
+
     const inputState: InputState = {
-      up: this.cursors.up.isDown,
-      down: this.cursors.down.isDown,
-      left: this.cursors.left.isDown,
-      right: this.cursors.right.isDown,
-      attack,
+      up: !localDead && upPressed,
+      down: !localDead && downPressed,
+      left: !localDead && leftPressed,
+      right: !localDead && rightPressed,
+      attack: !localDead && attack,
     };
 
     this.applyLocalPrediction(inputState, delta);
@@ -476,7 +500,7 @@ export class WorldScene extends Phaser.Scene {
       entity.update(this, delta);
     }
 
-    for (const entity of this.slimeEntities.values()) {
+    for (const entity of this.blobEntities.values()) {
       entity.update(delta);
     }
 
@@ -484,14 +508,13 @@ export class WorldScene extends Phaser.Scene {
       entity.update(delta);
     }
 
-    const localEntity = this.playerEntities.get(this.localPlayerId);
     if (localEntity) {
       this.cameras.main.centerOn(localEntity.sprite.x, localEntity.sprite.y);
       this.minimap.draw(
         localEntity.sprite.x,
         localEntity.sprite.y,
         this.playerEntities,
-        this.slimeEntities,
+        this.blobEntities,
         this.bossEntities,
         this.localPlayerId
       );
@@ -519,8 +542,8 @@ export class WorldScene extends Phaser.Scene {
     for (const entity of this.playerEntities.values()) entity.destroy();
     this.playerEntities.clear();
 
-    for (const entity of this.slimeEntities.values()) entity.destroy();
-    this.slimeEntities.clear();
+    for (const entity of this.blobEntities.values()) entity.destroy();
+    this.blobEntities.clear();
 
     for (const entity of this.bossEntities.values()) entity.destroy();
     this.bossEntities.clear();
@@ -565,6 +588,20 @@ export class WorldScene extends Phaser.Scene {
 
     entity.targetX += nx * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
     entity.targetY += ny * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
+  }
+
+  private startBackgroundMusic(): void {
+    if (!this.backgroundMusic) {
+      this.backgroundMusic =
+        this.sound.get('bg_music') ??
+        this.sound.add('bg_music', {
+          loop: true,
+          volume: BACKGROUND_MUSIC_VOLUME,
+        });
+    }
+    if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
+      this.backgroundMusic.play();
+    }
   }
 
   private reconcileLocalPrediction(serverPlayer: PlayerSnapshot): void {

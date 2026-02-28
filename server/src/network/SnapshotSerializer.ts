@@ -4,14 +4,14 @@ import {
   DropSnapshot,
   IceZone,
   PlayerSnapshot,
-  SlimeSnapshot,
+  BlobSnapshot,
   SnapshotDeltaMessage,
   SnapshotMessage,
 } from './MessageTypes.js';
 
 export interface SnapshotBundle {
   players: PlayerSnapshot[];
-  enemies: SlimeSnapshot[];
+  enemies: BlobSnapshot[];
   bosses: BossSnapshot[];
   drops: DropSnapshot[];
   iceZones: IceZone[];
@@ -20,7 +20,7 @@ export interface SnapshotBundle {
 
 export interface SnapshotState {
   players: Map<string, PlayerSnapshot>;
-  enemies: Map<string, SlimeSnapshot>;
+  enemies: Map<string, BlobSnapshot>;
   bosses: Map<string, BossSnapshot>;
   drops: Map<string, DropSnapshot>;
 }

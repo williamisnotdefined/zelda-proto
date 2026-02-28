@@ -21,6 +21,8 @@ interface AoeData {
 export class BossGelehkEntity {
   sprite: Phaser.GameObjects.Sprite;
   label: Phaser.GameObjects.Text;
+  hpBar: Phaser.GameObjects.Rectangle;
+  hpBarBg: Phaser.GameObjects.Rectangle;
   targetX: number;
   targetY: number;
   hp: number;
@@ -69,6 +71,12 @@ export class BossGelehkEntity {
     });
     this.label.setOrigin(0.5, 1);
     this.label.setDepth(13);
+
+    this.hpBarBg = scene.add.rectangle(x, y - 46, 86, 6, 0x222222, 0.9);
+    this.hpBarBg.setDepth(12);
+
+    this.hpBar = scene.add.rectangle(x, y - 46, 86, 6, 0x6666ff);
+    this.hpBar.setDepth(13);
   }
 
   updateFromServer(
@@ -163,6 +171,14 @@ export class BossGelehkEntity {
     this.label.x = this.sprite.x;
     this.label.y = this.sprite.y - 56;
 
+    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
+    this.hpBarBg.x = this.sprite.x;
+    this.hpBarBg.y = this.sprite.y - 46;
+    this.hpBar.width = 86 * hpRatio;
+    this.hpBar.x = this.sprite.x - (86 - this.hpBar.width) / 2;
+    this.hpBar.y = this.sprite.y - 46;
+    this.hpBar.fillColor = this.phase === 3 ? 0xff4444 : this.phase === 2 ? 0x8844ff : 0x6666ff;
+
     this.updateAnimation();
     this.updateTint();
   }
@@ -231,6 +247,8 @@ export class BossGelehkEntity {
   destroy(): void {
     this.sprite.destroy();
     this.label.destroy();
+    this.hpBar.destroy();
+    this.hpBarBg.destroy();
     for (const g of this.iceZoneGraphics) g.destroy();
     for (const g of this.aoeGraphics) g.destroy();
   }

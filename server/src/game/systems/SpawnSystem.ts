@@ -2,17 +2,17 @@ import { seededRandom } from '@gelehka/shared/utils';
 import { nanoid } from 'nanoid';
 import { Entity } from '../../core/Entity.js';
 import { Player } from '../../entities/Player.js';
-import { Slime } from '../../entities/Slime.js';
+import { Blob } from '../../entities/Blob.js';
 
 const CHUNK_SIZE = 512;
-const SLIMES_PER_CHUNK = 4;
+const BLOBS_PER_CHUNK = 4;
 const CHUNK_ACTIVE_RANGE = 1024;
 const CHUNK_DESPAWN_TIME = 30000;
 
 interface SpawnChunk {
   cx: number;
   cy: number;
-  slimeIds: Set<string>;
+  blobIds: Set<string>;
   lastPlayerNearby: number;
 }
 
@@ -22,7 +22,7 @@ export class SpawnSystem {
   update(
     now: number,
     players: Map<string, Player>,
-    slimes: Map<string, Slime>,
+    blobs: Map<string, Blob>,
     addEntity: (entity: Entity) => void,
     removeEntity: (id: string) => void
   ): void {
@@ -44,9 +44,9 @@ export class SpawnSystem {
 
           let chunk = this.spawnChunks.get(key);
           if (!chunk) {
-            chunk = { cx, cy, slimeIds: new Set(), lastPlayerNearby: now };
+            chunk = { cx, cy, blobIds: new Set(), lastPlayerNearby: now };
             this.spawnChunks.set(key, chunk);
-            this.spawnSlimesInChunk(chunk, slimes, addEntity);
+            this.spawnBlobsInChunk(chunk, blobs, addEntity);
           } else {
             chunk.lastPlayerNearby = now;
           }
@@ -56,9 +56,9 @@ export class SpawnSystem {
 
     for (const [key, chunk] of this.spawnChunks) {
       if (!activeChunkKeys.has(key) && now - chunk.lastPlayerNearby > CHUNK_DESPAWN_TIME) {
-        for (const slimeId of chunk.slimeIds) {
-          slimes.delete(slimeId);
-          removeEntity(slimeId);
+        for (const blobId of chunk.blobIds) {
+          blobs.delete(blobId);
+          removeEntity(blobId);
         }
         this.spawnChunks.delete(key);
       }
@@ -68,7 +68,7 @@ export class SpawnSystem {
   spawnMinions(
     x: number,
     y: number,
-    slimes: Map<string, Slime>,
+    blobs: Map<string, Blob>,
     addEntity: (entity: Entity) => void
   ): void {
     const MINION_COUNT = 3;
@@ -79,32 +79,32 @@ export class SpawnSystem {
       const angle = (Math.PI * 2 * i) / MINION_COUNT;
       const sx = x + Math.cos(angle) * MINION_SPAWN_RADIUS;
       const sy = y + Math.sin(angle) * MINION_SPAWN_RADIUS;
-      const minion = new Slime(id, sx, sy);
-      slimes.set(id, minion);
+      const minion = new Blob(id, sx, sy);
+      blobs.set(id, minion);
       addEntity(minion);
     }
   }
 
-  private spawnSlimesInChunk(
+  private spawnBlobsInChunk(
     chunk: SpawnChunk,
-    slimes: Map<string, Slime>,
+    blobs: Map<string, Blob>,
     addEntity: (entity: Entity) => void
   ): void {
     const baseX = chunk.cx * CHUNK_SIZE;
     const baseY = chunk.cy * CHUNK_SIZE;
 
-    for (let i = 0; i < SLIMES_PER_CHUNK; i++) {
+    for (let i = 0; i < BLOBS_PER_CHUNK; i++) {
       const rx = seededRandom(chunk.cx, chunk.cy, i * 2);
       const ry = seededRandom(chunk.cx, chunk.cy, i * 2 + 1);
       const x = baseX + rx * CHUNK_SIZE;
       const y = baseY + ry * CHUNK_SIZE;
 
-      const id = `slime_${nanoid(8)}`;
+      const id = `blob_${nanoid(8)}`;
       const key = `${chunk.cx},${chunk.cy}`;
-      const slime = new Slime(id, x, y, key);
-      slimes.set(id, slime);
-      addEntity(slime);
-      chunk.slimeIds.add(id);
+      const blob = new Blob(id, x, y, key);
+      blobs.set(id, blob);
+      addEntity(blob);
+      chunk.blobIds.add(id);
     }
   }
 }

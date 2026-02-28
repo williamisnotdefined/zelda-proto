@@ -12,7 +12,7 @@ export interface PlayerData {
   direction: string;
 }
 
-export interface SlimeData {
+export interface BlobData {
   id: string;
   x: number;
   y: number;

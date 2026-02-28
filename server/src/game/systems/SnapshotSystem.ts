@@ -23,8 +23,8 @@ export class SnapshotSystem {
     const { iceZones, aoeIndicators } = this.collectBossEffects(world);
 
     const enemies = [];
-    for (const slime of world.slimes.values()) {
-      if (slime.state !== 'dead') enemies.push(slime.toSnapshot());
+    for (const blob of world.blobs.values()) {
+      if (blob.state !== 'dead') enemies.push(blob.toSnapshot());
     }
 
     const bosses = [];
@@ -71,8 +71,8 @@ export class SnapshotSystem {
     }
 
     const enemies = [];
-    for (const slime of world.queryEnemiesInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
-      enemies.push(slime.toSnapshot());
+    for (const blob of world.queryEnemiesInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+      enemies.push(blob.toSnapshot());
     }
 
     const bosses = [];
