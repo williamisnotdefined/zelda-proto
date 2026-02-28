@@ -15,6 +15,34 @@ const MAX_NICKNAME_LENGTH = 16;
 const MAX_CHAT_LENGTH = 100;
 const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 40;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isJoinMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'join' }> {
+  return msg.type === 'join' && typeof (msg as { nickname?: unknown }).nickname === 'string';
+}
+
+function isInputMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'input' }> {
+  if (msg.type !== 'input') return false;
+  const candidate = msg as unknown;
+  if (!isRecord(candidate)) return false;
+  return (
+    typeof candidate.seq === 'number' &&
+    Number.isSafeInteger(candidate.seq) &&
+    candidate.seq >= 0 &&
+    typeof candidate.up === 'boolean' &&
+    typeof candidate.down === 'boolean' &&
+    typeof candidate.left === 'boolean' &&
+    typeof candidate.right === 'boolean' &&
+    typeof candidate.attack === 'boolean'
+  );
+}
+
+function isChatMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'chat' }> {
+  return msg.type === 'chat' && typeof (msg as { text?: unknown }).text === 'string';
+}
+
 function formatDateTime(): string {
   return new Date().toLocaleString('en-GB', {
     day: '2-digit',
@@ -31,6 +59,7 @@ export class WebSocketHandler {
   readonly clients: Map<string, WebSocket> = new Map();
   private readonly networkManager: NetworkManager;
   private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
+  private readonly forceFullSnapshotFor: Set<string> = new Set();
   private snapshotTick = 0;
 
   constructor(httpServer: Server) {
@@ -69,7 +98,7 @@ export class WebSocketHandler {
           const msg = this.networkManager.decodeClientMessage(data) as ClientMessage | null;
           if (!msg) return;
 
-          if (msg.type === 'join' && !hasJoined) {
+          if (isJoinMessage(msg) && !hasJoined) {
             const nickname =
               msg.nickname
                 .replace(/[^a-zA-Z0-9 ]/g, '')
@@ -90,10 +119,10 @@ export class WebSocketHandler {
               mapHeight: 0,
             };
             this.networkManager.send(ws, welcome);
-          } else if (msg.type === 'input' && hasJoined) {
+          } else if (isInputMessage(msg) && hasJoined) {
             if (++inputCount > INPUT_RATE_LIMIT) return;
             world.handleInput(playerId, msg);
-          } else if (msg.type === 'chat' && hasJoined) {
+          } else if (isChatMessage(msg) && hasJoined) {
             if (++chatCount > CHAT_RATE_LIMIT) return;
             this.handleChat(world, playerId, msg.text);
           }
@@ -105,6 +134,7 @@ export class WebSocketHandler {
       ws.on('close', () => {
         this.clients.delete(playerId);
         this.previousSnapshots.delete(playerId);
+        this.forceFullSnapshotFor.delete(playerId);
         if (hasJoined) {
           const nickname = world.players.get(playerId)?.nickname ?? 'Unknown';
           world.removePlayer(playerId);
@@ -148,10 +178,17 @@ export class WebSocketHandler {
       if (ws.readyState === WebSocket.OPEN) {
         const snapshot = world.getSnapshotForPlayer(playerId);
         const previous = this.previousSnapshots.get(playerId) ?? null;
-        const full = this.snapshotTick % FORCE_FULL_SNAPSHOT_EVERY_TICKS === 0;
+        const full =
+          this.forceFullSnapshotFor.has(playerId) ||
+          this.snapshotTick % FORCE_FULL_SNAPSHOT_EVERY_TICKS === 0;
         const { message, nextState } = diffSnapshot(previous, snapshot, this.snapshotTick, full);
-        this.previousSnapshots.set(playerId, nextState);
-        this.networkManager.send(ws, message);
+        const sent = this.networkManager.send(ws, message);
+        if (sent) {
+          this.previousSnapshots.set(playerId, nextState);
+          this.forceFullSnapshotFor.delete(playerId);
+        } else {
+          this.forceFullSnapshotFor.add(playerId);
+        }
       }
     }
   }

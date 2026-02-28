@@ -37,6 +37,7 @@ export class Player extends Entity {
   deaths: number;
   safeZoneTimer: number;
   lastProcessedInputSeq: number;
+  private lastReceivedInputSeq: number;
 
   readonly stateMachine: StateMachine;
   private readonly fsmStates: Record<PlayerState, State>;
@@ -60,6 +61,7 @@ export class Player extends Entity {
     this.deaths = 0;
     this.safeZoneTimer = SAFE_ZONE_DURATION;
     this.lastProcessedInputSeq = 0;
+    this.lastReceivedInputSeq = -1;
 
     this.stateMachine = new StateMachine();
     this.fsmStates = {
@@ -72,6 +74,9 @@ export class Player extends Entity {
   }
 
   applyInput(input: InputMessage): void {
+    if (!Number.isSafeInteger(input.seq) || input.seq < 0) return;
+    if (input.seq <= this.lastReceivedInputSeq) return;
+    this.lastReceivedInputSeq = input.seq;
     this.lastInput = input;
   }
 

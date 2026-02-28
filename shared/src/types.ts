@@ -115,6 +115,7 @@ export interface SnapshotDeltaMessage {
   tick: number;
   full: boolean;
   players: PlayerSnapshot[];
+  removedPlayerIds: string[];
   enemies: SlimeSnapshot[];
   bosses: BossSnapshot[];
   drops: DropSnapshot[];

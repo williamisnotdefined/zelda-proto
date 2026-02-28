@@ -101,6 +101,7 @@ export function diffSnapshot(
         tick,
         full: true,
         players: current.players,
+        removedPlayerIds: [],
         enemies: current.enemies,
         bosses: current.bosses,
         drops: current.drops,
@@ -117,13 +118,15 @@ export function diffSnapshot(
   const enemiesDiff = diffCollection(prev.enemies, currState.enemies);
   const bossesDiff = diffCollection(prev.bosses, currState.bosses);
   const dropsDiff = diffCollection(prev.drops, currState.drops);
+  const playersDiff = diffCollection(prev.players, currState.players);
 
   return {
     message: {
       type: 'snapshot_delta',
       tick,
       full: false,
-      players: current.players,
+      players: playersDiff.changed,
+      removedPlayerIds: playersDiff.removed,
       enemies: enemiesDiff.changed,
       bosses: bossesDiff.changed,
       drops: dropsDiff.changed,

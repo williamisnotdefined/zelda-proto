@@ -24,10 +24,25 @@ const CHUNK_MARGIN = 1;
 const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
 const DECOR_PER_CHUNK = 6;
 const PLAYER_PREDICT_SPEED = 150;
+const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
+const INPUT_SEND_INTERVAL_MS = 33;
+const MAX_PENDING_INPUTS = 128;
+const MAX_PENDING_INPUT_AGE_MS = 1500;
+const RECONCILE_SNAP_DISTANCE = 120;
+const RECONCILE_BLEND = 0.35;
 
 interface PendingInput {
   input: InputMessage;
   dtMs: number;
+  sentAtMs: number;
+}
+
+interface InputState {
+  up: boolean;
+  down: boolean;
+  left: boolean;
+  right: boolean;
+  attack: boolean;
 }
 
 export class WorldScene extends Phaser.Scene {
@@ -44,6 +59,8 @@ export class WorldScene extends Phaser.Scene {
   private removeErrorHandler: (() => void) | null = null;
   private nextInputSeq = 0;
   private pendingInputs: PendingInput[] = [];
+  private inputSendAccumulatorMs = 0;
+  private lastSentInputState: InputState | null = null;
 
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
@@ -78,6 +95,10 @@ export class WorldScene extends Phaser.Scene {
       switch (msg.type) {
         case 'welcome':
           this.localPlayerId = msg.id;
+          this.nextInputSeq = 0;
+          this.pendingInputs = [];
+          this.inputSendAccumulatorMs = 0;
+          this.lastSentInputState = null;
           this.createSafeZone();
           break;
         case 'snapshot':
@@ -281,6 +302,13 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
+    if (this.localPlayerId && !seenPlayerIds.has(this.localPlayerId)) {
+      this.pendingInputs = [];
+      this.inputSendAccumulatorMs = 0;
+      this.lastSentInputState = null;
+      useGameStore.getState().setLocalPlayer(null);
+    }
+
     // --- Slimes ---
     const seenSlimeIds = new Set<string>();
     for (const s of enemies) {
@@ -377,9 +405,7 @@ export class WorldScene extends Phaser.Scene {
     const attack = this.attackKey.isDown && !this.prevAttack;
     this.prevAttack = this.attackKey.isDown;
 
-    const input: InputMessage = {
-      type: 'input',
-      seq: this.nextInputSeq++,
+    const inputState: InputState = {
       up: this.cursors.up.isDown,
       down: this.cursors.down.isDown,
       left: this.cursors.left.isDown,
@@ -387,9 +413,45 @@ export class WorldScene extends Phaser.Scene {
       attack,
     };
 
-    this.pendingInputs.push({ input, dtMs: delta });
-    this.applyLocalPrediction(input, delta);
-    send(input);
+    this.applyLocalPrediction(inputState, delta);
+
+    this.inputSendAccumulatorMs += delta;
+    const intervalElapsed = this.inputSendAccumulatorMs >= INPUT_SEND_INTERVAL_MS;
+    const changedSinceLastSend =
+      !this.lastSentInputState ||
+      this.lastSentInputState.up !== inputState.up ||
+      this.lastSentInputState.down !== inputState.down ||
+      this.lastSentInputState.left !== inputState.left ||
+      this.lastSentInputState.right !== inputState.right;
+
+    if (intervalElapsed || changedSinceLastSend || attack) {
+      const dtWindowMs = Math.max(1, this.inputSendAccumulatorMs);
+      this.inputSendAccumulatorMs = 0;
+
+      const input: InputMessage = {
+        type: 'input',
+        seq: this.nextInputSeq++,
+        up: inputState.up,
+        down: inputState.down,
+        left: inputState.left,
+        right: inputState.right,
+        attack: inputState.attack,
+      };
+
+      this.pendingInputs.push({ input, dtMs: dtWindowMs, sentAtMs: this.time.now });
+      if (this.pendingInputs.length > MAX_PENDING_INPUTS) {
+        this.pendingInputs.splice(0, this.pendingInputs.length - MAX_PENDING_INPUTS);
+      }
+
+      this.lastSentInputState = {
+        up: inputState.up,
+        down: inputState.down,
+        left: inputState.left,
+        right: inputState.right,
+        attack: false,
+      };
+      send(input);
+    }
 
     for (const entity of this.playerEntities.values()) {
       entity.update(this, delta);
@@ -425,6 +487,9 @@ export class WorldScene extends Phaser.Scene {
     this.removeErrorHandler?.();
     this.minimap?.destroy();
     this.destroySafeZone();
+    this.pendingInputs = [];
+    this.inputSendAccumulatorMs = 0;
+    this.lastSentInputState = null;
 
     for (const entity of this.playerEntities.values()) entity.destroy();
     this.playerEntities.clear();
@@ -452,10 +517,11 @@ export class WorldScene extends Phaser.Scene {
     this.bgTileSprite?.destroy();
   }
 
-  private applyLocalPrediction(input: InputMessage, dtMs: number): void {
+  private applyLocalPrediction(input: InputState, dtMs: number): void {
     if (!this.localPlayerId) return;
     const entity = this.playerEntities.get(this.localPlayerId);
     if (!entity) return;
+    if (entity.serverState === 'dead') return;
 
     let dx = 0;
     let dy = 0;
@@ -469,15 +535,25 @@ export class WorldScene extends Phaser.Scene {
     const len = Math.sqrt(dx * dx + dy * dy);
     const nx = dx / len;
     const ny = dy / len;
-    const dtSeconds = dtMs / 1000;
+    const dtSeconds = Math.min(dtMs, 50) / 1000;
+    const speedPenalty = entity.serverState === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
 
-    entity.targetX += nx * PLAYER_PREDICT_SPEED * dtSeconds;
-    entity.targetY += ny * PLAYER_PREDICT_SPEED * dtSeconds;
+    entity.targetX += nx * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
+    entity.targetY += ny * PLAYER_PREDICT_SPEED * speedPenalty * dtSeconds;
   }
 
   private reconcileLocalPrediction(serverPlayer: PlayerSnapshot): void {
+    const nowMs = this.time.now;
     const acknowledged = serverPlayer.lastProcessedInputSeq;
-    this.pendingInputs = this.pendingInputs.filter((entry) => entry.input.seq > acknowledged);
+    this.pendingInputs = this.pendingInputs.filter(
+      (entry) =>
+        entry.input.seq > acknowledged && nowMs - entry.sentAtMs <= MAX_PENDING_INPUT_AGE_MS
+    );
+
+    if (serverPlayer.state === 'dead') {
+      this.pendingInputs = [];
+      this.inputSendAccumulatorMs = 0;
+    }
 
     let predictedX = serverPlayer.x;
     let predictedY = serverPlayer.y;
@@ -493,16 +569,28 @@ export class WorldScene extends Phaser.Scene {
       if (dx === 0 && dy === 0) continue;
 
       const len = Math.sqrt(dx * dx + dy * dy);
-      const dtSeconds = pending.dtMs / 1000;
+      const dtSeconds = Math.min(pending.dtMs, 50) / 1000;
       predictedX += (dx / len) * PLAYER_PREDICT_SPEED * dtSeconds;
       predictedY += (dy / len) * PLAYER_PREDICT_SPEED * dtSeconds;
     }
 
     const localEntity = this.localPlayerId ? this.playerEntities.get(this.localPlayerId) : null;
     if (localEntity) {
+      const errorX = predictedX - localEntity.targetX;
+      const errorY = predictedY - localEntity.targetY;
+      const errorDist = Math.sqrt(errorX * errorX + errorY * errorY);
+      const correctedX =
+        errorDist > RECONCILE_SNAP_DISTANCE
+          ? predictedX
+          : localEntity.targetX + (predictedX - localEntity.targetX) * RECONCILE_BLEND;
+      const correctedY =
+        errorDist > RECONCILE_SNAP_DISTANCE
+          ? predictedY
+          : localEntity.targetY + (predictedY - localEntity.targetY) * RECONCILE_BLEND;
+
       localEntity.updateFromServer(
-        predictedX,
-        predictedY,
+        correctedX,
+        correctedY,
         serverPlayer.hp,
         serverPlayer.maxHp,
         serverPlayer.state,

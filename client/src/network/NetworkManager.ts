@@ -46,6 +46,7 @@ export class NetworkManager {
 
     try {
       this.ws = new WebSocket(WS_URL);
+      this.snapshotCache = null;
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.notifyError(errorMsg);
@@ -71,6 +72,7 @@ export class NetworkManager {
       }
       for (const cb of this.openCallbacks) cb();
       this.openCallbacks = [];
+      this.snapshotCache = null;
     };
 
     this.ws.onmessage = (event) => {
@@ -157,6 +159,7 @@ export class NetworkManager {
       this.ws.close();
       this.ws = null;
     }
+    this.snapshotCache = null;
   }
 
   getConnectionState(): string {
@@ -230,20 +233,23 @@ export class NetworkManager {
       return { type: 'snapshot', ...this.snapshotCache };
     }
 
+    const playersMap = new Map(this.snapshotCache.players.map((p) => [p.id, p]));
     const enemiesMap = new Map(this.snapshotCache.enemies.map((e) => [e.id, e]));
     const bossesMap = new Map(this.snapshotCache.bosses.map((b) => [b.id, b]));
     const dropsMap = new Map(this.snapshotCache.drops.map((d) => [d.id, d]));
 
+    for (const player of delta.players) playersMap.set(player.id, player);
     for (const enemy of delta.enemies) enemiesMap.set(enemy.id, enemy);
     for (const boss of delta.bosses) bossesMap.set(boss.id, boss);
     for (const drop of delta.drops) dropsMap.set(drop.id, drop);
 
+    for (const id of delta.removedPlayerIds) playersMap.delete(id);
     for (const id of delta.removedEnemyIds) enemiesMap.delete(id);
     for (const id of delta.removedBossIds) bossesMap.delete(id);
     for (const id of delta.removedDropIds) dropsMap.delete(id);
 
     this.snapshotCache = {
-      players: delta.players,
+      players: Array.from(playersMap.values()),
       enemies: Array.from(enemiesMap.values()),
       bosses: Array.from(bossesMap.values()),
       drops: Array.from(dropsMap.values()),
