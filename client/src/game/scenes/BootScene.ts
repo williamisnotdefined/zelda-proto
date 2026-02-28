@@ -27,7 +27,8 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 48,
     });
 
-    this.load.image('grass_tile', 'assets/sprites/tilesets/grass.png');
+    this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
+    this.load.image('cut_grass_tile', 'assets/sprites/tilesets/Cut_Grass.gif');
 
     this.load.spritesheet('plains', 'assets/sprites/tilesets/plains.png', {
       frameWidth: 16,

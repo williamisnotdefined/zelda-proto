@@ -28,6 +28,11 @@ const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
 const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
 const DECOR_PER_CHUNK = 6;
+const CUT_GRASS_MIN_PER_CHUNK = 2;
+const CUT_GRASS_MAX_PER_CHUNK = 3;
+const CUT_GRASS_DEPTH = 0;
+const CUT_GRASS_COUNT_SEED = 4000;
+const CUT_GRASS_POSITION_SEED = 5000;
 const PLAYER_PREDICT_SPEED = 150;
 const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
 const INPUT_SEND_INTERVAL_MS = 33;
@@ -278,6 +283,23 @@ export class WorldScene extends Phaser.Scene {
       const sprite = this.add.sprite(x, y, 'decor', frame);
       sprite.setDepth(1);
       sprite.setAlpha(0.8);
+      sprites.push(sprite);
+    }
+
+    const cutGrassCountRandom = seededRandom(cx, cy, CUT_GRASS_COUNT_SEED);
+    const cutGrassCountRange = CUT_GRASS_MAX_PER_CHUNK - CUT_GRASS_MIN_PER_CHUNK + 1;
+    const cutGrassCount =
+      CUT_GRASS_MIN_PER_CHUNK + Math.floor(cutGrassCountRandom * cutGrassCountRange);
+
+    for (let i = 0; i < cutGrassCount; i++) {
+      const rx = seededRandom(cx, cy, CUT_GRASS_POSITION_SEED + i * 2);
+      const ry = seededRandom(cx, cy, CUT_GRASS_POSITION_SEED + i * 2 + 1);
+
+      const x = baseX + rx * CHUNK_SIZE;
+      const y = baseY + ry * CHUNK_SIZE;
+
+      const sprite = this.add.sprite(x, y, 'cut_grass_tile');
+      sprite.setDepth(CUT_GRASS_DEPTH);
       sprites.push(sprite);
     }
 
