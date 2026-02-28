@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gelehka/shared": "*",
+    "msgpackr": "^1.11.5",
     "phaser": "^3.90.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

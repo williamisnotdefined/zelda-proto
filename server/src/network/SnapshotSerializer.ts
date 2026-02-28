@@ -1,0 +1,138 @@
+import {
+  AoeIndicator,
+  BossSnapshot,
+  DropSnapshot,
+  IceZone,
+  PlayerSnapshot,
+  SlimeSnapshot,
+  SnapshotDeltaMessage,
+  SnapshotMessage,
+} from './MessageTypes.js';
+
+export interface SnapshotBundle {
+  players: PlayerSnapshot[];
+  enemies: SlimeSnapshot[];
+  bosses: BossSnapshot[];
+  drops: DropSnapshot[];
+  iceZones: IceZone[];
+  aoeIndicators: AoeIndicator[];
+}
+
+export interface SnapshotState {
+  players: Map<string, PlayerSnapshot>;
+  enemies: Map<string, SlimeSnapshot>;
+  bosses: Map<string, BossSnapshot>;
+  drops: Map<string, DropSnapshot>;
+}
+
+function toMap<T extends { id: string }>(items: T[]): Map<string, T> {
+  const out = new Map<string, T>();
+  for (const item of items) out.set(item.id, item);
+  return out;
+}
+
+export function toSnapshotState(snapshot: SnapshotBundle): SnapshotState {
+  return {
+    players: toMap(snapshot.players),
+    enemies: toMap(snapshot.enemies),
+    bosses: toMap(snapshot.bosses),
+    drops: toMap(snapshot.drops),
+  };
+}
+
+export function toSnapshotMessage(snapshot: SnapshotBundle): SnapshotMessage {
+  return {
+    type: 'snapshot',
+    players: snapshot.players,
+    enemies: snapshot.enemies,
+    bosses: snapshot.bosses,
+    drops: snapshot.drops,
+    iceZones: snapshot.iceZones,
+    aoeIndicators: snapshot.aoeIndicators,
+  };
+}
+
+function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const key of keysA) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
+}
+
+function diffCollection<T extends { id: string }>(
+  prev: Map<string, T>,
+  curr: Map<string, T>
+): { changed: T[]; removed: string[] } {
+  const changed: T[] = [];
+  const removed: string[] = [];
+
+  for (const item of curr.values()) {
+    const previous = prev.get(item.id);
+    if (
+      !previous ||
+      !shallowEqual(previous as Record<string, unknown>, item as Record<string, unknown>)
+    ) {
+      changed.push(item);
+    }
+  }
+
+  for (const id of prev.keys()) {
+    if (!curr.has(id)) removed.push(id);
+  }
+
+  return { changed, removed };
+}
+
+export function diffSnapshot(
+  prev: SnapshotState | null,
+  current: SnapshotBundle,
+  tick: number,
+  full: boolean
+): { message: SnapshotDeltaMessage; nextState: SnapshotState } {
+  const currState = toSnapshotState(current);
+
+  if (!prev || full) {
+    return {
+      message: {
+        type: 'snapshot_delta',
+        tick,
+        full: true,
+        players: current.players,
+        enemies: current.enemies,
+        bosses: current.bosses,
+        drops: current.drops,
+        removedEnemyIds: [],
+        removedBossIds: [],
+        removedDropIds: [],
+        iceZones: current.iceZones,
+        aoeIndicators: current.aoeIndicators,
+      },
+      nextState: currState,
+    };
+  }
+
+  const enemiesDiff = diffCollection(prev.enemies, currState.enemies);
+  const bossesDiff = diffCollection(prev.bosses, currState.bosses);
+  const dropsDiff = diffCollection(prev.drops, currState.drops);
+
+  return {
+    message: {
+      type: 'snapshot_delta',
+      tick,
+      full: false,
+      players: current.players,
+      enemies: enemiesDiff.changed,
+      bosses: bossesDiff.changed,
+      drops: dropsDiff.changed,
+      removedEnemyIds: enemiesDiff.removed,
+      removedBossIds: bossesDiff.removed,
+      removedDropIds: dropsDiff.removed,
+      iceZones: current.iceZones,
+      aoeIndicators: current.aoeIndicators,
+    },
+    nextState: currState,
+  };
+}

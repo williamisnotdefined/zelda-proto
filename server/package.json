@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gelehka/shared": "*",
+    "msgpackr": "^1.11.5",
     "nanoid": "^5.1.6",
     "ws": "^8.19.0"
   },

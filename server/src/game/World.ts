@@ -1,12 +1,10 @@
 import { seededRandom } from '@gelehka/shared/utils';
 import { nanoid } from 'nanoid';
-import {
-  AoeIndicator,
-  IceZone,
-  InputMessage,
-  PlayerSnapshot,
-  SnapshotMessage,
-} from '../network/MessageTypes.js';
+import { Entity } from '../core/Entity.js';
+import { SpatialHash } from '../core/SpatialHash.js';
+import { World as EntityWorld } from '../core/World.js';
+import { AoeIndicator, IceZone, InputMessage, PlayerSnapshot } from '../network/MessageTypes.js';
+import { SnapshotBundle, toSnapshotMessage } from '../network/SnapshotSerializer.js';
 import { BossGelehk, ICE_ZONE_SLOW } from './BossGelehk.js';
 import {
   resolveEnemyContactDamage,
@@ -53,7 +51,7 @@ export interface Drop {
   kind: 'heal';
 }
 
-export class World {
+export class World extends EntityWorld<Entity> {
   players: Map<string, Player>;
   slimes: Map<string, Slime>;
   bosses: Map<string, BossGelehk>;
@@ -62,8 +60,12 @@ export class World {
   private spawnChunks: Map<string, SpawnChunk>;
   private bossRegions: Map<string, BossRegion>;
   private now: number;
+  private enemySpatialIndex: SpatialHash<Slime>;
+  private bossSpatialIndex: SpatialHash<BossGelehk>;
+  private dropSpatialIndex: SpatialHash<Drop>;
 
   constructor() {
+    super();
     this.players = new Map();
     this.slimes = new Map();
     this.bosses = new Map();
@@ -71,15 +73,20 @@ export class World {
     this.spawnChunks = new Map();
     this.bossRegions = new Map();
     this.now = Date.now();
+    this.enemySpatialIndex = new SpatialHash(512);
+    this.bossSpatialIndex = new SpatialHash(512);
+    this.dropSpatialIndex = new SpatialHash(512);
   }
 
   addPlayer(id: string, nickname: string = 'Player'): Player {
     const player = new Player(id, PLAYER_SPAWN_X, PLAYER_SPAWN_Y, nickname);
     this.players.set(id, player);
+    this.add(player);
     return player;
   }
 
   removePlayer(id: string): void {
+    this.remove(id);
     this.players.delete(id);
   }
 
@@ -99,6 +106,7 @@ export class World {
 
   update(dt: number): void {
     this.now = Date.now();
+    this.cachedPlayerSnapshots = null;
 
     for (const player of this.players.values()) {
       if (player.safeZoneTimer > 0) {
@@ -147,6 +155,7 @@ export class World {
 
     this.handleDropPickup();
     this.handleEnemyDrops();
+    this.rebuildSpatialIndexes();
   }
 
   private updateSlimeChunks(): void {
@@ -182,6 +191,7 @@ export class World {
       if (!activeChunkKeys.has(key) && this.now - chunk.lastPlayerNearby > CHUNK_DESPAWN_TIME) {
         for (const slimeId of chunk.slimeIds) {
           this.slimes.delete(slimeId);
+          this.remove(slimeId);
         }
         this.spawnChunks.delete(key);
       }
@@ -202,6 +212,7 @@ export class World {
       const key = `${chunk.cx},${chunk.cy}`;
       const slime = new Slime(id, x, y, key);
       this.slimes.set(id, slime);
+      this.add(slime);
       chunk.slimeIds.add(id);
     }
   }
@@ -239,6 +250,7 @@ export class World {
             const bossId = `gelehk_${rx}_${ry}`;
             const boss = new BossGelehk(bossId, center.x, center.y);
             this.bosses.set(bossId, boss);
+            this.add(boss);
             region = {
               key,
               bossId,
@@ -259,6 +271,7 @@ export class World {
         const boss = this.bosses.get(region.bossId);
         if (boss && (boss.state === 'idle' || boss.state === 'dead') && !boss.active) {
           this.bosses.delete(region.bossId);
+          this.remove(region.bossId);
           this.bossRegions.delete(key);
         }
       }
@@ -273,7 +286,9 @@ export class World {
       const angle = (Math.PI * 2 * i) / MINION_COUNT;
       const sx = x + Math.cos(angle) * MINION_SPAWN_RADIUS;
       const sy = y + Math.sin(angle) * MINION_SPAWN_RADIUS;
-      this.slimes.set(id, new Slime(id, sx, sy));
+      const minion = new Slime(id, sx, sy);
+      this.slimes.set(id, minion);
+      this.add(minion);
     }
   }
 
@@ -315,6 +330,26 @@ export class World {
     }
   }
 
+  private rebuildSpatialIndexes(): void {
+    this.enemySpatialIndex.clear();
+    this.bossSpatialIndex.clear();
+    this.dropSpatialIndex.clear();
+
+    for (const slime of this.slimes.values()) {
+      if (slime.state === 'dead') continue;
+      this.enemySpatialIndex.insert(slime.x, slime.y, slime);
+    }
+
+    for (const boss of this.bosses.values()) {
+      if (boss.state === 'dead') continue;
+      this.bossSpatialIndex.insert(boss.x, boss.y, boss);
+    }
+
+    for (const drop of this.drops.values()) {
+      this.dropSpatialIndex.insert(drop.x, drop.y, drop);
+    }
+  }
+
   private cachedPlayerSnapshots: PlayerSnapshot[] | null = null;
 
   /**
@@ -338,9 +373,10 @@ export class World {
     return snapshots;
   }
 
-  private collectBossEffects(
-    filterFn?: (bx: number, by: number) => boolean
-  ): { iceZones: IceZone[]; aoeIndicators: AoeIndicator[] } {
+  private collectBossEffects(filterFn?: (bx: number, by: number) => boolean): {
+    iceZones: IceZone[];
+    aoeIndicators: AoeIndicator[];
+  } {
     const iceZones: IceZone[] = [];
     const aoeIndicators: AoeIndicator[] = [];
 
@@ -361,7 +397,7 @@ export class World {
     return { iceZones, aoeIndicators };
   }
 
-  getSnapshot(): SnapshotMessage {
+  getSnapshotBundle(): SnapshotBundle {
     const { iceZones, aoeIndicators } = this.collectBossEffects();
 
     const enemies = [];
@@ -380,7 +416,6 @@ export class World {
     }
 
     return {
-      type: 'snapshot',
       players: this.getPlayerSnapshots(),
       enemies,
       bosses,
@@ -390,16 +425,21 @@ export class World {
     };
   }
 
+  getSnapshot() {
+    return toSnapshotMessage(this.getSnapshotBundle());
+  }
+
   /**
    * Returns a snapshot filtered to entities within VIEW_RADIUS of the given player.
    * All players are always included (needed for the leaderboard).
    * Falls back to full snapshot if the player id is not found (e.g. pre-join).
    */
-  getSnapshotForPlayer(playerId: string): SnapshotMessage {
+  getSnapshotForPlayer(playerId: string): SnapshotBundle {
     const viewer = this.players.get(playerId);
-    if (!viewer) return this.getSnapshot();
+    if (!viewer) return this.getSnapshotBundle();
 
-    const VIEW_RADIUS_SQ = 2000 * 2000;
+    const VIEW_RADIUS = 2000;
+    const VIEW_RADIUS_SQ = VIEW_RADIUS * VIEW_RADIUS;
     const vx = viewer.x;
     const vy = viewer.y;
 
@@ -412,22 +452,21 @@ export class World {
     const { iceZones, aoeIndicators } = this.collectBossEffects(inRange);
 
     const enemies = [];
-    for (const s of this.slimes.values()) {
-      if (s.state !== 'dead' && inRange(s.x, s.y)) enemies.push(s.toSnapshot());
+    for (const s of this.enemySpatialIndex.queryRadius(vx, vy, VIEW_RADIUS)) {
+      enemies.push(s.toSnapshot());
     }
 
     const bosses = [];
-    for (const b of this.bosses.values()) {
-      if (inRange(b.x, b.y)) bosses.push(b.toSnapshot());
+    for (const b of this.bossSpatialIndex.queryRadius(vx, vy, VIEW_RADIUS)) {
+      bosses.push(b.toSnapshot());
     }
 
     const drops = [];
-    for (const d of this.drops.values()) {
-      if (inRange(d.x, d.y)) drops.push(d);
+    for (const d of this.dropSpatialIndex.queryRadius(vx, vy, VIEW_RADIUS)) {
+      drops.push(d);
     }
 
     return {
-      type: 'snapshot',
       players: this.getPlayerSnapshots(),
       enemies,
       bosses,

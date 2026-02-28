@@ -30,6 +30,7 @@ export interface PlayerSnapshot {
   playerKills: number;
   monsterKills: number;
   deaths: number;
+  lastProcessedInputSeq: number;
 }
 
 export interface SlimeSnapshot {
@@ -109,8 +110,24 @@ export interface ServerChatMessage {
   timestamp: number;
 }
 
+export interface SnapshotDeltaMessage {
+  type: 'snapshot_delta';
+  tick: number;
+  full: boolean;
+  players: PlayerSnapshot[];
+  enemies: SlimeSnapshot[];
+  bosses: BossSnapshot[];
+  drops: DropSnapshot[];
+  removedEnemyIds: string[];
+  removedBossIds: string[];
+  removedDropIds: string[];
+  iceZones: IceZone[];
+  aoeIndicators: AoeIndicator[];
+}
+
 export type ServerMessage =
   | SnapshotMessage
+  | SnapshotDeltaMessage
   | WelcomeMessage
   | PlayerJoinMessage
   | PlayerLeaveMessage
@@ -118,6 +135,7 @@ export type ServerMessage =
 
 export interface InputMessage {
   type: 'input';
+  seq: number;
   up: boolean;
   down: boolean;
   left: boolean;

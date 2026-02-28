@@ -20,6 +20,7 @@ export type {
   ServerMessage,
   SlimeSnapshot,
   SlimeState,
+  SnapshotDeltaMessage,
   SnapshotMessage,
   WelcomeMessage,
 } from '@gelehka/shared';

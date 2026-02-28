@@ -3,6 +3,8 @@ import { nanoid } from 'nanoid';
 import { WebSocket, WebSocketServer } from 'ws';
 import { World } from '../game/World.js';
 import { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
+import { NetworkManager } from './NetworkManager.js';
+import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
 
 const MAX_PAYLOAD_BYTES = 1024;
 const MAX_CONNECTIONS = 200;
@@ -11,6 +13,7 @@ const CHAT_RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 1000;
 const MAX_NICKNAME_LENGTH = 16;
 const MAX_CHAT_LENGTH = 100;
+const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 40;
 
 function formatDateTime(): string {
   return new Date().toLocaleString('en-GB', {
@@ -26,6 +29,9 @@ function formatDateTime(): string {
 export class WebSocketHandler {
   private wss: WebSocketServer;
   readonly clients: Map<string, WebSocket> = new Map();
+  private readonly networkManager: NetworkManager;
+  private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
+  private snapshotTick = 0;
 
   constructor(httpServer: Server) {
     this.wss = new WebSocketServer({
@@ -33,6 +39,7 @@ export class WebSocketHandler {
       path: '/ws',
       maxPayload: MAX_PAYLOAD_BYTES,
     });
+    this.networkManager = new NetworkManager();
   }
 
   start(world: World): void {
@@ -59,7 +66,8 @@ export class WebSocketHandler {
             rateWindowStart = now;
           }
 
-          const msg = JSON.parse(data.toString()) as ClientMessage;
+          const msg = this.networkManager.decodeClientMessage(data) as ClientMessage | null;
+          if (!msg) return;
 
           if (msg.type === 'join' && !hasJoined) {
             const nickname =
@@ -81,7 +89,7 @@ export class WebSocketHandler {
               mapWidth: 0,
               mapHeight: 0,
             };
-            ws.send(JSON.stringify(welcome));
+            this.networkManager.send(ws, welcome);
           } else if (msg.type === 'input' && hasJoined) {
             if (++inputCount > INPUT_RATE_LIMIT) return;
             world.handleInput(playerId, msg);
@@ -96,6 +104,7 @@ export class WebSocketHandler {
 
       ws.on('close', () => {
         this.clients.delete(playerId);
+        this.previousSnapshots.delete(playerId);
         if (hasJoined) {
           const nickname = world.players.get(playerId)?.nickname ?? 'Unknown';
           world.removePlayer(playerId);
@@ -127,18 +136,22 @@ export class WebSocketHandler {
       text,
       timestamp: Date.now(),
     };
-    const raw = JSON.stringify(chatMsg);
     for (const ws of this.clients.values()) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(raw);
+      if (ws.readyState === WebSocket.OPEN) this.networkManager.send(ws, chatMsg);
     }
   }
 
   broadcastSnapshots(world: World): void {
+    this.snapshotTick += 1;
     world.cachePlayerSnapshots();
     for (const [playerId, ws] of this.clients.entries()) {
       if (ws.readyState === WebSocket.OPEN) {
         const snapshot = world.getSnapshotForPlayer(playerId);
-        ws.send(JSON.stringify(snapshot));
+        const previous = this.previousSnapshots.get(playerId) ?? null;
+        const full = this.snapshotTick % FORCE_FULL_SNAPSHOT_EVERY_TICKS === 0;
+        const { message, nextState } = diffSnapshot(previous, snapshot, this.snapshotTick, full);
+        this.previousSnapshots.set(playerId, nextState);
+        this.networkManager.send(ws, message);
       }
     }
   }

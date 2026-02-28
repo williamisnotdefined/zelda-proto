@@ -2,9 +2,11 @@ import type {
   AoeIndicator,
   BossSnapshot,
   DropSnapshot,
+  InputMessage,
   IceZone,
   PlayerSnapshot,
   ServerChatMessage,
+  ServerMessage,
   SlimeSnapshot,
 } from '@gelehka/shared';
 import { seededRandom } from '@gelehka/shared/utils';
@@ -21,6 +23,12 @@ const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
 const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
 const DECOR_PER_CHUNK = 6;
+const PLAYER_PREDICT_SPEED = 150;
+
+interface PendingInput {
+  input: InputMessage;
+  dtMs: number;
+}
 
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
@@ -34,6 +42,8 @@ export class WorldScene extends Phaser.Scene {
   private prevAttack = false;
   private removeMessageHandler: (() => void) | null = null;
   private removeErrorHandler: (() => void) | null = null;
+  private nextInputSeq = 0;
+  private pendingInputs: PendingInput[] = [];
 
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
@@ -64,17 +74,17 @@ export class WorldScene extends Phaser.Scene {
     // Track connection attempts
     useGameStore.getState().setLastConnectionAttempt(Date.now());
 
-    this.removeMessageHandler = onMessage((msg) => {
+    this.removeMessageHandler = onMessage((msg: ServerMessage) => {
       switch (msg.type) {
         case 'welcome':
-          this.localPlayerId = msg.id as string;
+          this.localPlayerId = msg.id;
           this.createSafeZone();
           break;
         case 'snapshot':
           this.handleSnapshot(msg);
           break;
         case 'chat':
-          useGameStore.getState().addChatMessage(msg as unknown as ServerChatMessage);
+          useGameStore.getState().addChatMessage(msg as ServerChatMessage);
           break;
       }
     });
@@ -213,13 +223,20 @@ export class WorldScene extends Phaser.Scene {
     this.activeChunks.set(key, sprites);
   }
 
-  private handleSnapshot(msg: Record<string, unknown>): void {
-    const players = msg.players as PlayerSnapshot[];
-    const enemies = msg.enemies as SlimeSnapshot[];
-    const bosses = (msg.bosses as BossSnapshot[]) || [];
-    const drops = (msg.drops as DropSnapshot[]) || [];
-    const iceZones = (msg.iceZones as IceZone[]) || [];
-    const aoeIndicators = (msg.aoeIndicators as AoeIndicator[]) || [];
+  private handleSnapshot(msg: {
+    players: PlayerSnapshot[];
+    enemies: SlimeSnapshot[];
+    bosses: BossSnapshot[];
+    drops: DropSnapshot[];
+    iceZones: IceZone[];
+    aoeIndicators: AoeIndicator[];
+  }): void {
+    const players = msg.players;
+    const enemies = msg.enemies;
+    const bosses = msg.bosses || [];
+    const drops = msg.drops || [];
+    const iceZones = msg.iceZones || [];
+    const aoeIndicators = msg.aoeIndicators || [];
 
     useGameStore.getState().setPlayerCount(players.length);
     useGameStore.getState().setAllPlayers(players);
@@ -233,9 +250,9 @@ export class WorldScene extends Phaser.Scene {
         entity = new PlayerEntity(this, p.x, p.y, p.id === this.localPlayerId, p.nickname);
         this.playerEntities.set(p.id, entity);
       }
-      entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction);
 
       if (p.id === this.localPlayerId) {
+        this.reconcileLocalPrediction(p);
         if (this.previousLocalState === 'dead' && p.state !== 'dead') {
           this.destroySafeZone();
           this.createSafeZone();
@@ -252,6 +269,8 @@ export class WorldScene extends Phaser.Scene {
           state: p.state,
           direction: p.direction,
         });
+      } else {
+        entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction);
       }
     }
 
@@ -358,14 +377,19 @@ export class WorldScene extends Phaser.Scene {
     const attack = this.attackKey.isDown && !this.prevAttack;
     this.prevAttack = this.attackKey.isDown;
 
-    send({
+    const input: InputMessage = {
       type: 'input',
+      seq: this.nextInputSeq++,
       up: this.cursors.up.isDown,
       down: this.cursors.down.isDown,
       left: this.cursors.left.isDown,
       right: this.cursors.right.isDown,
       attack,
-    });
+    };
+
+    this.pendingInputs.push({ input, dtMs: delta });
+    this.applyLocalPrediction(input, delta);
+    send(input);
 
     for (const entity of this.playerEntities.values()) {
       entity.update(this, delta);
@@ -426,5 +450,64 @@ export class WorldScene extends Phaser.Scene {
     this.bossArenas.clear();
 
     this.bgTileSprite?.destroy();
+  }
+
+  private applyLocalPrediction(input: InputMessage, dtMs: number): void {
+    if (!this.localPlayerId) return;
+    const entity = this.playerEntities.get(this.localPlayerId);
+    if (!entity) return;
+
+    let dx = 0;
+    let dy = 0;
+    if (input.up) dy -= 1;
+    if (input.down) dy += 1;
+    if (input.left) dx -= 1;
+    if (input.right) dx += 1;
+
+    if (dx === 0 && dy === 0) return;
+
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const nx = dx / len;
+    const ny = dy / len;
+    const dtSeconds = dtMs / 1000;
+
+    entity.targetX += nx * PLAYER_PREDICT_SPEED * dtSeconds;
+    entity.targetY += ny * PLAYER_PREDICT_SPEED * dtSeconds;
+  }
+
+  private reconcileLocalPrediction(serverPlayer: PlayerSnapshot): void {
+    const acknowledged = serverPlayer.lastProcessedInputSeq;
+    this.pendingInputs = this.pendingInputs.filter((entry) => entry.input.seq > acknowledged);
+
+    let predictedX = serverPlayer.x;
+    let predictedY = serverPlayer.y;
+
+    for (const pending of this.pendingInputs) {
+      let dx = 0;
+      let dy = 0;
+      if (pending.input.up) dy -= 1;
+      if (pending.input.down) dy += 1;
+      if (pending.input.left) dx -= 1;
+      if (pending.input.right) dx += 1;
+
+      if (dx === 0 && dy === 0) continue;
+
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const dtSeconds = pending.dtMs / 1000;
+      predictedX += (dx / len) * PLAYER_PREDICT_SPEED * dtSeconds;
+      predictedY += (dy / len) * PLAYER_PREDICT_SPEED * dtSeconds;
+    }
+
+    const localEntity = this.localPlayerId ? this.playerEntities.get(this.localPlayerId) : null;
+    if (localEntity) {
+      localEntity.updateFromServer(
+        predictedX,
+        predictedY,
+        serverPlayer.hp,
+        serverPlayer.maxHp,
+        serverPlayer.state,
+        serverPlayer.direction
+      );
+    }
   }
 }
