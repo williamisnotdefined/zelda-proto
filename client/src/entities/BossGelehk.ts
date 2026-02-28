@@ -5,6 +5,8 @@ const LERP_BASE = 0.25;
 const BOSS_SCALE = 2.5;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
+const AOE_TELEGRAPH_COLOR = 0xffdd33;
+const AOE_HIT_COLOR = 0xff0000;
 
 interface IceZoneData {
   x: number;
@@ -18,6 +20,7 @@ interface AoeData {
   y: number;
   radius: number;
   timer: number;
+  hit: boolean;
 }
 
 export class BossGelehkEntity {
@@ -150,6 +153,7 @@ export class BossGelehkEntity {
         const circle = this.aoeGraphics[i];
         circle.setPosition(aoe.x, aoe.y);
         circle.setRadius(aoe.radius);
+        circle.setFillStyle(aoe.hit ? AOE_HIT_COLOR : AOE_TELEGRAPH_COLOR, 0.25);
       }
       return;
     }
@@ -158,7 +162,13 @@ export class BossGelehkEntity {
     this.aoeGraphics = [];
 
     for (const aoe of aoes) {
-      const circle = this.scene.add.circle(aoe.x, aoe.y, aoe.radius, 0xff0000, 0.25);
+      const circle = this.scene.add.circle(
+        aoe.x,
+        aoe.y,
+        aoe.radius,
+        aoe.hit ? AOE_HIT_COLOR : AOE_TELEGRAPH_COLOR,
+        0.25
+      );
       circle.setDepth(3);
       this.aoeGraphics.push(circle);
     }

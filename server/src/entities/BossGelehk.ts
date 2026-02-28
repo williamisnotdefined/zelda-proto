@@ -22,6 +22,7 @@ export const BOSS_ACTIVATION_RADIUS = 500;
 export const BOSS_RESPAWN_TIME = 15000;
 
 const AOE_TELEGRAPH_TIME = 1000;
+const AOE_HIT_FLASH_TIME = 120;
 const AOE_DAMAGE = 30;
 const AOE_RADIUS = 80;
 const AOE_ATTACK_RANGE = 400;
@@ -222,6 +223,7 @@ export class BossGelehk extends Entity {
           y: nearest.y,
           radius: AOE_RADIUS,
           timer: AOE_TELEGRAPH_TIME,
+          hit: false,
         });
         break;
       }
@@ -324,7 +326,8 @@ export class BossGelehk extends Entity {
     for (let i = this.aoeIndicators.length - 1; i >= 0; i--) {
       const aoe = this.aoeIndicators[i];
       aoe.timer -= dt;
-      if (aoe.timer <= 0) {
+
+      if (!aoe.hit && aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
           if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS))
@@ -333,6 +336,9 @@ export class BossGelehk extends Entity {
             player.takeDamage(AOE_DAMAGE);
           }
         }
+        aoe.hit = true;
+        aoe.timer = AOE_HIT_FLASH_TIME;
+      } else if (aoe.hit && aoe.timer <= 0) {
         this.aoeIndicators.splice(i, 1);
       }
     }

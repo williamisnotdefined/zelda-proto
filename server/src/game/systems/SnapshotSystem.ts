@@ -139,6 +139,7 @@ export class SnapshotSystem {
           y: quantizePosition(aoe.y),
           radius: aoe.radius,
           timer: Math.round(aoe.timer),
+          hit: aoe.hit,
         });
       }
     }

@@ -66,6 +66,7 @@ export interface AoeIndicator {
   y: number;
   radius: number;
   timer: number;
+  hit: boolean;
 }
 
 export interface DropSnapshot {
