@@ -90,11 +90,11 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     this.cursors = this.input.keyboard!.createCursorKeys();
-    this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-    this.keyA = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-    this.keyS = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-    this.keyD = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-    this.attackKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W, false);
+    this.keyA = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A, false);
+    this.keyS = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S, false);
+    this.keyD = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D, false);
+    this.attackKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
 
     this.createInfiniteBackground();
     this.minimap = new Minimap(this);
@@ -439,6 +439,7 @@ export class WorldScene extends Phaser.Scene {
 
     const localEntity = this.playerEntities.get(this.localPlayerId);
     const localDead = localEntity?.serverState === 'dead';
+    const uiBlocked = useGameStore.getState().showNicknameModal || this.isTypingInInput();
 
     const attack = this.attackKey.isDown && !this.prevAttack;
     this.prevAttack = this.attackKey.isDown;
@@ -449,11 +450,11 @@ export class WorldScene extends Phaser.Scene {
     const rightPressed = this.cursors.right.isDown || this.keyD.isDown;
 
     const inputState: InputState = {
-      up: !localDead && upPressed,
-      down: !localDead && downPressed,
-      left: !localDead && leftPressed,
-      right: !localDead && rightPressed,
-      attack: !localDead && attack,
+      up: !uiBlocked && !localDead && upPressed,
+      down: !uiBlocked && !localDead && downPressed,
+      left: !uiBlocked && !localDead && leftPressed,
+      right: !uiBlocked && !localDead && rightPressed,
+      attack: !uiBlocked && !localDead && attack,
     };
 
     this.applyLocalPrediction(inputState, delta);
@@ -467,7 +468,7 @@ export class WorldScene extends Phaser.Scene {
       this.lastSentInputState.left !== inputState.left ||
       this.lastSentInputState.right !== inputState.right;
 
-    if (intervalElapsed || changedSinceLastSend || attack) {
+    if (intervalElapsed || changedSinceLastSend || inputState.attack) {
       const dtWindowMs = Math.max(1, this.inputSendAccumulatorMs);
       this.inputSendAccumulatorMs = 0;
 
@@ -602,6 +603,19 @@ export class WorldScene extends Phaser.Scene {
     if (this.backgroundMusic && !this.backgroundMusic.isPlaying) {
       this.backgroundMusic.play();
     }
+  }
+
+  private isTypingInInput(): boolean {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return false;
+    if (
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.tagName === 'SELECT'
+    ) {
+      return true;
+    }
+    return active.isContentEditable;
   }
 
   private reconcileLocalPrediction(serverPlayer: PlayerSnapshot): void {

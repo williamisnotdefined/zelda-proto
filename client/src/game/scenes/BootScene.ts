@@ -19,7 +19,7 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
 
-    this.load.audio('bg_music', 'assets/sounds/music_1.mp3');
+    this.load.audio('bg_music', 'assets/sounds/bg_music.mp3');
 
     this.load.spritesheet('skeleton', 'assets/sprites/monsters/gelehk.png', {
       frameWidth: 48,
