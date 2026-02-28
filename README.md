@@ -128,3 +128,15 @@ If users get stuck on "Connecting..." in production:
 - **Server** (Node.js + ws): Authoritative game server with 60-tick game loop
 - **Client** (Vite + React + Phaser 3): Rendering, input, and HUD
 - Communication via JSON over WebSocket
+
+## Next Steps
+
+- [ ] Distance weapon (e.g. bow)
+- [ ] client assets cleanup, delete unused assets
+- [ ] Add "toasty" when hp < 10% for the third time without dying
+- [ ] Add music and mute button top right of the screen.
+- [] In top of HUD we can see gelehk name and hp bar, but we should not see the player name and hp bar. Each gelehk should have its own hp bar.
+- [ ] HP bar should be on the top left, not on the bottom left.
+- [ ] Slime now is Blob, rename it all places we use "slime" to "blob".
+
+
