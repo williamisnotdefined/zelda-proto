@@ -1,14 +1,18 @@
 import type {
   AoeIndicator,
-  BlobSnapshot,
   BossSnapshot,
   DropSnapshot,
+  EnemySnapshot,
+  HazardSnapshot,
+  InstanceId,
   IceZone,
   InputMessage,
+  PortalSnapshot,
   PlayerSnapshot,
   ServerChatMessage,
   ServerMessage,
 } from '@gelehka/shared';
+import { CLIENT_MESSAGE_TYPES, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import {
   WORLD_SPAWN_SAFE_ZONE_RADIUS,
   WORLD_SPAWN_X,
@@ -17,9 +21,13 @@ import {
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
 import { BlobEntity } from '../../entities/Blob';
+import { BossDragonLordEntity } from '../../entities/BossDragonLord';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { DropEntity } from '../../entities/DropEntity';
+import { FireFieldHazardEntity } from '../../entities/FireFieldHazardEntity';
 import { PlayerEntity } from '../../entities/Player';
+import { PortalEntity } from '../../entities/PortalEntity';
+import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
 import { useGameStore } from '../../ui/store';
 import { Minimap } from '../Minimap';
@@ -68,13 +76,18 @@ interface InputState {
   attack: boolean;
 }
 
+type BossEntity = BossGelehkEntity | BossDragonLordEntity;
+
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
   private previousLocalState: string | null = null;
   private playerEntities: Map<string, PlayerEntity> = new Map();
   private blobEntities: Map<string, BlobEntity> = new Map();
-  private bossEntities: Map<string, BossGelehkEntity> = new Map();
+  private slimeEntities: Map<string, SlimeEntity> = new Map();
+  private bossEntities: Map<string, BossEntity> = new Map();
   private dropEntities: Map<string, DropEntity> = new Map();
+  private portalEntities: Map<string, PortalEntity> = new Map();
+  private hazardEntities: Map<string, FireFieldHazardEntity> = new Map();
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyW!: Phaser.Input.Keyboard.Key;
   private keyA!: Phaser.Input.Keyboard.Key;
@@ -104,6 +117,7 @@ export class WorldScene extends Phaser.Scene {
   private toastyHideTimer: Phaser.Time.TimerEvent | null = null;
   private toastyTween: Phaser.Tweens.Tween | null = null;
   private lastLocalToastyCount: number | null = null;
+  private currentInstanceId: InstanceId | null = null;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -135,7 +149,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.removeMessageHandler = onMessage((msg: ServerMessage) => {
       switch (msg.type) {
-        case 'welcome':
+        case SERVER_MESSAGE_TYPES.WELCOME:
           this.localPlayerId = msg.id;
           this.nextInputSeq = 0;
           this.pendingInputs = [];
@@ -144,14 +158,14 @@ export class WorldScene extends Phaser.Scene {
           this.lastLocalToastyCount = null;
           this.createSafeZone();
           break;
-        case 'snapshot':
+        case SERVER_MESSAGE_TYPES.SNAPSHOT:
           this.handleSnapshot(msg);
           break;
-        case 'leaderboard':
+        case SERVER_MESSAGE_TYPES.LEADERBOARD:
           useGameStore.getState().setAllPlayers(msg.players);
           useGameStore.getState().setPlayerCount(msg.players.length);
           break;
-        case 'chat':
+        case SERVER_MESSAGE_TYPES.CHAT:
           useGameStore.getState().addChatMessage(msg as ServerChatMessage);
           break;
       }
@@ -311,17 +325,26 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private handleSnapshot(msg: {
+    instanceId: InstanceId;
     players: PlayerSnapshot[];
-    enemies: BlobSnapshot[];
+    enemies: EnemySnapshot[];
     bosses: BossSnapshot[];
     drops: DropSnapshot[];
+    portals: PortalSnapshot[];
+    hazards: HazardSnapshot[];
     iceZones: IceZone[];
     aoeIndicators: AoeIndicator[];
   }): void {
+    if (this.currentInstanceId !== msg.instanceId) {
+      this.handleInstanceChanged(msg.instanceId);
+    }
+
     const players = msg.players;
     const enemies = msg.enemies;
     const bosses = msg.bosses || [];
     const drops = msg.drops || [];
+    const portals = msg.portals || [];
+    const hazards = msg.hazards || [];
     const iceZones = msg.iceZones || [];
     const aoeIndicators = msg.aoeIndicators || [];
 
@@ -329,6 +352,45 @@ export class WorldScene extends Phaser.Scene {
     this.syncBlobs(enemies);
     this.syncBosses(players, bosses, iceZones, aoeIndicators);
     this.syncDrops(drops);
+    this.syncPortals(portals);
+    this.syncHazards(hazards);
+  }
+
+  private handleInstanceChanged(nextInstanceId: InstanceId): void {
+    this.currentInstanceId = nextInstanceId;
+    this.pendingInputs = [];
+    this.inputSendAccumulatorMs = 0;
+    this.lastSentInputState = null;
+
+    for (const entity of this.playerEntities.values()) entity.destroy();
+    this.playerEntities.clear();
+
+    for (const entity of this.blobEntities.values()) entity.destroy();
+    this.blobEntities.clear();
+
+    for (const entity of this.slimeEntities.values()) entity.destroy();
+    this.slimeEntities.clear();
+
+    for (const entity of this.bossEntities.values()) entity.destroy();
+    this.bossEntities.clear();
+
+    for (const entity of this.dropEntities.values()) entity.destroy();
+    this.dropEntities.clear();
+
+    for (const entity of this.portalEntities.values()) entity.destroy();
+    this.portalEntities.clear();
+
+    for (const entity of this.hazardEntities.values()) entity.destroy();
+    this.hazardEntities.clear();
+
+    for (const arena of this.bossArenas.values()) {
+      arena.circle.destroy();
+      arena.ring.destroy();
+    }
+    this.bossArenas.clear();
+
+    useGameStore.getState().setLocalPlayer(null);
+    useGameStore.getState().setBoss(null);
   }
 
   private syncPlayers(players: PlayerSnapshot[]): void {
@@ -361,7 +423,7 @@ export class WorldScene extends Phaser.Scene {
           direction: p.direction,
         });
       } else {
-        entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction);
+        entity.updateFromServer(p.x, p.y, p.hp, p.maxHp, p.state, p.direction, p.statusEffects);
       }
     }
 
@@ -381,22 +443,40 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private syncBlobs(enemies: BlobSnapshot[]): void {
+  private syncBlobs(enemies: EnemySnapshot[]): void {
     const seenBlobIds = new Set<string>();
+    const seenSlimeIds = new Set<string>();
     for (const b of enemies) {
-      seenBlobIds.add(b.id);
-      let entity = this.blobEntities.get(b.id);
-      if (!entity) {
-        entity = new BlobEntity(this, b.x, b.y);
-        this.blobEntities.set(b.id, entity);
+      if (b.kind === 'blob') {
+        seenBlobIds.add(b.id);
+        let entity = this.blobEntities.get(b.id);
+        if (!entity) {
+          entity = new BlobEntity(this, b.x, b.y);
+          this.blobEntities.set(b.id, entity);
+        }
+        entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
+      } else {
+        seenSlimeIds.add(b.id);
+        let entity = this.slimeEntities.get(b.id);
+        if (!entity) {
+          entity = new SlimeEntity(this, b.x, b.y);
+          this.slimeEntities.set(b.id, entity);
+        }
+        entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
       }
-      entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
     }
 
     for (const [id, entity] of this.blobEntities) {
       if (!seenBlobIds.has(id)) {
         entity.destroy();
         this.blobEntities.delete(id);
+      }
+    }
+
+    for (const [id, entity] of this.slimeEntities) {
+      if (!seenSlimeIds.has(id)) {
+        entity.destroy();
+        this.slimeEntities.delete(id);
       }
     }
   }
@@ -418,11 +498,18 @@ export class WorldScene extends Phaser.Scene {
       seenBossIds.add(b.id);
       let entity = this.bossEntities.get(b.id);
       if (!entity) {
-        entity = new BossGelehkEntity(this, b.x, b.y);
+        entity =
+          b.kind === 'gelehk'
+            ? new BossGelehkEntity(this, b.x, b.y)
+            : new BossDragonLordEntity(this, b.x, b.y);
         this.bossEntities.set(b.id, entity);
         this.ensureBossArena(b.id, b.x, b.y);
       }
-      entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state, b.phase, iceZones, aoeIndicators);
+      if (entity instanceof BossGelehkEntity) {
+        entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state, b.phase, iceZones, aoeIndicators);
+      } else {
+        entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state, b.phase);
+      }
 
       if (localPlayer) {
         const dx = localPlayer.x - b.x;
@@ -446,6 +533,7 @@ export class WorldScene extends Phaser.Scene {
     if (nearestBoss && nearestBoss.state !== 'dead') {
       useGameStore.getState().setBoss({
         id: nearestBoss.id,
+        kind: nearestBoss.kind,
         x: nearestBoss.x,
         y: nearestBoss.y,
         hp: nearestBoss.hp,
@@ -474,6 +562,46 @@ export class WorldScene extends Phaser.Scene {
       if (!seenDropIds.has(id)) {
         entity.destroy();
         this.dropEntities.delete(id);
+      }
+    }
+  }
+
+  private syncPortals(portals: PortalSnapshot[]): void {
+    const seenPortalIds = new Set<string>();
+    for (const portal of portals) {
+      seenPortalIds.add(portal.id);
+      let entity = this.portalEntities.get(portal.id);
+      if (!entity) {
+        entity = new PortalEntity(this, portal.x, portal.y);
+        this.portalEntities.set(portal.id, entity);
+      }
+      entity.updatePosition(portal.x, portal.y);
+    }
+
+    for (const [id, entity] of this.portalEntities) {
+      if (!seenPortalIds.has(id)) {
+        entity.destroy();
+        this.portalEntities.delete(id);
+      }
+    }
+  }
+
+  private syncHazards(hazards: HazardSnapshot[]): void {
+    const seenHazardIds = new Set<string>();
+    for (const hazard of hazards) {
+      seenHazardIds.add(hazard.id);
+      let entity = this.hazardEntities.get(hazard.id);
+      if (!entity) {
+        entity = new FireFieldHazardEntity(this, hazard.x, hazard.y);
+        this.hazardEntities.set(hazard.id, entity);
+      }
+      entity.updatePosition(hazard.x, hazard.y);
+    }
+
+    for (const [id, entity] of this.hazardEntities) {
+      if (!seenHazardIds.has(id)) {
+        entity.destroy();
+        this.hazardEntities.delete(id);
       }
     }
   }
@@ -522,7 +650,7 @@ export class WorldScene extends Phaser.Scene {
       this.inputSendAccumulatorMs = 0;
 
       const input: InputMessage = {
-        type: 'input',
+        type: CLIENT_MESSAGE_TYPES.INPUT,
         seq: this.nextInputSeq++,
         up: inputState.up,
         down: inputState.down,
@@ -554,11 +682,23 @@ export class WorldScene extends Phaser.Scene {
       entity.update(delta);
     }
 
+    for (const entity of this.slimeEntities.values()) {
+      entity.update(delta);
+    }
+
     for (const entity of this.bossEntities.values()) {
       entity.update(delta);
     }
 
     for (const entity of this.dropEntities.values()) {
+      entity.update(delta);
+    }
+
+    for (const entity of this.portalEntities.values()) {
+      entity.update(delta);
+    }
+
+    for (const entity of this.hazardEntities.values()) {
       entity.update(delta);
     }
 
@@ -569,6 +709,7 @@ export class WorldScene extends Phaser.Scene {
         localEntity.sprite.y,
         this.playerEntities,
         this.blobEntities,
+        this.slimeEntities,
         this.bossEntities,
         this.localPlayerId
       );
@@ -589,6 +730,7 @@ export class WorldScene extends Phaser.Scene {
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
+    this.currentInstanceId = null;
 
     for (const entity of this.playerEntities.values()) entity.destroy();
     this.playerEntities.clear();
@@ -596,11 +738,20 @@ export class WorldScene extends Phaser.Scene {
     for (const entity of this.blobEntities.values()) entity.destroy();
     this.blobEntities.clear();
 
+    for (const entity of this.slimeEntities.values()) entity.destroy();
+    this.slimeEntities.clear();
+
     for (const entity of this.bossEntities.values()) entity.destroy();
     this.bossEntities.clear();
 
     for (const entity of this.dropEntities.values()) entity.destroy();
     this.dropEntities.clear();
+
+    for (const entity of this.portalEntities.values()) entity.destroy();
+    this.portalEntities.clear();
+
+    for (const entity of this.hazardEntities.values()) entity.destroy();
+    this.hazardEntities.clear();
 
     for (const sprites of this.activeChunks.values()) {
       for (const s of sprites) s.destroy();
@@ -817,7 +968,8 @@ export class WorldScene extends Phaser.Scene {
         serverPlayer.hp,
         serverPlayer.maxHp,
         serverPlayer.state,
-        serverPlayer.direction
+        serverPlayer.direction,
+        serverPlayer.statusEffects
       );
     }
   }

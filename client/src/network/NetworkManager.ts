@@ -1,4 +1,5 @@
 import { pack, unpack } from 'msgpackr';
+import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import type {
   ClientMessage,
@@ -21,10 +22,13 @@ type SnapshotCache = Omit<SnapshotMessage, 'type'>;
 
 function toSnapshotCache(snapshot: SnapshotMessage): SnapshotCache {
   return {
+    instanceId: snapshot.instanceId,
     players: snapshot.players,
     enemies: snapshot.enemies,
     bosses: snapshot.bosses,
     drops: snapshot.drops,
+    portals: snapshot.portals,
+    hazards: snapshot.hazards,
     iceZones: snapshot.iceZones,
     aoeIndicators: snapshot.aoeIndicators,
   };
@@ -224,12 +228,12 @@ export class NetworkManager {
   }
 
   private normalizeMessage(message: ServerMessage): ServerMessage {
-    if (message.type === 'snapshot') {
+    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
       this.snapshotCache = toSnapshotCache(message);
       return message;
     }
 
-    if (message.type === 'snapshot_delta') {
+    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
       const normalized = this.applyDelta(message);
       return normalized;
     }
@@ -238,42 +242,54 @@ export class NetworkManager {
   }
 
   private applyDelta(delta: SnapshotDeltaMessage): SnapshotMessage {
-    if (delta.full || !this.snapshotCache) {
+    if (delta.full || !this.snapshotCache || this.snapshotCache.instanceId !== delta.instanceId) {
       this.snapshotCache = {
+        instanceId: delta.instanceId,
         players: delta.players,
         enemies: delta.enemies,
         bosses: delta.bosses,
         drops: delta.drops,
+        portals: delta.portals,
+        hazards: delta.hazards,
         iceZones: delta.iceZones,
         aoeIndicators: delta.aoeIndicators,
       };
-      return { type: 'snapshot', ...this.snapshotCache };
+      return { type: SERVER_MESSAGE_TYPES.SNAPSHOT, ...this.snapshotCache };
     }
 
     const playersMap = new Map(this.snapshotCache.players.map((p) => [p.id, p]));
     const enemiesMap = new Map(this.snapshotCache.enemies.map((e) => [e.id, e]));
     const bossesMap = new Map(this.snapshotCache.bosses.map((b) => [b.id, b]));
     const dropsMap = new Map(this.snapshotCache.drops.map((d) => [d.id, d]));
+    const portalsMap = new Map(this.snapshotCache.portals.map((p) => [p.id, p]));
+    const hazardsMap = new Map(this.snapshotCache.hazards.map((h) => [h.id, h]));
 
     for (const player of delta.players) playersMap.set(player.id, player);
     for (const enemy of delta.enemies) enemiesMap.set(enemy.id, enemy);
     for (const boss of delta.bosses) bossesMap.set(boss.id, boss);
     for (const drop of delta.drops) dropsMap.set(drop.id, drop);
+    for (const portal of delta.portals) portalsMap.set(portal.id, portal);
+    for (const hazard of delta.hazards) hazardsMap.set(hazard.id, hazard);
 
     for (const id of delta.removedPlayerIds) playersMap.delete(id);
     for (const id of delta.removedEnemyIds) enemiesMap.delete(id);
     for (const id of delta.removedBossIds) bossesMap.delete(id);
     for (const id of delta.removedDropIds) dropsMap.delete(id);
+    for (const id of delta.removedPortalIds) portalsMap.delete(id);
+    for (const id of delta.removedHazardIds) hazardsMap.delete(id);
 
     this.snapshotCache = {
+      instanceId: delta.instanceId,
       players: Array.from(playersMap.values()),
       enemies: Array.from(enemiesMap.values()),
       bosses: Array.from(bossesMap.values()),
       drops: Array.from(dropsMap.values()),
+      portals: Array.from(portalsMap.values()),
+      hazards: Array.from(hazardsMap.values()),
       iceZones: delta.iceZones,
       aoeIndicators: delta.aoeIndicators,
     };
 
-    return { type: 'snapshot', ...this.snapshotCache };
+    return { type: SERVER_MESSAGE_TYPES.SNAPSHOT, ...this.snapshotCache };
   }
 }

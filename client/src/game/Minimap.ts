@@ -1,10 +1,16 @@
 import Phaser from 'phaser';
+import { BlobEntity } from '../entities/Blob';
+import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';
 import { PlayerEntity } from '../entities/Player';
-import { BlobEntity } from '../entities/Blob';
+import { SlimeEntity } from '../entities/Slime';
+
+type BossEntity = BossGelehkEntity | BossDragonLordEntity;
 
 const MINIMAP_RADIUS = 60;
-const MINIMAP_WORLD_RANGE = 600;
+const MINIMAP_SCREEN_MULTIPLIER = 3;
+const MINIMAP_MIN_WORLD_RANGE = 900;
+const MINIMAP_MAX_WORLD_RANGE = 1800;
 const MINIMAP_BG_ALPHA = 0.35;
 const MINIMAP_PADDING = 14;
 
@@ -28,10 +34,12 @@ export class Minimap {
     localY: number,
     playerEntities: Map<string, PlayerEntity>,
     blobEntities: Map<string, BlobEntity>,
-    bossEntities: Map<string, BossGelehkEntity>,
+    slimeEntities: Map<string, SlimeEntity>,
+    bossEntities: Map<string, BossEntity>,
     localPlayerId: string | null
   ): void {
     const g = this.graphics;
+    const camera = this.graphics.scene.cameras.main;
     g.clear();
 
     // Background circle
@@ -42,7 +50,13 @@ export class Minimap {
     g.lineStyle(1.5, 0x88ff88, 0.5);
     g.strokeCircle(this.screenX, this.screenY, MINIMAP_RADIUS);
 
-    const scale = MINIMAP_RADIUS / MINIMAP_WORLD_RANGE;
+    const screenRange = (Math.max(camera.width, camera.height) * MINIMAP_SCREEN_MULTIPLIER) / 2;
+    const worldRange = Phaser.Math.Clamp(
+      screenRange,
+      MINIMAP_MIN_WORLD_RANGE,
+      MINIMAP_MAX_WORLD_RANGE
+    );
+    const scale = (MINIMAP_RADIUS - 4) / worldRange;
 
     // Draw blobs (red dots)
     g.fillStyle(0xff4444, 0.9);
@@ -50,12 +64,16 @@ export class Minimap {
       if (blob.serverState === 'dead') continue;
       this.drawDot(g, localX, localY, blob.sprite.x, blob.sprite.y, scale, 1.5);
     }
+    for (const slime of slimeEntities.values()) {
+      if (slime.serverState === 'dead') continue;
+      this.drawDot(g, localX, localY, slime.x, slime.y, scale, 1.5);
+    }
 
     // Draw bosses (purple dots, larger)
     g.fillStyle(0xaa66ff, 1);
     for (const boss of bossEntities.values()) {
       if (boss.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, boss.sprite.x, boss.sprite.y, scale, 4);
+      this.drawDot(g, localX, localY, boss.x, boss.y, scale, 4);
     }
 
     // Draw other players (green dots)

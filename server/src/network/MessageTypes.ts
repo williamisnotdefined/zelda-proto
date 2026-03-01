@@ -3,13 +3,19 @@
 export type {
   AoeIndicator,
   BossPhase,
+  BossKind,
   BossSnapshot,
   BossState,
   ClientChatMessage,
   ClientMessage,
   Direction,
   DropSnapshot,
+  EnemyKind,
+  EnemySnapshot,
+  HazardKind,
+  HazardSnapshot,
   IceZone,
+  InstanceId,
   InputMessage,
   JoinMessage,
   LeaderboardMessage,
@@ -23,5 +29,18 @@ export type {
   BlobState,
   SnapshotDeltaMessage,
   SnapshotMessage,
+  PortalKind,
+  PortalSnapshot,
   WelcomeMessage,
+} from '@gelehka/shared';
+
+export {
+  BOSS_KINDS,
+  CLIENT_MESSAGE_TYPES,
+  DROP_KINDS,
+  ENEMY_KINDS,
+  HAZARD_KINDS,
+  INSTANCE_IDS,
+  PORTAL_KINDS,
+  SERVER_MESSAGE_TYPES,
 } from '@gelehka/shared';

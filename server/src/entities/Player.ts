@@ -1,4 +1,9 @@
-import { Direction, InputMessage, PlayerSnapshot, PlayerState } from '../network/MessageTypes.js';
+import type {
+  Direction,
+  InputMessage,
+  PlayerSnapshot,
+  PlayerState,
+} from '../network/MessageTypes.js';
 import { Entity } from '../core/Entity.js';
 import { State, StateMachine } from '../core/StateMachine.js';
 import { isInSafeZone } from '../game/Physics.js';
@@ -19,6 +24,9 @@ export const PLAYER_ATTACK_RANGE_RIGHT = 24;
 export const PLAYER_ATTACK_WIDTH = 36;
 export const PVP_DAMAGE = 25;
 export const SAFE_ZONE_DURATION = 3000;
+export const BURNING_TICK_DAMAGE = 4;
+export const BURNING_TICKS = 3;
+export const BURNING_TICK_MS = 1000;
 const SNAPSHOT_POSITION_PRECISION = 10;
 
 function quantizePosition(value: number): number {
@@ -47,6 +55,9 @@ export class Player extends Entity {
   safeZoneTimer: number;
   lastProcessedInputSeq: number;
   private lastReceivedInputSeq: number;
+  burningTicksRemaining: number;
+  burningTickTimer: number;
+  phaseTransferCooldownMs: number;
 
   readonly stateMachine: StateMachine;
   private readonly fsmStates: Record<PlayerState, State>;
@@ -74,6 +85,9 @@ export class Player extends Entity {
     this.safeZoneTimer = SAFE_ZONE_DURATION;
     this.lastProcessedInputSeq = 0;
     this.lastReceivedInputSeq = -1;
+    this.burningTicksRemaining = 0;
+    this.burningTickTimer = 0;
+    this.phaseTransferCooldownMs = 0;
 
     this.stateMachine = new StateMachine();
     this.fsmStates = {
@@ -94,6 +108,12 @@ export class Player extends Entity {
 
   update(dt: number, speedMultiplier: number = 1): void {
     this.stateMachine.update(dt);
+
+    if (this.phaseTransferCooldownMs > 0) {
+      this.phaseTransferCooldownMs -= dt;
+    }
+
+    this.updateBurning(dt);
 
     if (this.state === 'dead') {
       return;
@@ -208,7 +228,19 @@ export class Player extends Entity {
     this.transitionTo('idle');
     this.respawnTimer = 0;
     this.safeZoneTimer = SAFE_ZONE_DURATION;
+    this.burningTicksRemaining = 0;
+    this.burningTickTimer = 0;
     this.resetAttackTracking();
+  }
+
+  applyBurning(ticks: number = BURNING_TICKS): void {
+    if (this.state === 'dead') return;
+    this.burningTicksRemaining = Math.max(this.burningTicksRemaining, ticks);
+    this.burningTickTimer = BURNING_TICK_MS;
+  }
+
+  markPhaseTransferCooldown(ms: number): void {
+    this.phaseTransferCooldownMs = Math.max(this.phaseTransferCooldownMs, ms);
   }
 
   recordMonsterKillInCurrentAttack(): void {
@@ -238,7 +270,28 @@ export class Player extends Entity {
       deaths: this.deaths,
       toastyCount: this.toastyCount,
       lastProcessedInputSeq: this.lastProcessedInputSeq,
+      statusEffects: {
+        burning:
+          this.burningTicksRemaining > 0
+            ? { ticksRemaining: this.burningTicksRemaining }
+            : undefined,
+      },
     };
+  }
+
+  private updateBurning(dt: number): void {
+    if (this.burningTicksRemaining <= 0) return;
+    this.burningTickTimer -= dt;
+    while (this.burningTicksRemaining > 0 && this.burningTickTimer <= 0) {
+      this.takeDamage(BURNING_TICK_DAMAGE);
+      this.burningTicksRemaining -= 1;
+      this.burningTickTimer += BURNING_TICK_MS;
+      if (this.state === 'dead') {
+        this.burningTicksRemaining = 0;
+        this.burningTickTimer = 0;
+        break;
+      }
+    }
   }
 
   private resetAttackTracking(): void {

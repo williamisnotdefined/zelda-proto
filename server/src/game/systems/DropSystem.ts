@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { DROP_KINDS } from '@gelehka/shared';
 import { Player } from '../../entities/Player.js';
 import { Blob } from '../../entities/Blob.js';
 import type { Drop } from '../World.js';
@@ -20,7 +21,7 @@ export class DropSystem {
             id: dropId,
             x: blob.x,
             y: blob.y,
-            kind: 'heal',
+            kind: blob.dropKind,
           });
         }
       }
@@ -30,7 +31,8 @@ export class DropSystem {
   private handleDropPickup(players: Map<string, Player>, drops: Map<string, Drop>): void {
     const PICKUP_RADIUS = 24;
     const PICKUP_RADIUS_SQ = PICKUP_RADIUS * PICKUP_RADIUS;
-    const HEAL_AMOUNT = 5;
+    const SMALL_HEAL_AMOUNT = 5;
+    const LARGE_HEAL_AMOUNT = 10;
 
     for (const [dropId, drop] of drops) {
       for (const player of players.values()) {
@@ -38,9 +40,9 @@ export class DropSystem {
         const dx = player.x - drop.x;
         const dy = player.y - drop.y;
         if (dx * dx + dy * dy < PICKUP_RADIUS_SQ) {
-          if (drop.kind === 'heal') {
-            player.hp = Math.min(player.hp + HEAL_AMOUNT, player.maxHp);
-          }
+          const healAmount =
+            drop.kind === DROP_KINDS.HEART_LARGE ? LARGE_HEAL_AMOUNT : SMALL_HEAL_AMOUNT;
+          player.hp = Math.min(player.hp + healAmount, player.maxHp);
           drops.delete(dropId);
           break;
         }

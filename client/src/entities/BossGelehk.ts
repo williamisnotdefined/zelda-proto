@@ -7,6 +7,10 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
 const AOE_TELEGRAPH_COLOR = 0xffdd33;
 const AOE_HIT_COLOR = 0xff0000;
+const DEBUG_COLLISION_SIZE = 72;
+const DEBUG_COLLISION_COLOR = 0xff4fd8;
+const DEBUG_COLLISION_ALPHA = 0.8;
+const DEBUG_COLLISION_OFFSET_Y = 8;
 
 interface IceZoneData {
   x: number;
@@ -25,6 +29,7 @@ interface AoeData {
 
 export class BossGelehkEntity {
   sprite: Phaser.GameObjects.Sprite;
+  collisionDebug: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
@@ -68,6 +73,16 @@ export class BossGelehkEntity {
     this.sprite.setScale(BOSS_SCALE);
     this.sprite.setDepth(8);
 
+    this.collisionDebug = scene.add.rectangle(
+      x,
+      y,
+      DEBUG_COLLISION_SIZE,
+      DEBUG_COLLISION_SIZE,
+      DEBUG_COLLISION_COLOR,
+      DEBUG_COLLISION_ALPHA
+    );
+    this.collisionDebug.setDepth(8.5);
+
     this.label = scene.add.text(x, y - 56, 'GELEHK', {
       fontSize: '12px',
       color: '#aaaaff',
@@ -82,6 +97,14 @@ export class BossGelehkEntity {
 
     this.hpBar = scene.add.rectangle(x, y - 46, 86, 6, 0x6666ff);
     this.hpBar.setDepth(13);
+  }
+
+  get x(): number {
+    return this.sprite.x;
+  }
+
+  get y(): number {
+    return this.sprite.y;
   }
 
   updateFromServer(
@@ -191,6 +214,8 @@ export class BossGelehkEntity {
 
     this.label.x = this.sprite.x;
     this.label.y = this.sprite.y - 56;
+    this.collisionDebug.x = this.sprite.x;
+    this.collisionDebug.y = this.sprite.y + DEBUG_COLLISION_OFFSET_Y;
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBarBg.x = this.sprite.x;
@@ -202,6 +227,9 @@ export class BossGelehkEntity {
 
     this.updateAnimation();
     this.updateTint();
+
+    const visible = this.serverState !== 'dead';
+    this.collisionDebug.setVisible(visible);
   }
 
   private updateAnimation(): void {
@@ -214,7 +242,7 @@ export class BossGelehkEntity {
       animKey = 'skeleton_death';
       if (!this.deathPlayed) {
         this.sprite.setAlpha(1);
-        this.sprite.play(animKey);
+        this.playIfExists(animKey);
         this.deathPlayed = true;
         this.currentAnimKey = animKey;
       }
@@ -231,6 +259,10 @@ export class BossGelehkEntity {
       animKey = `skeleton_attack_${dirSuffix}`;
     } else if (state === 'jumping' || state === 'targeting') {
       animKey = `skeleton_attack_${dirSuffix}`;
+    } else if (state === 'attacking') {
+      animKey = `skeleton_attack_${dirSuffix}`;
+    } else if (state === 'chasing') {
+      animKey = `skeleton_move_${dirSuffix}`;
     } else if (state === 'enraged') {
       animKey = `skeleton_move_${dirSuffix}`;
     } else if (state === 'spawning_minions') {
@@ -242,8 +274,21 @@ export class BossGelehkEntity {
     this.sprite.setFlipX(flipX);
 
     if (this.currentAnimKey !== animKey) {
-      this.sprite.play(animKey);
+      this.playIfExists(animKey);
       this.currentAnimKey = animKey;
+    }
+  }
+
+  private playIfExists(animKey: string): void {
+    const anim = this.sprite.anims.animationManager.get(animKey);
+    if (!anim) {
+      return;
+    }
+
+    try {
+      this.sprite.play(animKey);
+    } catch {
+      return;
     }
   }
 
@@ -267,6 +312,7 @@ export class BossGelehkEntity {
 
   destroy(): void {
     this.sprite.destroy();
+    this.collisionDebug.destroy();
     this.label.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();

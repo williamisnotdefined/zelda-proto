@@ -1,12 +1,16 @@
 import { WORLD_VIEW_RADIUS } from '@gelehka/shared/constants';
-import {
+import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import type {
   AoeIndicator,
   IceZone,
   LeaderboardMessage,
   PlayerSnapshot,
+  PortalSnapshot,
+  HazardSnapshot,
 } from '../../network/MessageTypes.js';
-import { SnapshotBundle } from '../../network/SnapshotSerializer.js';
+import type { SnapshotBundle } from '../../network/SnapshotSerializer.js';
 import { World } from '../World.js';
+import { BossGelehk } from '../../entities/BossGelehk.js';
 
 const SNAPSHOT_POSITION_PRECISION = 10;
 
@@ -15,14 +19,8 @@ function quantizePosition(value: number): number {
 }
 
 export class SnapshotSystem {
-  private cachedPlayerSnapshots: PlayerSnapshot[] | null = null;
-
-  beginTick(world: World): void {
-    const snapshots: PlayerSnapshot[] = [];
-    for (const player of world.players.values()) {
-      snapshots.push(player.toSnapshot());
-    }
-    this.cachedPlayerSnapshots = snapshots;
+  beginTick(_world: World): void {
+    return;
   }
 
   getSnapshotBundle(world: World): SnapshotBundle {
@@ -31,6 +29,9 @@ export class SnapshotSystem {
     const enemies = [];
     for (const blob of world.blobs.values()) {
       if (blob.state !== 'dead') enemies.push(blob.toSnapshot());
+    }
+    for (const slime of world.slimes.values()) {
+      if (slime.state !== 'dead') enemies.push(slime.toSnapshot());
     }
 
     const bosses = [];
@@ -43,11 +44,35 @@ export class SnapshotSystem {
       drops.push(drop);
     }
 
+    const portals: PortalSnapshot[] = [];
+    for (const portal of world.portals.values()) {
+      portals.push({
+        id: portal.id,
+        x: quantizePosition(portal.x),
+        y: quantizePosition(portal.y),
+        kind: portal.kind,
+      });
+    }
+
+    const hazards: HazardSnapshot[] = [];
+    for (const hazard of world.hazards.values()) {
+      hazards.push({
+        id: hazard.id,
+        x: quantizePosition(hazard.x),
+        y: quantizePosition(hazard.y),
+        kind: hazard.kind,
+        ttlMs: Math.max(0, Math.round(hazard.ttlMs)),
+      });
+    }
+
     return {
+      instanceId: world.instanceId,
       players: this.getPlayerSnapshots(world),
       enemies,
       bosses,
       drops,
+      portals,
+      hazards,
       iceZones,
       aoeIndicators,
     };
@@ -91,13 +116,37 @@ export class SnapshotSystem {
       drops.push(drop);
     }
 
+    const portals: PortalSnapshot[] = [];
+    for (const portal of world.queryPortalsInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+      portals.push({
+        id: portal.id,
+        x: quantizePosition(portal.x),
+        y: quantizePosition(portal.y),
+        kind: portal.kind,
+      });
+    }
+
+    const hazards: HazardSnapshot[] = [];
+    for (const hazard of world.queryHazardsInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+      hazards.push({
+        id: hazard.id,
+        x: quantizePosition(hazard.x),
+        y: quantizePosition(hazard.y),
+        kind: hazard.kind,
+        ttlMs: Math.max(0, Math.round(hazard.ttlMs)),
+      });
+    }
+
     const { iceZones, aoeIndicators } = this.collectBossEffects(world, inRange);
 
     return {
+      instanceId: world.instanceId,
       players,
       enemies,
       bosses,
       drops,
+      portals,
+      hazards,
       iceZones,
       aoeIndicators,
     };
@@ -105,13 +154,12 @@ export class SnapshotSystem {
 
   getLeaderboard(world: World): LeaderboardMessage {
     return {
-      type: 'leaderboard',
+      type: SERVER_MESSAGE_TYPES.LEADERBOARD,
       players: this.getPlayerSnapshots(world),
     };
   }
 
   private getPlayerSnapshots(world: World): PlayerSnapshot[] {
-    if (this.cachedPlayerSnapshots) return this.cachedPlayerSnapshots;
     const snapshots: PlayerSnapshot[] = [];
     for (const player of world.players.values()) {
       snapshots.push(player.toSnapshot());
@@ -128,6 +176,7 @@ export class SnapshotSystem {
 
     for (const boss of world.bosses.values()) {
       if (boss.state === 'dead') continue;
+      if (!(boss instanceof BossGelehk)) continue;
       if (filterFn && !filterFn(boss.x, boss.y)) continue;
 
       for (const zone of boss.iceZones) {

@@ -23,6 +23,7 @@ export interface BlobData {
 
 export interface BossData {
   id: string;
+  kind: string;
   x: number;
   y: number;
   hp: number;

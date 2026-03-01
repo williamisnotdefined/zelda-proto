@@ -8,10 +8,10 @@ const PORT = Number(process.env.PORT) || (isDev ? 3002 : 3001);
 const httpServer = createHttpServer();
 const wsHandler = new WebSocketHandler(httpServer);
 
-const gameLoop = new GameLoop((world) => {
-  wsHandler.broadcastSnapshots(world);
+const gameLoop = new GameLoop((instances) => {
+  wsHandler.broadcastSnapshots(instances);
 });
 
-wsHandler.start(gameLoop.world);
+wsHandler.start(gameLoop.instances);
 gameLoop.start();
 httpServer.listen(PORT);

@@ -1,28 +1,37 @@
-import {
+import type {
   AoeIndicator,
   BossSnapshot,
   DropSnapshot,
+  EnemySnapshot,
+  HazardSnapshot,
   IceZone,
+  InstanceId,
   PlayerSnapshot,
-  BlobSnapshot,
+  PortalSnapshot,
   SnapshotDeltaMessage,
   SnapshotMessage,
 } from './MessageTypes.js';
+import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 
 export interface SnapshotBundle {
+  instanceId: InstanceId;
   players: PlayerSnapshot[];
-  enemies: BlobSnapshot[];
+  enemies: EnemySnapshot[];
   bosses: BossSnapshot[];
   drops: DropSnapshot[];
+  portals: PortalSnapshot[];
+  hazards: HazardSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
 }
 
 export interface SnapshotState {
   players: Map<string, PlayerSnapshot>;
-  enemies: Map<string, BlobSnapshot>;
+  enemies: Map<string, EnemySnapshot>;
   bosses: Map<string, BossSnapshot>;
   drops: Map<string, DropSnapshot>;
+  portals: Map<string, PortalSnapshot>;
+  hazards: Map<string, HazardSnapshot>;
 }
 
 function toMap<T extends { id: string }>(items: T[]): Map<string, T> {
@@ -37,16 +46,21 @@ export function toSnapshotState(snapshot: SnapshotBundle): SnapshotState {
     enemies: toMap(snapshot.enemies),
     bosses: toMap(snapshot.bosses),
     drops: toMap(snapshot.drops),
+    portals: toMap(snapshot.portals),
+    hazards: toMap(snapshot.hazards),
   };
 }
 
 export function toSnapshotMessage(snapshot: SnapshotBundle): SnapshotMessage {
   return {
-    type: 'snapshot',
+    type: SERVER_MESSAGE_TYPES.SNAPSHOT,
+    instanceId: snapshot.instanceId,
     players: snapshot.players,
     enemies: snapshot.enemies,
     bosses: snapshot.bosses,
     drops: snapshot.drops,
+    portals: snapshot.portals,
+    hazards: snapshot.hazards,
     iceZones: snapshot.iceZones,
     aoeIndicators: snapshot.aoeIndicators,
   };
@@ -97,17 +111,22 @@ export function diffSnapshot(
   if (!prev || full) {
     return {
       message: {
-        type: 'snapshot_delta',
+        type: SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA,
         tick,
         full: true,
+        instanceId: current.instanceId,
         players: current.players,
         removedPlayerIds: [],
         enemies: current.enemies,
         bosses: current.bosses,
         drops: current.drops,
+        portals: current.portals,
+        hazards: current.hazards,
         removedEnemyIds: [],
         removedBossIds: [],
         removedDropIds: [],
+        removedPortalIds: [],
+        removedHazardIds: [],
         iceZones: current.iceZones,
         aoeIndicators: current.aoeIndicators,
       },
@@ -118,21 +137,28 @@ export function diffSnapshot(
   const enemiesDiff = diffCollection(prev.enemies, currState.enemies);
   const bossesDiff = diffCollection(prev.bosses, currState.bosses);
   const dropsDiff = diffCollection(prev.drops, currState.drops);
+  const portalsDiff = diffCollection(prev.portals, currState.portals);
+  const hazardsDiff = diffCollection(prev.hazards, currState.hazards);
   const playersDiff = diffCollection(prev.players, currState.players);
 
   return {
     message: {
-      type: 'snapshot_delta',
+      type: SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA,
       tick,
       full: false,
+      instanceId: current.instanceId,
       players: playersDiff.changed,
       removedPlayerIds: playersDiff.removed,
       enemies: enemiesDiff.changed,
       bosses: bossesDiff.changed,
       drops: dropsDiff.changed,
+      portals: portalsDiff.changed,
+      hazards: hazardsDiff.changed,
       removedEnemyIds: enemiesDiff.removed,
       removedBossIds: bossesDiff.removed,
       removedDropIds: dropsDiff.removed,
+      removedPortalIds: portalsDiff.removed,
+      removedHazardIds: hazardsDiff.removed,
       iceZones: current.iceZones,
       aoeIndicators: current.aoeIndicators,
     },

@@ -1,7 +1,7 @@
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import { pack, unpack } from 'msgpackr';
 import { RawData, WebSocket } from 'ws';
-import { ClientMessage, ServerMessage } from './MessageTypes.js';
+import type { ClientMessage, ServerMessage } from './MessageTypes.js';
 
 export class NetworkManager {
   decodeClientMessage(data: RawData): ClientMessage | null {

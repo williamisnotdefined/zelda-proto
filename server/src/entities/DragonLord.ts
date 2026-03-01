@@ -1,0 +1,158 @@
+import { BOSS_KINDS } from '@gelehka/shared';
+import type { BossKind } from '@gelehka/shared';
+import type { BossSnapshot, BossState } from '../network/MessageTypes.js';
+import { distanceSquared } from '../game/Physics.js';
+import { Player } from './Player.js';
+import { Entity } from '../core/Entity.js';
+
+export const DRAGON_LORD_MAX_HP = 220;
+export const DRAGON_LORD_SPEED = 60;
+export const DRAGON_LORD_DAMAGE = 5;
+export const DRAGON_LORD_AGGRO_RADIUS = 700;
+export const DRAGON_LORD_WIDTH = 96;
+export const DRAGON_LORD_HEIGHT = 96;
+export const DRAGON_LORD_RESPAWN_TIME = 15000;
+export const DRAGON_LORD_ATTACK_COOLDOWN = 3000;
+const DRAGON_AXIS_HYSTERESIS = 18;
+const SNAPSHOT_POSITION_PRECISION = 10;
+
+function quantizePosition(value: number): number {
+  return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
+
+export class DragonLord extends Entity {
+  kind: BossKind;
+  hp: number;
+  maxHp: number;
+  speed: number;
+  damage: number;
+  state: BossState;
+  respawnTimer: number;
+  spawnX: number;
+  spawnY: number;
+  attackCooldownMs: number;
+  targetPlayerId: string | null;
+  private moveAxis: 'x' | 'y';
+
+  constructor(id: string, x: number, y: number) {
+    super(id, x, y);
+    this.kind = BOSS_KINDS.DRAGON_LORD;
+    this.hp = DRAGON_LORD_MAX_HP;
+    this.maxHp = DRAGON_LORD_MAX_HP;
+    this.speed = DRAGON_LORD_SPEED;
+    this.damage = DRAGON_LORD_DAMAGE;
+    this.state = 'idle';
+    this.respawnTimer = 0;
+    this.spawnX = x;
+    this.spawnY = y;
+    this.attackCooldownMs = 0;
+    this.targetPlayerId = null;
+    this.moveAxis = 'x';
+  }
+
+  update(
+    dt: number,
+    players: Map<string, Player>,
+    spawnFireLine: (x: number, y: number, dirX: number, dirY: number) => void
+  ): void {
+    if (this.state === 'dead') return;
+
+    if (this.attackCooldownMs > 0) {
+      this.attackCooldownMs -= dt;
+    }
+
+    let nearestPlayer: Player | null = null;
+    let nearestDistSq = Infinity;
+
+    for (const player of players.values()) {
+      if (player.state === 'dead') continue;
+      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
+      if (dSq < nearestDistSq) {
+        nearestDistSq = dSq;
+        nearestPlayer = player;
+      }
+    }
+
+    if (nearestPlayer && nearestDistSq <= DRAGON_LORD_AGGRO_RADIUS * DRAGON_LORD_AGGRO_RADIUS) {
+      this.targetPlayerId = nearestPlayer.id;
+      this.state = 'chasing';
+
+      const dx = nearestPlayer.x - this.x;
+      const dy = nearestPlayer.y - this.y;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      let nx = 0;
+      let ny = 0;
+
+      if (Math.abs(absDx - absDy) <= DRAGON_AXIS_HYSTERESIS) {
+        if (this.moveAxis === 'x') {
+          nx = Math.sign(dx);
+        } else {
+          ny = Math.sign(dy);
+        }
+      } else if (absDx > absDy) {
+        this.moveAxis = 'x';
+        nx = Math.sign(dx);
+      } else {
+        this.moveAxis = 'y';
+        ny = Math.sign(dy);
+      }
+
+      this.x += nx * this.speed * (dt / 1000);
+      this.y += ny * this.speed * (dt / 1000);
+
+      if (this.attackCooldownMs <= 0) {
+        this.state = 'attacking';
+        this.attackCooldownMs = DRAGON_LORD_ATTACK_COOLDOWN;
+        if (nx === 0 && ny === 0) {
+          nx = dx !== 0 ? Math.sign(dx) : 1;
+          ny = dx !== 0 ? 0 : Math.sign(dy);
+        }
+        spawnFireLine(this.x, this.y, nx, ny);
+      }
+    } else {
+      this.targetPlayerId = null;
+      this.state = 'idle';
+    }
+  }
+
+  takeDamage(amount: number): void {
+    if (this.state === 'dead') return;
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.state = 'dead';
+      this.respawnTimer = DRAGON_LORD_RESPAWN_TIME;
+      this.targetPlayerId = null;
+      this.attackCooldownMs = 0;
+    }
+  }
+
+  tryRespawn(dt: number): boolean {
+    if (this.state !== 'dead') return false;
+    this.respawnTimer -= dt;
+    if (this.respawnTimer <= 0) {
+      this.x = this.spawnX;
+      this.y = this.spawnY;
+      this.hp = this.maxHp;
+      this.state = 'idle';
+      this.targetPlayerId = null;
+      this.attackCooldownMs = 0;
+      return true;
+    }
+    return false;
+  }
+
+  toSnapshot(): BossSnapshot {
+    return {
+      id: this.id,
+      kind: this.kind,
+      x: quantizePosition(this.x),
+      y: quantizePosition(this.y),
+      hp: this.hp,
+      maxHp: this.maxHp,
+      state: this.state,
+      phase: 1,
+    };
+  }
+}

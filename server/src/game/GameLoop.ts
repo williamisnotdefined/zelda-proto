@@ -4,14 +4,14 @@ import {
   SERVER_SIM_TICK_RATE,
 } from '@gelehka/shared/constants';
 import { performance } from 'node:perf_hooks';
-import { World } from './World.js';
+import { InstanceManager } from './InstanceManager.js';
 
 const SIM_TICK_MS = 1000 / SERVER_SIM_TICK_RATE;
 const NET_TICK_MS = 1000 / SERVER_NET_TICK_RATE;
 const METRICS_LOG_INTERVAL_MS = 5000;
 
 export class GameLoop {
-  world: World;
+  instances: InstanceManager;
   private timeoutId: ReturnType<typeof setTimeout> | null;
   private running: boolean;
   private lastTimeMs: number;
@@ -24,10 +24,10 @@ export class GameLoop {
   private totalDriftMs: number;
   private maxDriftMs: number;
   private totalUpdateDurationMs: number;
-  private onNetworkTick: (world: World) => void;
+  private onNetworkTick: (instances: InstanceManager) => void;
 
-  constructor(onNetworkTick: (world: World) => void) {
-    this.world = new World();
+  constructor(onNetworkTick: (instances: InstanceManager) => void) {
+    this.instances = new InstanceManager();
     this.timeoutId = null;
     this.running = false;
     this.lastTimeMs = performance.now();
@@ -87,12 +87,12 @@ export class GameLoop {
 
     try {
       while (this.accumulatorMs >= SIM_TICK_MS) {
-        this.world.update(SIM_TICK_MS);
+        this.instances.update(SIM_TICK_MS);
         this.accumulatorMs -= SIM_TICK_MS;
       }
 
       while (this.networkAccumulatorMs >= NET_TICK_MS) {
-        this.onNetworkTick(this.world);
+        this.onNetworkTick(this.instances);
         this.networkAccumulatorMs -= NET_TICK_MS;
       }
     } catch (error) {

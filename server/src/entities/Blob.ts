@@ -1,9 +1,11 @@
+import { ENEMY_KINDS } from '@gelehka/shared';
 import {
   WORLD_SPAWN_SAFE_ZONE_RADIUS,
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import { BlobSnapshot, BlobState } from '../network/MessageTypes.js';
+import type { EnemyKind } from '@gelehka/shared';
+import type { BlobState, EnemySnapshot } from '../network/MessageTypes.js';
 import { aabbOverlap, distanceSquared, entityAABB, isInSafeZone } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
 import { Entity } from '../core/Entity.js';
@@ -20,11 +22,30 @@ export const BLOB_DAMAGE_COOLDOWN = 1000;
 export const BLOB_RESPAWN_TIME = 10000;
 const SNAPSHOT_POSITION_PRECISION = 10;
 
+export interface EnemyConfig {
+  kind: EnemyKind;
+  maxHp: number;
+  speed: number;
+  damage: number;
+  aggroRadius: number;
+  respawnTimeMs: number;
+}
+
+export const BLOB_CONFIG: EnemyConfig = {
+  kind: ENEMY_KINDS.BLOB,
+  maxHp: BLOB_HP,
+  speed: BLOB_SPEED,
+  damage: BLOB_DAMAGE,
+  aggroRadius: BLOB_AGGRO_RADIUS,
+  respawnTimeMs: BLOB_RESPAWN_TIME,
+};
+
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
 }
 
 export class Blob extends Entity {
+  kind: EnemyKind;
   hp: number;
   maxHp: number;
   speed: number;
@@ -38,25 +59,50 @@ export class Blob extends Entity {
   chunkKey: string;
   targetPlayerId: string | null;
   hasDropped: boolean;
+  dropKind: 'heart_small' | 'heart_large';
+  private readonly respawnTimeMs: number;
 
-  constructor(id: string, x: number, y: number, chunkKey: string = '') {
+  constructor(
+    id: string,
+    x: number,
+    y: number,
+    chunkKey: string = '',
+    config: EnemyConfig = BLOB_CONFIG,
+    dropKind: 'heart_small' | 'heart_large' = 'heart_small'
+  ) {
     super(id, x, y);
+    this.kind = config.kind;
     this.spawnX = x;
     this.spawnY = y;
-    this.hp = BLOB_HP;
-    this.maxHp = BLOB_HP;
-    this.speed = BLOB_SPEED;
-    this.damage = BLOB_DAMAGE;
-    this.aggroRadius = BLOB_AGGRO_RADIUS;
+    this.hp = config.maxHp;
+    this.maxHp = config.maxHp;
+    this.speed = config.speed;
+    this.damage = config.damage;
+    this.aggroRadius = config.aggroRadius;
     this.state = 'idle';
     this.damageCooldown = 0;
     this.respawnTimer = 0;
     this.chunkKey = chunkKey;
     this.targetPlayerId = null;
     this.hasDropped = false;
+    this.dropKind = dropKind;
+    this.respawnTimeMs = config.respawnTimeMs;
   }
 
   update(dt: number, players: Map<string, Player>, spawnSafeZoneActive: boolean = false): void {
+    this.updateWithSafeZone(dt, players, spawnSafeZoneActive, {
+      x: WORLD_SPAWN_X,
+      y: WORLD_SPAWN_Y,
+      radius: WORLD_SPAWN_SAFE_ZONE_RADIUS,
+    });
+  }
+
+  updateWithSafeZone(
+    dt: number,
+    players: Map<string, Player>,
+    spawnSafeZoneActive: boolean,
+    safeZone: { x: number; y: number; radius: number }
+  ): void {
     if (this.state === 'dead') return;
 
     if (this.damageCooldown > 0) {
@@ -96,7 +142,7 @@ export class Blob extends Entity {
     const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
 
     if (target && target.state !== 'dead') {
-      if (target.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)) {
+      if (target.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
         this.targetPlayerId = null;
         this.state = 'idle';
         return;
@@ -114,11 +160,11 @@ export class Blob extends Entity {
 
         const wouldEnterSafeZone =
           spawnSafeZoneActive &&
-          isInSafeZone(nextX, nextY, WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS);
+          isInSafeZone(nextX, nextY, safeZone.x, safeZone.y, safeZone.radius);
 
         if (wouldEnterSafeZone) {
-          const toSpawnX = WORLD_SPAWN_X - this.x;
-          const toSpawnY = WORLD_SPAWN_Y - this.y;
+          const toSpawnX = safeZone.x - this.x;
+          const toSpawnY = safeZone.y - this.y;
           const perpX = -toSpawnY;
           const perpY = toSpawnX;
           const perpLen = Math.sqrt(perpX * perpX + perpY * perpY);
@@ -149,15 +195,15 @@ export class Blob extends Entity {
 
     if (
       spawnSafeZoneActive &&
-      isInSafeZone(this.x, this.y, WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)
+      isInSafeZone(this.x, this.y, safeZone.x, safeZone.y, safeZone.radius)
     ) {
-      const dx = this.x - WORLD_SPAWN_X;
-      const dy = this.y - WORLD_SPAWN_Y;
+      const dx = this.x - safeZone.x;
+      const dy = this.y - safeZone.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 0) {
-        const pushDist = WORLD_SPAWN_SAFE_ZONE_RADIUS + 10;
-        this.x = WORLD_SPAWN_X + (dx / dist) * pushDist;
-        this.y = WORLD_SPAWN_Y + (dy / dist) * pushDist;
+        const pushDist = safeZone.radius + 10;
+        this.x = safeZone.x + (dx / dist) * pushDist;
+        this.y = safeZone.y + (dy / dist) * pushDist;
       }
       this.targetPlayerId = null;
       this.state = 'idle';
@@ -171,7 +217,7 @@ export class Blob extends Entity {
       this.hp = 0;
       this.state = 'dead';
       this.targetPlayerId = null;
-      this.respawnTimer = BLOB_RESPAWN_TIME;
+      this.respawnTimer = this.respawnTimeMs;
     }
   }
 
@@ -191,9 +237,10 @@ export class Blob extends Entity {
     return false;
   }
 
-  toSnapshot(): BlobSnapshot {
+  toSnapshot(): EnemySnapshot {
     return {
       id: this.id,
+      kind: this.kind,
       x: quantizePosition(this.x),
       y: quantizePosition(this.y),
       hp: this.hp,

@@ -1,23 +1,25 @@
+import { BOSS_KINDS } from '@gelehka/shared';
 import {
   WORLD_SPAWN_SAFE_ZONE_RADIUS,
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import {
+import { Entity } from '../core/Entity.js';
+import { aabbOverlap, distance, distanceSquared, entityAABB } from '../game/Physics.js';
+import type {
   AoeIndicator,
+  BossKind,
   BossPhase,
   BossSnapshot,
   BossState,
   IceZone,
 } from '../network/MessageTypes.js';
-import { aabbOverlap, distance, distanceSquared, entityAABB } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
-import { Entity } from '../core/Entity.js';
 
-export const BOSS_MAX_HP = 250;
+export const BOSS_MAX_HP = 1; //150;
 export const BOSS_SPEED = 80;
-export const BOSS_WIDTH = 96;
-export const BOSS_HEIGHT = 96;
+export const BOSS_WIDTH = 72;
+export const BOSS_HEIGHT = 72;
 export const BOSS_ACTIVATION_RADIUS = 500;
 export const BOSS_RESPAWN_TIME = 15000;
 
@@ -52,6 +54,7 @@ function quantizePosition(value: number): number {
 export { ICE_ZONE_SLOW };
 
 export class BossGelehk extends Entity {
+  kind: BossKind;
   spawnX: number;
   spawnY: number;
   hp: number;
@@ -75,9 +78,14 @@ export class BossGelehk extends Entity {
   aoeIndicators: AoeIndicator[];
   private waveRadius: number;
   private waveActive: boolean;
+  deathHandled: boolean;
+  private safeZoneX: number;
+  private safeZoneY: number;
+  private safeZoneRadius: number;
 
   constructor(id: string, x: number, y: number) {
     super(id, x, y);
+    this.kind = BOSS_KINDS.GELEHK;
     this.spawnX = x;
     this.spawnY = y;
     this.hp = BOSS_MAX_HP;
@@ -101,6 +109,10 @@ export class BossGelehk extends Entity {
     this.aoeIndicators = [];
     this.waveRadius = 0;
     this.waveActive = false;
+    this.deathHandled = false;
+    this.safeZoneX = WORLD_SPAWN_X;
+    this.safeZoneY = WORLD_SPAWN_Y;
+    this.safeZoneRadius = WORLD_SPAWN_SAFE_ZONE_RADIUS;
   }
 
   reset(): void {
@@ -125,6 +137,10 @@ export class BossGelehk extends Entity {
     this.aoeIndicators = [];
     this.waveRadius = 0;
     this.waveActive = false;
+    this.deathHandled = false;
+    this.safeZoneX = WORLD_SPAWN_X;
+    this.safeZoneY = WORLD_SPAWN_Y;
+    this.safeZoneRadius = WORLD_SPAWN_SAFE_ZONE_RADIUS;
   }
 
   tryRespawn(dt: number): boolean {
@@ -140,9 +156,16 @@ export class BossGelehk extends Entity {
   update(
     dt: number,
     players: Map<string, Player>,
-    spawnMinions: (x: number, y: number, count: number) => void
+    spawnMinions: (x: number, y: number, count: number) => void,
+    safeZone?: { x: number; y: number; radius: number }
   ): void {
     if (this.state === 'dead') return;
+
+    if (safeZone) {
+      this.safeZoneX = safeZone.x;
+      this.safeZoneY = safeZone.y;
+      this.safeZoneRadius = safeZone.radius;
+    }
 
     if (!this.active) {
       const activationRadiusSq = BOSS_ACTIVATION_RADIUS * BOSS_ACTIVATION_RADIUS;
@@ -284,8 +307,7 @@ export class BossGelehk extends Entity {
       const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
-        if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS))
-          continue;
+        if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
         const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
         if (aabbOverlap(bossBox, playerBox)) {
           player.takeDamage(CHARGE_DAMAGE);
@@ -330,8 +352,7 @@ export class BossGelehk extends Entity {
       if (!aoe.hit && aoe.timer <= 0) {
         for (const player of players.values()) {
           if (player.state === 'dead') continue;
-          if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS))
-            continue;
+          if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
           if (distanceSquared(player.x, player.y, aoe.x, aoe.y) < aoe.radius * aoe.radius) {
             player.takeDamage(AOE_DAMAGE);
           }
@@ -357,7 +378,7 @@ export class BossGelehk extends Entity {
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
-      if (player.isProtected(WORLD_SPAWN_X, WORLD_SPAWN_Y, WORLD_SPAWN_SAFE_ZONE_RADIUS)) continue;
+      if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
       const dist = distance(this.x, this.y, player.x, player.y);
       if (dist >= prevRadius && dist <= this.waveRadius) {
         player.takeDamage(WAVE_DAMAGE);
@@ -413,12 +434,14 @@ export class BossGelehk extends Entity {
       this.aoeIndicators = [];
       this.waveActive = false;
       this.respawnTimer = BOSS_RESPAWN_TIME;
+      this.deathHandled = false;
     }
   }
 
   toSnapshot(): BossSnapshot {
     return {
       id: this.id,
+      kind: this.kind,
       x: quantizePosition(this.x),
       y: quantizePosition(this.y),
       hp: this.hp,

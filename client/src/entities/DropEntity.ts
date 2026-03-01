@@ -4,14 +4,24 @@ const LERP_BASE = 0.35;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 120;
 
+import { DROP_KINDS } from '@gelehka/shared';
+import type { DropKind } from '@gelehka/shared';
+
 export class DropEntity {
   sprite: Phaser.GameObjects.Sprite;
   private targetX: number;
   private targetY: number;
+  private kind: DropKind;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, _kind: string) {
-    this.sprite = scene.add.sprite(x, y, 'heart');
+  constructor(scene: Phaser.Scene, x: number, y: number, kind: DropKind) {
+    this.kind = kind;
+    this.sprite = scene.add.sprite(
+      x,
+      y,
+      this.kind === DROP_KINDS.HEART_LARGE ? 'heart_large' : 'heart'
+    );
     this.sprite.setDepth(5);
+    this.sprite.setScale(this.kind === DROP_KINDS.HEART_LARGE ? 0.8 : 1);
     this.targetX = x;
     this.targetY = y;
   }

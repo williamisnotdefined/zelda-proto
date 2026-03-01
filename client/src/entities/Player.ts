@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { PlayerStatusSnapshot } from '@gelehka/shared';
 
 const REMOTE_LERP_BASE = 0.3;
 const LOCAL_LERP_BASE = 0.48;
@@ -6,6 +7,7 @@ const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
 const MAX_LERP_DT_MS = 50;
 // Offset the sprite DOWN so the character body visually centers on the server hitbox
 const SPRITE_Y_OFFSET = -16;
+const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -19,9 +21,11 @@ export class PlayerEntity {
   hp: number;
   maxHp: number;
   nickname: string;
+  statusEffects: PlayerStatusSnapshot;
 
   private currentAnimKey: string;
   private deathPlayed: boolean;
+  private burningOverlay: Phaser.GameObjects.DOMElement;
 
   constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
@@ -34,6 +38,7 @@ export class PlayerEntity {
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.nickname = nickname;
+    this.statusEffects = {};
     this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
     this.sprite.setDepth(10);
@@ -43,6 +48,21 @@ export class PlayerEntity {
 
     this.hpBar = scene.add.rectangle(x, y - 26, 32, 4, 0x44ff44);
     this.hpBar.setDepth(12);
+
+    const burningImg = document.createElement('img');
+    burningImg.src = FIRE_FIELD_GIF_PATH;
+    burningImg.alt = 'Burning effect';
+    burningImg.draggable = false;
+    burningImg.style.width = '58px';
+    burningImg.style.height = '58px';
+    burningImg.style.pointerEvents = 'none';
+    burningImg.style.userSelect = 'none';
+    burningImg.style.opacity = '0.65';
+
+    this.burningOverlay = scene.add.dom(x, y + SPRITE_Y_OFFSET, burningImg);
+    this.burningOverlay.setDepth(13);
+    this.burningOverlay.setOrigin(0.5, 0.5);
+    this.burningOverlay.setVisible(false);
 
     if (isLocal) {
       this.sprite.setTint(0xaaffaa);
@@ -55,7 +75,8 @@ export class PlayerEntity {
     hp: number,
     maxHp: number,
     state: string,
-    direction: string
+    direction: string,
+    statusEffects: PlayerStatusSnapshot = {}
   ): void {
     const targetSpriteY = y + SPRITE_Y_OFFSET;
 
@@ -75,6 +96,7 @@ export class PlayerEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.serverDirection = direction;
+    this.statusEffects = statusEffects;
   }
 
   update(_scene: Phaser.Scene, dt: number): void {
@@ -98,6 +120,10 @@ export class PlayerEntity {
     this.hpBar.x = this.sprite.x - (32 - this.hpBar.width) / 2;
     this.hpBar.y = this.sprite.y - 26;
     this.hpBar.fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff4444;
+
+    this.burningOverlay.x = this.sprite.x;
+    this.burningOverlay.y = this.sprite.y;
+    this.burningOverlay.setVisible(Boolean(this.statusEffects.burning));
 
     this.updateAnimation();
   }
@@ -151,5 +177,6 @@ export class PlayerEntity {
     this.sprite.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();
+    this.burningOverlay.destroy();
   }
 }

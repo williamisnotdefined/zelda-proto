@@ -4,9 +4,13 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
+const DEBUG_COLLISION_SIZE = 28;
+const DEBUG_COLLISION_COLOR = 0xff4fd8;
+const DEBUG_COLLISION_ALPHA = 0.8;
 
 export class BlobEntity {
   sprite: Phaser.GameObjects.Sprite;
+  collisionDebug: Phaser.GameObjects.Rectangle;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
   targetX: number;
@@ -36,6 +40,16 @@ export class BlobEntity {
     this.sprite = scene.add.sprite(x, y, 'blob');
     this.sprite.setScale(2);
     this.sprite.setDepth(8);
+
+    this.collisionDebug = scene.add.rectangle(
+      x,
+      y,
+      DEBUG_COLLISION_SIZE,
+      DEBUG_COLLISION_SIZE,
+      DEBUG_COLLISION_COLOR,
+      DEBUG_COLLISION_ALPHA
+    );
+    this.collisionDebug.setDepth(8.5);
 
     this.hpBarBg = scene.add.rectangle(x, y - 20, 24, 3, 0x333333);
     this.hpBarBg.setDepth(9);
@@ -81,12 +95,18 @@ export class BlobEntity {
     this.hpBarBg.x = this.sprite.x;
     this.hpBarBg.y = this.sprite.y - 20;
 
+    this.collisionDebug.x = this.sprite.x;
+    this.collisionDebug.y = this.sprite.y;
+
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBar.width = 24 * hpRatio;
     this.hpBar.x = this.sprite.x - (24 - this.hpBar.width) / 2;
     this.hpBar.y = this.sprite.y - 20;
 
     this.updateAnimation();
+
+    const visible = this.serverState !== 'dead';
+    this.collisionDebug.setVisible(visible);
   }
 
   private updateAnimation(): void {
@@ -98,7 +118,7 @@ export class BlobEntity {
     if (state === 'dead') {
       animKey = 'blob_death';
       if (!this.deathPlayed) {
-        this.sprite.play(animKey);
+        this.playIfExists(animKey);
         this.deathPlayed = true;
         this.currentAnimKey = animKey;
       }
@@ -120,13 +140,27 @@ export class BlobEntity {
     this.sprite.setFlipX(flipX);
 
     if (this.currentAnimKey !== animKey) {
-      this.sprite.play(animKey);
+      this.playIfExists(animKey);
       this.currentAnimKey = animKey;
+    }
+  }
+
+  private playIfExists(animKey: string): void {
+    const anim = this.sprite.anims.animationManager.get(animKey);
+    if (!anim) {
+      return;
+    }
+
+    try {
+      this.sprite.play(animKey);
+    } catch {
+      return;
     }
   }
 
   destroy(): void {
     this.sprite.destroy();
+    this.collisionDebug.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();
   }

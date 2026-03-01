@@ -1,4 +1,5 @@
 import { Server } from 'node:http';
+import { CLIENT_MESSAGE_TYPES, INSTANCE_IDS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import {
   SERVER_LEADERBOARD_TICK_RATE,
   SERVER_NET_TICK_RATE,
@@ -6,8 +7,9 @@ import {
 } from '@gelehka/shared/constants';
 import { nanoid } from 'nanoid';
 import { WebSocket, WebSocketServer } from 'ws';
-import { World } from '../game/World.js';
-import { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
+import { InstanceManager } from '../game/InstanceManager.js';
+import type { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
+import type { InstanceId } from '@gelehka/shared';
 import { SnapshotSystem } from '../game/systems/SnapshotSystem.js';
 import { NetworkManager } from './NetworkManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
@@ -28,12 +30,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function isJoinMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'join' }> {
-  return msg.type === 'join' && typeof (msg as { nickname?: unknown }).nickname === 'string';
+function isJoinMessage(
+  msg: ClientMessage
+): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.JOIN }> {
+  return (
+    msg.type === CLIENT_MESSAGE_TYPES.JOIN &&
+    typeof (msg as { nickname?: unknown }).nickname === 'string'
+  );
 }
 
-function isInputMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'input' }> {
-  if (msg.type !== 'input') return false;
+function isInputMessage(
+  msg: ClientMessage
+): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.INPUT }> {
+  if (msg.type !== CLIENT_MESSAGE_TYPES.INPUT) return false;
   const candidate = msg as unknown;
   if (!isRecord(candidate)) return false;
   return (
@@ -48,8 +57,12 @@ function isInputMessage(msg: ClientMessage): msg is Extract<ClientMessage, { typ
   );
 }
 
-function isChatMessage(msg: ClientMessage): msg is Extract<ClientMessage, { type: 'chat' }> {
-  return msg.type === 'chat' && typeof (msg as { text?: unknown }).text === 'string';
+function isChatMessage(
+  msg: ClientMessage
+): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.CHAT }> {
+  return (
+    msg.type === CLIENT_MESSAGE_TYPES.CHAT && typeof (msg as { text?: unknown }).text === 'string'
+  );
 }
 
 function formatDateTime(): string {
@@ -70,6 +83,7 @@ export class WebSocketHandler {
   private readonly snapshotSystem: SnapshotSystem;
   private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
   private readonly forceFullSnapshotFor: Set<string> = new Set();
+  private readonly lastInstanceByPlayer: Map<string, string> = new Map();
   private snapshotTick = 0;
 
   constructor(httpServer: Server) {
@@ -82,7 +96,7 @@ export class WebSocketHandler {
     this.snapshotSystem = new SnapshotSystem();
   }
 
-  start(world: World): void {
+  start(instances: InstanceManager): void {
     this.wss.on('connection', (ws) => {
       if (this.clients.size >= MAX_CONNECTIONS) {
         ws.close(1013, 'Server full');
@@ -116,27 +130,27 @@ export class WebSocketHandler {
                 .slice(0, MAX_NICKNAME_LENGTH)
                 .trim() || 'Player';
 
-            world.addPlayer(playerId, nickname);
+            instances.addPlayer(playerId, nickname);
             hasJoined = true;
 
             console.log(
-              `[Game] Player connected: ${nickname} | ${formatDateTime()} | ${world.players.size} player(s) online`
+              `[Game] Player connected: ${nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
             );
 
             const welcome: ServerMessage = {
-              type: 'welcome',
+              type: SERVER_MESSAGE_TYPES.WELCOME,
               id: playerId,
               mapWidth: 0,
               mapHeight: 0,
             };
             this.networkManager.send(ws, welcome);
-            this.networkManager.send(ws, this.snapshotSystem.getLeaderboard(world));
+            this.networkManager.send(ws, this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1));
           } else if (isInputMessage(msg) && hasJoined) {
             if (++inputCount > INPUT_RATE_LIMIT) return;
-            world.handleInput(playerId, msg);
+            instances.handleInput(playerId, msg);
           } else if (isChatMessage(msg) && hasJoined) {
             if (++chatCount > CHAT_RATE_LIMIT) return;
-            this.handleChat(world, playerId, msg.text);
+            this.handleChat(instances, playerId, msg.text);
           }
         } catch (err) {
           console.error(`[WebSocket] Error parsing message from ${playerId}:`, err);
@@ -147,11 +161,12 @@ export class WebSocketHandler {
         this.clients.delete(playerId);
         this.previousSnapshots.delete(playerId);
         this.forceFullSnapshotFor.delete(playerId);
+        this.lastInstanceByPlayer.delete(playerId);
         if (hasJoined) {
-          const nickname = world.players.get(playerId)?.nickname ?? 'Unknown';
-          world.removePlayer(playerId);
+          const nickname = instances.getPlayersInAnyWorld().get(playerId)?.nickname ?? 'Unknown';
+          instances.removePlayer(playerId);
           console.log(
-            `[Game] Player disconnected: ${nickname} | ${formatDateTime()} | ${world.players.size} player(s) online`
+            `[Game] Player disconnected: ${nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
           );
         }
       });
@@ -162,8 +177,8 @@ export class WebSocketHandler {
     });
   }
 
-  private handleChat(world: World, playerId: string, rawText: unknown): void {
-    const player = world.players.get(playerId);
+  private handleChat(instances: InstanceManager, playerId: string, rawText: unknown): void {
+    const player = instances.getPlayersInAnyWorld().get(playerId);
     if (!player) return;
 
     const text = String(rawText ?? '')
@@ -172,33 +187,44 @@ export class WebSocketHandler {
     if (text.length === 0) return;
 
     const chatMsg: ServerChatMessage = {
-      type: 'chat',
+      type: SERVER_MESSAGE_TYPES.CHAT,
       id: playerId,
       nickname: player.nickname,
       text,
       timestamp: Date.now(),
     };
-    for (const ws of this.clients.values()) {
-      if (ws.readyState === WebSocket.OPEN) this.networkManager.send(ws, chatMsg);
+    const senderInstance = instances.getInstanceForPlayer(playerId);
+    for (const [peerId, ws] of this.clients) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      if (senderInstance && instances.getInstanceForPlayer(peerId) !== senderInstance) continue;
+      this.networkManager.send(ws, chatMsg);
     }
   }
 
-  broadcastSnapshots(world: World): void {
+  broadcastSnapshots(instances: InstanceManager): void {
     this.snapshotTick += 1;
-    this.snapshotSystem.beginTick(world);
 
     if (this.snapshotTick % LEADERBOARD_INTERVAL_TICKS === 0) {
-      const leaderboard = this.snapshotSystem.getLeaderboard(world);
-      for (const ws of this.clients.values()) {
-        if (ws.readyState === WebSocket.OPEN) {
-          this.networkManager.send(ws, leaderboard);
-        }
+      for (const [playerId, ws] of this.clients.entries()) {
+        if (ws.readyState !== WebSocket.OPEN) continue;
+        const instanceId = instances.getInstanceForPlayer(playerId);
+        if (!instanceId) continue;
+        const leaderboard = this.buildLeaderboard(instances, instanceId);
+        this.networkManager.send(ws, leaderboard);
       }
     }
 
     for (const [playerId, ws] of this.clients.entries()) {
       if (ws.readyState === WebSocket.OPEN) {
+        const world = instances.getWorldForPlayer(playerId);
+        if (!world) {
+          continue;
+        }
         const snapshot = this.snapshotSystem.getSnapshotForPlayer(world, playerId);
+        const lastInstance = this.lastInstanceByPlayer.get(playerId);
+        if (lastInstance && lastInstance !== snapshot.instanceId) {
+          this.forceFullSnapshotFor.add(playerId);
+        }
         const previous = this.previousSnapshots.get(playerId) ?? null;
         const full =
           this.forceFullSnapshotFor.has(playerId) ||
@@ -208,10 +234,20 @@ export class WebSocketHandler {
         if (sent) {
           this.previousSnapshots.set(playerId, nextState);
           this.forceFullSnapshotFor.delete(playerId);
+          this.lastInstanceByPlayer.set(playerId, snapshot.instanceId);
         } else {
           this.forceFullSnapshotFor.add(playerId);
         }
       }
     }
+  }
+
+  private buildLeaderboard(instances: InstanceManager, instanceId: InstanceId): ServerMessage {
+    return {
+      type: SERVER_MESSAGE_TYPES.LEADERBOARD,
+      players: Array.from(instances.getPlayersInInstance(instanceId).values()).map((player) =>
+        player.toSnapshot()
+      ),
+    };
   }
 }

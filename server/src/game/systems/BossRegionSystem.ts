@@ -1,11 +1,49 @@
 import { distanceSquared } from '../Physics.js';
-import { BossGelehk } from '../../entities/BossGelehk.js';
 import { Entity } from '../../core/Entity.js';
 import { Player } from '../../entities/Player.js';
 
-const BOSS_REGION_SIZE = 2000;
-const BOSS_ACTIVE_RANGE = 2000;
-const BOSS_DESPAWN_TIME = 60000;
+export interface BossActor extends Entity {
+  state: string;
+  active?: boolean;
+  update: (
+    dt: number,
+    players: Map<string, Player>,
+    callback: (...args: unknown[]) => void
+  ) => void;
+  tryRespawn: (dt: number) => boolean;
+}
+
+export interface BossRegionContext {
+  dt: number;
+  players: Map<string, Player>;
+  spawnMinions: (x: number, y: number) => void;
+  spawnFireLine: (x: number, y: number, dirX: number, dirY: number) => void;
+  safeZone: { x: number; y: number; radius: number };
+}
+
+export interface BossRegionSystemConfig<TBoss extends BossActor> {
+  regionSize: number;
+  activeRange: number;
+  despawnTimeMs: number;
+  keyPrefix: string;
+  bossPrefix: string;
+  createBoss: (id: string, x: number, y: number) => TBoss;
+  updateBoss: (boss: TBoss, ctx: BossRegionContext) => void;
+}
+
+const DEFAULT_CONFIG: BossRegionSystemConfig<BossActor> = {
+  regionSize: 2000,
+  activeRange: 2000,
+  despawnTimeMs: 60000,
+  keyPrefix: 'boss',
+  bossPrefix: 'boss',
+  createBoss: (id, x, y) => {
+    throw new Error(`createBoss not provided for ${id} @ ${x},${y}`);
+  },
+  updateBoss: () => {
+    return;
+  },
+};
 
 interface BossRegion {
   key: string;
@@ -13,41 +51,48 @@ interface BossRegion {
   lastPlayerNearby: number;
 }
 
-export class BossRegionSystem {
+export class BossRegionSystem<TBoss extends BossActor> {
   private readonly bossRegions: Map<string, BossRegion> = new Map();
+  private readonly config: BossRegionSystemConfig<TBoss>;
+
+  constructor(config: BossRegionSystemConfig<TBoss>) {
+    this.config = {
+      ...(DEFAULT_CONFIG as BossRegionSystemConfig<BossActor>),
+      ...config,
+    } as BossRegionSystemConfig<TBoss>;
+  }
 
   update(
     now: number,
     players: Map<string, Player>,
-    bosses: Map<string, BossGelehk>,
+    bosses: Map<string, TBoss>,
     addEntity: (entity: Entity) => void,
     removeEntity: (id: string) => void,
-    spawnMinions: (x: number, y: number) => void,
-    dt: number
+    context: BossRegionContext
   ): void {
     const activeRegionKeys = new Set<string>();
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
 
-      const prx = Math.floor(player.x / BOSS_REGION_SIZE);
-      const pry = Math.floor(player.y / BOSS_REGION_SIZE);
+      const prx = Math.floor(player.x / this.config.regionSize);
+      const pry = Math.floor(player.y / this.config.regionSize);
 
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const rx = prx + dx;
           const ry = pry + dy;
-          const key = `boss_${rx},${ry}`;
+          const key = `${this.config.keyPrefix}_${rx},${ry}`;
           activeRegionKeys.add(key);
 
           const center = this.getBossRegionCenter(rx, ry);
           const distSq = distanceSquared(player.x, player.y, center.x, center.y);
-          if (distSq > BOSS_ACTIVE_RANGE * BOSS_ACTIVE_RANGE) continue;
+          if (distSq > this.config.activeRange * this.config.activeRange) continue;
 
           let region = this.bossRegions.get(key);
           if (!region) {
-            const bossId = `gelehk_${rx}_${ry}`;
-            const boss = new BossGelehk(bossId, center.x, center.y);
+            const bossId = `${this.config.bossPrefix}_${rx}_${ry}`;
+            const boss = this.config.createBoss(bossId, center.x, center.y);
             bosses.set(bossId, boss);
             addEntity(boss);
             region = { key, bossId, lastPlayerNearby: now };
@@ -60,9 +105,11 @@ export class BossRegionSystem {
     }
 
     for (const [key, region] of this.bossRegions) {
-      if (!activeRegionKeys.has(key) || now - region.lastPlayerNearby > BOSS_DESPAWN_TIME) {
+      if (!activeRegionKeys.has(key) || now - region.lastPlayerNearby > this.config.despawnTimeMs) {
         const boss = bosses.get(region.bossId);
-        if (boss && (boss.state === 'idle' || boss.state === 'dead') && !boss.active) {
+        const bossInactive = boss && boss.state === 'idle' && !boss.active;
+        const bossDead = boss && boss.state === 'dead';
+        if (boss && (bossInactive || bossDead)) {
           bosses.delete(region.bossId);
           removeEntity(region.bossId);
           this.bossRegions.delete(key);
@@ -71,17 +118,15 @@ export class BossRegionSystem {
     }
 
     for (const boss of bosses.values()) {
-      boss.update(dt, players, (x, y) => {
-        spawnMinions(x, y);
-      });
-      boss.tryRespawn(dt);
+      this.config.updateBoss(boss, context);
+      boss.tryRespawn(context.dt);
     }
   }
 
   private getBossRegionCenter(rx: number, ry: number): { x: number; y: number } {
     return {
-      x: rx * BOSS_REGION_SIZE + BOSS_REGION_SIZE / 2,
-      y: ry * BOSS_REGION_SIZE + BOSS_REGION_SIZE / 2,
+      x: rx * this.config.regionSize + this.config.regionSize / 2,
+      y: ry * this.config.regionSize + this.config.regionSize / 2,
     };
   }
 }
