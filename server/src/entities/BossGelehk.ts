@@ -22,7 +22,7 @@ import type {
 } from '../network/MessageTypes.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
 
-export const BOSS_MAX_HP = 100;
+export const BOSS_MAX_HP = 80;
 export const BOSS_SPEED = 80;
 export const BOSS_WIDTH = 72;
 export const BOSS_HEIGHT = 72;

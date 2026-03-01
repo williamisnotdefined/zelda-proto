@@ -31,6 +31,7 @@ const PORTAL_RADIUS = 42;
 const FIRE_FIELD_DURATION_MS = 1800;
 const FIRE_FIELD_SEGMENTS = 7;
 const FIRE_FIELD_SPACING = 36;
+const FIRE_FIELD_HIT_RADIUS = 18;
 const PORTAL_TRANSFER_COOLDOWN_MS = 600;
 
 export const PLAYER_SPAWN_X = WORLD_SPAWN_X;
@@ -343,7 +344,19 @@ export class World extends EntityWorld<Entity> {
   }
 
   queryBossesInRadius(x: number, y: number, radius: number): BossActorEntity[] {
-    return this.bossSpatialIndex.queryRadius(x, y, radius);
+    const bossesInRadius = this.bossSpatialIndex.queryRadius(x, y, radius);
+    const radiusSq = radius * radius;
+
+    for (const boss of this.bosses.values()) {
+      if (boss.state !== 'dead') continue;
+      const dx = boss.x - x;
+      const dy = boss.y - y;
+      if (dx * dx + dy * dy <= radiusSq) {
+        bossesInRadius.push(boss);
+      }
+    }
+
+    return bossesInRadius;
   }
 
   queryDropsInRadius(x: number, y: number, radius: number): Drop[] {
@@ -404,7 +417,7 @@ export class World extends EntityWorld<Entity> {
   }
 
   private resolveHazardDamage(): void {
-    const hitRadiusSq = 24 * 24;
+    const hitRadiusSq = FIRE_FIELD_HIT_RADIUS * FIRE_FIELD_HIT_RADIUS;
     for (const hazard of this.hazards.values()) {
       for (const player of this.players.values()) {
         if (player.state === 'dead') continue;

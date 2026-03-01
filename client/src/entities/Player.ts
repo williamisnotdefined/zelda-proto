@@ -1,5 +1,5 @@
-import Phaser from 'phaser';
 import type { PlayerStatusSnapshot } from '@gelehka/shared';
+import Phaser from 'phaser';
 
 const REMOTE_LERP_BASE = 0.3;
 const LOCAL_LERP_BASE = 0.48;
@@ -7,20 +7,24 @@ const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
 const MAX_LERP_DT_MS = 50;
 // Offset the sprite DOWN so the character body visually centers on the server hitbox
 const SPRITE_Y_OFFSET = -16;
+const BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER = 4;
+const BURNING_OVERLAY_ALPHA = 0.6;
 const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
 const CONTACT_SHADOW_RADIUS = 24;
 const CONTACT_SHADOW_COLOR = 0x000000;
 const CONTACT_SHADOW_ALPHA = 0.3;
-const ATTACK_SHADOW_COLOR = 0x000000;
-const ATTACK_SHADOW_BASE_ALPHA = 0.38;
+const ATTACK_SHADOW_COLOR = 0xffa31a;
+const ATTACK_SHADOW_STROKE_COLOR = 0xffe3a1;
+const ATTACK_SHADOW_BASE_ALPHA = 0.42;
 const ATTACK_SHADOW_PULSE_ALPHA = 0.62;
+const ATTACK_SHADOW_STROKE_ALPHA = 0.95;
 const ATTACK_SHADOW_PULSE_DURATION_MS = 140;
-const ATTACK_CONE_RADIUS = 24;
-const ATTACK_CONE_SPAN_DEG = 110;
-const ATTACK_RANGE_UP = 20;
-const ATTACK_RANGE_DOWN = 28;
-const ATTACK_RANGE_LEFT = 24;
-const ATTACK_RANGE_RIGHT = 24;
+const ATTACK_CONE_RADIUS = 44;
+const ATTACK_CONE_SPAN_DEG = 95;
+const ATTACK_RANGE_UP = 40;
+const ATTACK_RANGE_DOWN = 56;
+const ATTACK_RANGE_LEFT = 48;
+const ATTACK_RANGE_RIGHT = 48;
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -85,10 +89,11 @@ export class PlayerEntity {
     burningImg.style.height = '58px';
     burningImg.style.pointerEvents = 'none';
     burningImg.style.userSelect = 'none';
-    burningImg.style.opacity = '0.65';
+    burningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
 
-    this.burningOverlay = scene.add.dom(x, y + SPRITE_Y_OFFSET, burningImg);
+    this.burningOverlay = scene.add.dom(x, y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER, burningImg);
     this.burningOverlay.setDepth(13);
+    this.burningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
     this.burningOverlay.setOrigin(0.5, 0.5);
     this.burningOverlay.setVisible(false);
 
@@ -102,6 +107,8 @@ export class PlayerEntity {
       ATTACK_SHADOW_COLOR,
       ATTACK_SHADOW_BASE_ALPHA
     );
+    this.attackShadow.setStrokeStyle(2, ATTACK_SHADOW_STROKE_COLOR, ATTACK_SHADOW_STROKE_ALPHA);
+    this.attackShadow.setBlendMode(Phaser.BlendModes.ADD);
     this.attackShadow.setDepth(9);
     this.attackShadow.setVisible(false);
 
@@ -165,7 +172,8 @@ export class PlayerEntity {
     this.hpBar.fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff4444;
 
     this.burningOverlay.x = this.sprite.x;
-    this.burningOverlay.y = this.sprite.y;
+    this.burningOverlay.y =
+      this.sprite.y - SPRITE_Y_OFFSET + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER;
     this.burningOverlay.setVisible(Boolean(this.statusEffects.burning));
     this.contactShadow.setVisible(this.serverState !== 'dead');
 

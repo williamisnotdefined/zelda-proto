@@ -28,7 +28,12 @@ export class BootScene extends Phaser.Scene {
     });
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
+    this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
     this.load.image('cut_grass_tile', 'assets/sprites/tilesets/Cut_Grass.gif');
+    this.load.image('humanoid_remains', 'assets/sprites/objects/Humanoid_Remains.gif');
+    this.load.image('pile_of_bones_animal', 'assets/sprites/objects/Pile_of_Bones_(Animal).gif');
+    this.load.image('skull_animal', 'assets/sprites/objects/Skull_(Animal).gif');
+    this.load.image('pirate_remains', 'assets/sprites/objects/The_Remains_of_a_Pirate.gif');
 
     this.load.spritesheet('plains', 'assets/sprites/tilesets/plains.png', {
       frameWidth: 16,

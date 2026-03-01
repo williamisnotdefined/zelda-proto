@@ -3,8 +3,17 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.25;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
-const DRAGON_GIF_PATH = '/assets/sprites/monsters/Dragon_Lord.gif';
+const DRAGON_SPRITE_BASE_PATH = '/assets/sprites/monsters/dragon_lord';
+const DRAGON_SPRITE_PATHS = {
+  up: `${DRAGON_SPRITE_BASE_PATH}/up.gif`,
+  down: `${DRAGON_SPRITE_BASE_PATH}/down.gif`,
+  left: `${DRAGON_SPRITE_BASE_PATH}/left.gif`,
+  right: `${DRAGON_SPRITE_BASE_PATH}/right.gif`,
+} as const;
+const DRAGON_DEAD_SPRITE_PATH = `${DRAGON_SPRITE_BASE_PATH}/Dead_Dragon_Lord.gif`;
 const DRAGON_SIZE_PX = 120;
+const DRAGON_ALIVE_DEPTH = 8;
+const DRAGON_DEAD_DEPTH = 7;
 const LABEL_OFFSET_Y = 72;
 const HP_BAR_OFFSET_Y = 58;
 const HP_BAR_WIDTH = 86;
@@ -31,6 +40,7 @@ export class BossDragonLordEntity {
   private prevX: number;
   private prevY: number;
   private facing: 'up' | 'down' | 'left' | 'right';
+  private spritePath: string;
   private shadowPulseTween: Phaser.Tweens.Tween | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -43,10 +53,11 @@ export class BossDragonLordEntity {
     this.serverState = 'idle';
     this.phase = 1;
     this.facing = 'down';
+    this.spritePath = DRAGON_SPRITE_PATHS[this.facing];
     this.shadowPulseTween = null;
 
     const img = document.createElement('img');
-    img.src = DRAGON_GIF_PATH;
+    img.src = this.spritePath;
     img.alt = 'Dragon Lord';
     img.draggable = false;
     img.style.width = `${DRAGON_SIZE_PX}px`;
@@ -58,7 +69,7 @@ export class BossDragonLordEntity {
     this.img = img;
 
     this.element = scene.add.dom(x, y, this.img);
-    this.element.setDepth(8);
+    this.element.setDepth(DRAGON_ALIVE_DEPTH);
     this.element.setOrigin(0.5, 0.5);
 
     this.collisionShadow = scene.add.circle(
@@ -176,15 +187,20 @@ export class BossDragonLordEntity {
     this.hpBar.y = this.element.y - HP_BAR_OFFSET_Y;
     this.hpBar.fillColor = 0xff8844;
 
-    const visible = this.serverState !== 'dead';
-    const rotationDeg =
-      this.facing === 'up' ? 180 : this.facing === 'left' ? 90 : this.facing === 'right' ? -90 : 0;
-    this.element.setAngle(rotationDeg);
-    this.element.setVisible(visible);
-    this.collisionShadow.setVisible(visible);
-    this.label.setVisible(visible);
-    this.hpBar.setVisible(visible);
-    this.hpBarBg.setVisible(visible);
+    const nextSpritePath =
+      this.serverState === 'dead' ? DRAGON_DEAD_SPRITE_PATH : DRAGON_SPRITE_PATHS[this.facing];
+    if (this.spritePath !== nextSpritePath) {
+      this.img.src = nextSpritePath;
+      this.spritePath = nextSpritePath;
+    }
+
+    const alive = this.serverState !== 'dead';
+    this.element.setDepth(alive ? DRAGON_ALIVE_DEPTH : DRAGON_DEAD_DEPTH);
+    this.element.setVisible(true);
+    this.collisionShadow.setVisible(alive);
+    this.label.setVisible(alive);
+    this.hpBar.setVisible(alive);
+    this.hpBarBg.setVisible(alive);
   }
 
   destroy(): void {

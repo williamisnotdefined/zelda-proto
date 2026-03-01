@@ -1,11 +1,11 @@
-import { BOSS_KINDS } from '@gelehka/shared';
 import type { BossKind } from '@gelehka/shared';
-import type { BossSnapshot, BossState } from '../network/MessageTypes.js';
-import { distanceSquared } from '../game/Physics.js';
-import { Player } from './Player.js';
+import { BOSS_KINDS } from '@gelehka/shared';
 import { Entity } from '../core/Entity.js';
+import { distanceSquared } from '../game/Physics.js';
+import type { BossSnapshot, BossState } from '../network/MessageTypes.js';
+import { Player } from './Player.js';
 
-export const DRAGON_LORD_MAX_HP = 220;
+export const DRAGON_LORD_MAX_HP = 125;
 export const DRAGON_LORD_SPEED = 60;
 export const DRAGON_LORD_DAMAGE = 5;
 export const DRAGON_LORD_AGGRO_RADIUS = 700;

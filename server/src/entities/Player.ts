@@ -1,13 +1,13 @@
+import { TOASTY_KILL_THRESHOLD } from '@gelehka/shared/constants';
+import { Entity } from '../core/Entity.js';
+import { State, StateMachine } from '../core/StateMachine.js';
+import { isInSafeZone } from '../game/Physics.js';
 import type {
   Direction,
   InputMessage,
   PlayerSnapshot,
   PlayerState,
 } from '../network/MessageTypes.js';
-import { Entity } from '../core/Entity.js';
-import { State, StateMachine } from '../core/StateMachine.js';
-import { isInSafeZone } from '../game/Physics.js';
-import { TOASTY_KILL_THRESHOLD } from '@gelehka/shared/constants';
 
 export const PLAYER_SPEED = 150;
 export const PLAYER_MAX_HP = 100;
@@ -17,11 +17,11 @@ export const PLAYER_ATTACK_STATE_DURATION = 300;
 export const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
 export const PLAYER_WIDTH = 48;
 export const PLAYER_HEIGHT = 48;
-export const PLAYER_ATTACK_RANGE_UP = 20;
-export const PLAYER_ATTACK_RANGE_DOWN = 28;
-export const PLAYER_ATTACK_RANGE_LEFT = 24;
-export const PLAYER_ATTACK_RANGE_RIGHT = 24;
-export const PLAYER_ATTACK_WIDTH = 36;
+export const PLAYER_ATTACK_RANGE_UP = 40;
+export const PLAYER_ATTACK_RANGE_DOWN = 56;
+export const PLAYER_ATTACK_RANGE_LEFT = 48;
+export const PLAYER_ATTACK_RANGE_RIGHT = 48;
+export const PLAYER_ATTACK_WIDTH = 72;
 export const PVP_DAMAGE = 25;
 export const SAFE_ZONE_DURATION = 3000;
 export const BURNING_TICK_DAMAGE = 4;

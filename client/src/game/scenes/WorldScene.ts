@@ -12,7 +12,7 @@ import type {
   ServerChatMessage,
   ServerMessage,
 } from '@gelehka/shared';
-import { CLIENT_MESSAGE_TYPES, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import { CLIENT_MESSAGE_TYPES, INSTANCE_IDS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
@@ -31,12 +31,23 @@ import { Minimap } from '../Minimap';
 const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
 const DECOR_FRAMES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18, 19];
-const DECOR_PER_CHUNK = 6;
+const PHASE1_DECOR_PER_CHUNK = 6;
 const CUT_GRASS_MIN_PER_CHUNK = 2;
 const CUT_GRASS_MAX_PER_CHUNK = 3;
 const CUT_GRASS_DEPTH = 0;
 const CUT_GRASS_COUNT_SEED = 4000;
 const CUT_GRASS_POSITION_SEED = 5000;
+const PHASE2_REMAINS_KEYS = [
+  'humanoid_remains',
+  'pile_of_bones_animal',
+  'skull_animal',
+  'pirate_remains',
+] as const;
+const PHASE2_REMAINS_MIN_PER_CHUNK = 5;
+const PHASE2_REMAINS_MAX_PER_CHUNK = 10;
+const PHASE2_REMAINS_COUNT_SEED = 6000;
+const PHASE2_REMAINS_POSITION_SEED = 7000;
+const PHASE2_REMAINS_VARIANT_SEED = 8000;
 const PLAYER_PREDICT_SPEED = 150;
 const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
 const INPUT_SEND_INTERVAL_MS = 33;
@@ -172,7 +183,13 @@ export class WorldScene extends Phaser.Scene {
 
   private createInfiniteBackground(): void {
     const cam = this.cameras.main;
-    this.bgTileSprite = this.add.tileSprite(0, 0, cam.width + 256, cam.height + 256, 'grass_tile');
+    this.bgTileSprite = this.add.tileSprite(
+      0,
+      0,
+      cam.width + 256,
+      cam.height + 256,
+      this.getBackgroundTextureKey(this.currentInstanceId)
+    );
     this.bgTileSprite.setScrollFactor(0, 0);
     this.bgTileSprite.setOrigin(0.5, 0.5);
     this.bgTileSprite.setDepth(-1);
@@ -222,6 +239,24 @@ export class WorldScene extends Phaser.Scene {
     this.bgTileSprite.tilePositionY = cam.scrollY;
   }
 
+  private getBackgroundTextureKey(instanceId: InstanceId | null): string {
+    return instanceId === INSTANCE_IDS.PHASE2 ? 'stone_floor_bege_tile' : 'grass_tile';
+  }
+
+  private resetChunkDecor(): void {
+    for (const sprites of this.activeChunks.values()) {
+      for (const sprite of sprites) {
+        sprite.destroy();
+      }
+    }
+    this.activeChunks.clear();
+  }
+
+  private applyInstanceVisualTheme(instanceId: InstanceId): void {
+    this.bgTileSprite.setTexture(this.getBackgroundTextureKey(instanceId));
+    this.resetChunkDecor();
+  }
+
   private getChunkKey(cx: number, cy: number): string {
     return `${cx},${cy}`;
   }
@@ -259,7 +294,40 @@ export class WorldScene extends Phaser.Scene {
     const baseX = cx * CHUNK_SIZE;
     const baseY = cy * CHUNK_SIZE;
 
-    const count = Math.floor(seededRandom(cx, cy, 999) * DECOR_PER_CHUNK) + 2;
+    if (this.currentInstanceId === INSTANCE_IDS.PHASE2) {
+      const remainsCountRandom = seededRandom(cx, cy, PHASE2_REMAINS_COUNT_SEED);
+      const remainsCountRange = PHASE2_REMAINS_MAX_PER_CHUNK - PHASE2_REMAINS_MIN_PER_CHUNK + 1;
+      const remainsCount =
+        PHASE2_REMAINS_MIN_PER_CHUNK + Math.floor(remainsCountRandom * remainsCountRange);
+
+      for (let i = 0; i < remainsCount; i++) {
+        const rx = seededRandom(cx, cy, PHASE2_REMAINS_POSITION_SEED + i * 2);
+        const ry = seededRandom(cx, cy, PHASE2_REMAINS_POSITION_SEED + i * 2 + 1);
+        const rv = seededRandom(cx, cy, PHASE2_REMAINS_VARIANT_SEED + i);
+        const rs = seededRandom(cx, cy, PHASE2_REMAINS_VARIANT_SEED + 100 + i);
+        const ra = seededRandom(cx, cy, PHASE2_REMAINS_VARIANT_SEED + 200 + i);
+
+        const x = baseX + rx * CHUNK_SIZE;
+        const y = baseY + ry * CHUNK_SIZE;
+        const typeIndex = Math.min(
+          PHASE2_REMAINS_KEYS.length - 1,
+          Math.floor(rv * PHASE2_REMAINS_KEYS.length)
+        );
+        const remainsKey = PHASE2_REMAINS_KEYS[typeIndex];
+
+        const sprite = this.add.sprite(x, y, remainsKey);
+        sprite.setDepth(1);
+        sprite.setAlpha(0.78);
+        sprite.setScale(0.8 + rs * 0.35);
+        sprite.setAngle((ra - 0.5) * 18);
+        sprites.push(sprite);
+      }
+
+      this.activeChunks.set(key, sprites);
+      return;
+    }
+
+    const count = Math.floor(seededRandom(cx, cy, 999) * PHASE1_DECOR_PER_CHUNK) + 2;
 
     for (let i = 0; i < count; i++) {
       const rx = seededRandom(cx, cy, i * 3);
@@ -331,6 +399,7 @@ export class WorldScene extends Phaser.Scene {
 
   private handleInstanceChanged(nextInstanceId: InstanceId): void {
     this.currentInstanceId = nextInstanceId;
+    this.applyInstanceVisualTheme(nextInstanceId);
     this.pendingSafeZoneForLocalPlayer = true;
     this.destroySafeZone();
     this.pendingInputs = [];
