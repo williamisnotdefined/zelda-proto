@@ -11,6 +11,8 @@ export const DRAGON_LORD_DAMAGE = 5;
 export const DRAGON_LORD_AGGRO_RADIUS = 700;
 export const DRAGON_LORD_WIDTH = 96;
 export const DRAGON_LORD_HEIGHT = 96;
+export const DRAGON_LORD_CONTACT_RADIUS = 48;
+export const DRAGON_LORD_CONTACT_DAMAGE_COOLDOWN = 1000;
 export const DRAGON_LORD_RESPAWN_TIME = 15000;
 export const DRAGON_LORD_ATTACK_COOLDOWN = 3000;
 const DRAGON_AXIS_HYSTERESIS = 18;
@@ -33,6 +35,7 @@ export class DragonLord extends Entity {
   attackCooldownMs: number;
   targetPlayerId: string | null;
   private moveAxis: 'x' | 'y';
+  private readonly contactDamageCooldownByPlayer: Map<string, number>;
 
   constructor(id: string, x: number, y: number) {
     super(id, x, y);
@@ -48,6 +51,7 @@ export class DragonLord extends Entity {
     this.attackCooldownMs = 0;
     this.targetPlayerId = null;
     this.moveAxis = 'x';
+    this.contactDamageCooldownByPlayer = new Map();
   }
 
   update(
@@ -59,6 +63,15 @@ export class DragonLord extends Entity {
 
     if (this.attackCooldownMs > 0) {
       this.attackCooldownMs -= dt;
+    }
+
+    for (const [playerId, cooldownMs] of this.contactDamageCooldownByPlayer) {
+      const next = cooldownMs - dt;
+      if (next <= 0) {
+        this.contactDamageCooldownByPlayer.delete(playerId);
+      } else {
+        this.contactDamageCooldownByPlayer.set(playerId, next);
+      }
     }
 
     let nearestPlayer: Player | null = null;
@@ -125,7 +138,16 @@ export class DragonLord extends Entity {
       this.respawnTimer = DRAGON_LORD_RESPAWN_TIME;
       this.targetPlayerId = null;
       this.attackCooldownMs = 0;
+      this.contactDamageCooldownByPlayer.clear();
     }
+  }
+
+  canDealContactDamageTo(playerId: string): boolean {
+    return !this.contactDamageCooldownByPlayer.has(playerId);
+  }
+
+  markContactDamageDealt(playerId: string): void {
+    this.contactDamageCooldownByPlayer.set(playerId, DRAGON_LORD_CONTACT_DAMAGE_COOLDOWN);
   }
 
   tryRespawn(dt: number): boolean {
@@ -138,6 +160,8 @@ export class DragonLord extends Entity {
       this.state = 'idle';
       this.targetPlayerId = null;
       this.attackCooldownMs = 0;
+      this.moveAxis = 'x';
+      this.contactDamageCooldownByPlayer.clear();
       return true;
     }
     return false;

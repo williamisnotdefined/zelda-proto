@@ -12,6 +12,7 @@ import {
 export const SLIME_HP = 38;
 export const SLIME_CONTACT_WIDTH = 48;
 export const SLIME_CONTACT_HEIGHT = 48;
+export const SLIME_CONTACT_RADIUS = 24;
 
 export const SLIME_CONFIG: EnemyConfig = {
   kind: ENEMY_KINDS.SLIME,

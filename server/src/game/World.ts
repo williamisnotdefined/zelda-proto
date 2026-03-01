@@ -128,6 +128,7 @@ export class World extends EntityWorld<Entity> {
   private readonly dropSystem: DropSystem;
   private transferRequests: PortalTransferRequest[];
   private portalOverlapsByPlayer: Map<string, Set<string>>;
+  private wasSpawnSafeZoneActive: boolean;
 
   constructor(config: WorldConfig) {
     super();
@@ -152,6 +153,7 @@ export class World extends EntityWorld<Entity> {
     this.dropSystem = new DropSystem();
     this.transferRequests = [];
     this.portalOverlapsByPlayer = new Map();
+    this.wasSpawnSafeZoneActive = false;
 
     for (const portal of config.initialPortals ?? []) {
       this.spawnPortal(portal);
@@ -162,6 +164,11 @@ export class World extends EntityWorld<Entity> {
     const player = new Player(id, x ?? this.config.spawnX, y ?? this.config.spawnY, nickname);
     this.players.set(id, player);
     this.add(player);
+    this.expelHostilesFromSafeZone({
+      x: this.config.spawnX,
+      y: this.config.spawnY,
+      radius: SPAWN_SAFE_ZONE_RADIUS,
+    });
     this.rebuildSpatialIndexes();
     return player;
   }
@@ -173,6 +180,11 @@ export class World extends EntityWorld<Entity> {
     player.safeZoneTimer = SAFE_ZONE_DURATION;
     this.players.set(player.id, player);
     this.add(player);
+    this.expelHostilesFromSafeZone({
+      x: this.config.spawnX,
+      y: this.config.spawnY,
+      radius: SPAWN_SAFE_ZONE_RADIUS,
+    });
     this.rebuildSpatialIndexes();
   }
 
@@ -201,6 +213,7 @@ export class World extends EntityWorld<Entity> {
 
   update(dt: number): void {
     this.now = Date.now();
+    let safeZoneCreatedThisTick = false;
 
     for (const player of this.players.values()) {
       if (player.safeZoneTimer > 0) {
@@ -227,9 +240,21 @@ export class World extends EntityWorld<Entity> {
         player.respawnTimer += dt;
         if (player.respawnTimer >= PLAYER_RESPAWN_TIME) {
           player.respawn(this.config.spawnX, this.config.spawnY);
+          safeZoneCreatedThisTick = true;
         }
       }
     }
+
+    const spawnSafeZone = {
+      x: this.config.spawnX,
+      y: this.config.spawnY,
+      radius: SPAWN_SAFE_ZONE_RADIUS,
+    };
+    const spawnSafeZoneActive = this.isSpawnSafeZoneActive();
+    if (spawnSafeZoneActive && (!this.wasSpawnSafeZoneActive || safeZoneCreatedThisTick)) {
+      this.expelHostilesFromSafeZone(spawnSafeZone);
+    }
+    this.wasSpawnSafeZoneActive = spawnSafeZoneActive;
 
     this.config.spawnSystem.update(
       this.now,
@@ -239,12 +264,11 @@ export class World extends EntityWorld<Entity> {
       (id) => this.remove(id)
     );
 
-    const spawnSafeZoneActive = this.isSpawnSafeZoneActive();
     for (const enemy of this.getAllEnemiesMap().values()) {
       enemy.updateWithSafeZone(dt, this.players, spawnSafeZoneActive, {
-        x: this.config.spawnX,
-        y: this.config.spawnY,
-        radius: SPAWN_SAFE_ZONE_RADIUS,
+        x: spawnSafeZone.x,
+        y: spawnSafeZone.y,
+        radius: spawnSafeZone.radius,
       });
       enemy.tryRespawn(dt);
     }
@@ -264,30 +288,34 @@ export class World extends EntityWorld<Entity> {
           ),
         spawnFireLine: (x, y, dirX, dirY) => this.spawnFireFieldLine(x, y, dirX, dirY),
         safeZone: {
-          x: this.config.spawnX,
-          y: this.config.spawnY,
-          radius: SPAWN_SAFE_ZONE_RADIUS,
+          x: spawnSafeZone.x,
+          y: spawnSafeZone.y,
+          radius: spawnSafeZone.radius,
         },
       }
     );
+
+    if (spawnSafeZoneActive) {
+      this.expelHostilesFromSafeZone(spawnSafeZone);
+    }
 
     const enemies = this.getAllEnemiesMap();
 
     resolvePlayerAttacks(this.players, enemies, this.bosses);
     resolvePlayerVsPlayerWithSafeZone(this.players, {
-      x: this.config.spawnX,
-      y: this.config.spawnY,
-      radius: SPAWN_SAFE_ZONE_RADIUS,
+      x: spawnSafeZone.x,
+      y: spawnSafeZone.y,
+      radius: spawnSafeZone.radius,
     });
     resolveEnemyContactDamageWithSafeZone(enemies, this.players, {
-      x: this.config.spawnX,
-      y: this.config.spawnY,
-      radius: SPAWN_SAFE_ZONE_RADIUS,
+      x: spawnSafeZone.x,
+      y: spawnSafeZone.y,
+      radius: spawnSafeZone.radius,
     });
     resolveBossContactDamageWithSafeZone(this.bosses, this.players, {
-      x: this.config.spawnX,
-      y: this.config.spawnY,
-      radius: SPAWN_SAFE_ZONE_RADIUS,
+      x: spawnSafeZone.x,
+      y: spawnSafeZone.y,
+      radius: spawnSafeZone.radius,
     });
 
     this.updateHazards(dt);
@@ -394,6 +422,51 @@ export class World extends EntityWorld<Entity> {
         }
       }
     }
+  }
+
+  private expelHostilesFromSafeZone(safeZone: { x: number; y: number; radius: number }): void {
+    const pushDistance = safeZone.radius + 12;
+
+    for (const enemy of this.getAllEnemiesMap().values()) {
+      if (enemy.state === 'dead') continue;
+      if (!this.pushPointOutsideSafeZone(enemy, safeZone, pushDistance)) continue;
+      enemy.targetPlayerId = null;
+      enemy.state = 'idle';
+    }
+
+    for (const boss of this.bosses.values()) {
+      if (boss.state === 'dead') continue;
+      if (!this.pushPointOutsideSafeZone(boss, safeZone, pushDistance)) continue;
+
+      if (boss instanceof DragonLord) {
+        boss.targetPlayerId = null;
+      }
+      boss.state = 'idle';
+    }
+  }
+
+  private pushPointOutsideSafeZone(
+    entity: { x: number; y: number },
+    safeZone: { x: number; y: number; radius: number },
+    pushDistance: number
+  ): boolean {
+    const dx = entity.x - safeZone.x;
+    const dy = entity.y - safeZone.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > safeZone.radius * safeZone.radius) {
+      return false;
+    }
+
+    if (distSq === 0) {
+      entity.x = safeZone.x + pushDistance;
+      entity.y = safeZone.y;
+      return true;
+    }
+
+    const dist = Math.sqrt(distSq);
+    entity.x = safeZone.x + (dx / dist) * pushDistance;
+    entity.y = safeZone.y + (dy / dist) * pushDistance;
+    return true;
   }
 
   private handleBossDeathPortals(): void {

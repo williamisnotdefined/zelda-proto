@@ -13,11 +13,7 @@ import type {
   ServerMessage,
 } from '@gelehka/shared';
 import { CLIENT_MESSAGE_TYPES, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
-import {
-  WORLD_SPAWN_SAFE_ZONE_RADIUS,
-  WORLD_SPAWN_X,
-  WORLD_SPAWN_Y,
-} from '@gelehka/shared/constants';
+import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
 import { BlobEntity } from '../../entities/Blob';
@@ -61,6 +57,7 @@ const TOASTY_DEPTH = 1000;
 const TOASTY_SLIDE_IN_DURATION_MS = 120;
 const TOASTY_HOLD_DURATION_MS = 550;
 const TOASTY_SLIDE_OUT_DURATION_MS = 120;
+const SAFE_ZONE_VISUAL_DURATION_MS = 3000;
 
 interface PendingInput {
   input: InputMessage;
@@ -104,10 +101,6 @@ export class WorldScene extends Phaser.Scene {
 
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
-  private bossArenas: Map<
-    string,
-    { circle: Phaser.GameObjects.Arc; ring: Phaser.GameObjects.Arc }
-  > = new Map();
   private safeZoneCircle: Phaser.GameObjects.Arc | null = null;
   private safeZoneRing: Phaser.GameObjects.Arc | null = null;
   private safeZoneTimer: Phaser.Time.TimerEvent | null = null;
@@ -118,6 +111,7 @@ export class WorldScene extends Phaser.Scene {
   private toastyTween: Phaser.Tweens.Tween | null = null;
   private lastLocalToastyCount: number | null = null;
   private currentInstanceId: InstanceId | null = null;
+  private pendingSafeZoneForLocalPlayer = false;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -156,7 +150,7 @@ export class WorldScene extends Phaser.Scene {
           this.inputSendAccumulatorMs = 0;
           this.lastSentInputState = null;
           this.lastLocalToastyCount = null;
-          this.createSafeZone();
+          this.pendingSafeZoneForLocalPlayer = true;
           break;
         case SERVER_MESSAGE_TYPES.SNAPSHOT:
           this.handleSnapshot(msg);
@@ -184,25 +178,23 @@ export class WorldScene extends Phaser.Scene {
     this.bgTileSprite.setDepth(-1);
   }
 
-  private createSafeZone(): void {
-    // Don't create if already exists
-    if (this.safeZoneCircle || this.safeZoneRing) return;
+  private createSafeZoneAt(
+    x: number,
+    y: number,
+    radius: number = WORLD_SPAWN_SAFE_ZONE_RADIUS
+  ): void {
+    this.destroySafeZone();
 
-    const radius = WORLD_SPAWN_SAFE_ZONE_RADIUS;
-
-    // Semi-transparent green circle for the safe zone
-    this.safeZoneCircle = this.add.circle(WORLD_SPAWN_X, WORLD_SPAWN_Y, radius, 0x44ff44, 0.15);
+    this.safeZoneCircle = this.add.circle(x, y, radius, 0x44ff44, 0.15);
     this.safeZoneCircle.setDepth(0);
     this.safeZoneCircle.setScrollFactor(1, 1);
 
-    // Green ring border
-    this.safeZoneRing = this.add.circle(WORLD_SPAWN_X, WORLD_SPAWN_Y, radius);
+    this.safeZoneRing = this.add.circle(x, y, radius);
     this.safeZoneRing.setStrokeStyle(3, 0x44ff44, 0.5);
     this.safeZoneRing.setDepth(0);
     this.safeZoneRing.setScrollFactor(1, 1);
 
-    // Hide the safe zone after 3 seconds
-    this.safeZoneTimer = this.time.delayedCall(3000, () => {
+    this.safeZoneTimer = this.time.delayedCall(SAFE_ZONE_VISUAL_DURATION_MS, () => {
       this.destroySafeZone();
     });
   }
@@ -219,25 +211,6 @@ export class WorldScene extends Phaser.Scene {
     if (this.safeZoneTimer) {
       this.safeZoneTimer.destroy();
       this.safeZoneTimer = null;
-    }
-  }
-
-  private ensureBossArena(id: string, x: number, y: number): void {
-    if (this.bossArenas.has(id)) return;
-    const circle = this.add.circle(x, y, 200, 0x2a5a2a, 0.3);
-    circle.setDepth(0);
-    const ring = this.add.circle(x, y, 200);
-    ring.setStrokeStyle(2, 0x998866, 0.4);
-    ring.setDepth(0);
-    this.bossArenas.set(id, { circle, ring });
-  }
-
-  private removeBossArena(id: string): void {
-    const arena = this.bossArenas.get(id);
-    if (arena) {
-      arena.circle.destroy();
-      arena.ring.destroy();
-      this.bossArenas.delete(id);
     }
   }
 
@@ -358,6 +331,8 @@ export class WorldScene extends Phaser.Scene {
 
   private handleInstanceChanged(nextInstanceId: InstanceId): void {
     this.currentInstanceId = nextInstanceId;
+    this.pendingSafeZoneForLocalPlayer = true;
+    this.destroySafeZone();
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
@@ -383,12 +358,6 @@ export class WorldScene extends Phaser.Scene {
     for (const entity of this.hazardEntities.values()) entity.destroy();
     this.hazardEntities.clear();
 
-    for (const arena of this.bossArenas.values()) {
-      arena.circle.destroy();
-      arena.ring.destroy();
-    }
-    this.bossArenas.clear();
-
     useGameStore.getState().setLocalPlayer(null);
     useGameStore.getState().setBoss(null);
   }
@@ -404,11 +373,15 @@ export class WorldScene extends Phaser.Scene {
       }
 
       if (p.id === this.localPlayerId) {
+        if (this.pendingSafeZoneForLocalPlayer) {
+          this.createSafeZoneAt(p.x, p.y);
+          this.pendingSafeZoneForLocalPlayer = false;
+        }
+
         this.reconcileLocalPrediction(p);
         this.handleLocalToastyCounter(p.toastyCount);
         if (this.previousLocalState === 'dead' && p.state !== 'dead') {
-          this.destroySafeZone();
-          this.createSafeZone();
+          this.createSafeZoneAt(p.x, p.y);
         }
         this.previousLocalState = p.state;
 
@@ -439,6 +412,7 @@ export class WorldScene extends Phaser.Scene {
       this.inputSendAccumulatorMs = 0;
       this.lastSentInputState = null;
       this.lastLocalToastyCount = null;
+      this.pendingSafeZoneForLocalPlayer = false;
       useGameStore.getState().setLocalPlayer(null);
     }
   }
@@ -503,7 +477,6 @@ export class WorldScene extends Phaser.Scene {
             ? new BossGelehkEntity(this, b.x, b.y)
             : new BossDragonLordEntity(this, b.x, b.y);
         this.bossEntities.set(b.id, entity);
-        this.ensureBossArena(b.id, b.x, b.y);
       }
       if (entity instanceof BossGelehkEntity) {
         entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state, b.phase, iceZones, aoeIndicators);
@@ -526,7 +499,6 @@ export class WorldScene extends Phaser.Scene {
       if (!seenBossIds.has(id)) {
         entity.destroy();
         this.bossEntities.delete(id);
-        this.removeBossArena(id);
       }
     }
 
@@ -731,6 +703,7 @@ export class WorldScene extends Phaser.Scene {
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
     this.currentInstanceId = null;
+    this.pendingSafeZoneForLocalPlayer = false;
 
     for (const entity of this.playerEntities.values()) entity.destroy();
     this.playerEntities.clear();
@@ -757,12 +730,6 @@ export class WorldScene extends Phaser.Scene {
       for (const s of sprites) s.destroy();
     }
     this.activeChunks.clear();
-
-    for (const arena of this.bossArenas.values()) {
-      arena.circle.destroy();
-      arena.ring.destroy();
-    }
-    this.bossArenas.clear();
 
     if (this.toastyTween) {
       this.toastyTween.stop();

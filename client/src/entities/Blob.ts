@@ -4,13 +4,16 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
-const DEBUG_COLLISION_SIZE = 28;
-const DEBUG_COLLISION_COLOR = 0xff4fd8;
-const DEBUG_COLLISION_ALPHA = 0.8;
+const CONTACT_SHADOW_RADIUS = 14;
+const CONTACT_SHADOW_COLOR = 0x000000;
+const CONTACT_SHADOW_ALPHA = 0.3;
+const EXPULSION_PULSE_ALPHA = 0.55;
+const EXPULSION_PULSE_DISTANCE = 36;
+const EXPULSION_PULSE_DURATION_MS = 130;
 
 export class BlobEntity {
   sprite: Phaser.GameObjects.Sprite;
-  collisionDebug: Phaser.GameObjects.Rectangle;
+  collisionShadow: Phaser.GameObjects.Arc;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
   targetX: number;
@@ -24,6 +27,7 @@ export class BlobEntity {
   private currentAnimKey: string;
   private deathPlayed: boolean;
   private facing: string;
+  private shadowPulseTween: Phaser.Tweens.Tween | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
@@ -36,20 +40,20 @@ export class BlobEntity {
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.facing = 'down';
+    this.shadowPulseTween = null;
 
     this.sprite = scene.add.sprite(x, y, 'blob');
     this.sprite.setScale(2);
     this.sprite.setDepth(8);
 
-    this.collisionDebug = scene.add.rectangle(
+    this.collisionShadow = scene.add.circle(
       x,
       y,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_COLOR,
-      DEBUG_COLLISION_ALPHA
+      CONTACT_SHADOW_RADIUS,
+      CONTACT_SHADOW_COLOR,
+      CONTACT_SHADOW_ALPHA
     );
-    this.collisionDebug.setDepth(8.5);
+    this.collisionShadow.setDepth(7.5);
 
     this.hpBarBg = scene.add.rectangle(x, y - 20, 24, 3, 0x333333);
     this.hpBarBg.setDepth(9);
@@ -76,6 +80,24 @@ export class BlobEntity {
         this.facing = dy > 0 ? 'down' : 'up';
       }
     }
+
+    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+      this.pulseCollisionShadow();
+    }
+  }
+
+  private pulseCollisionShadow(): void {
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
+    this.shadowPulseTween = this.sprite.scene.tweens.add({
+      targets: this.collisionShadow,
+      alpha: CONTACT_SHADOW_ALPHA,
+      duration: EXPULSION_PULSE_DURATION_MS,
+      ease: 'Sine.Out',
+      onComplete: () => {
+        this.shadowPulseTween = null;
+      },
+    });
   }
 
   update(dt: number): void {
@@ -95,8 +117,8 @@ export class BlobEntity {
     this.hpBarBg.x = this.sprite.x;
     this.hpBarBg.y = this.sprite.y - 20;
 
-    this.collisionDebug.x = this.sprite.x;
-    this.collisionDebug.y = this.sprite.y;
+    this.collisionShadow.x = this.sprite.x;
+    this.collisionShadow.y = this.sprite.y;
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBar.width = 24 * hpRatio;
@@ -106,7 +128,7 @@ export class BlobEntity {
     this.updateAnimation();
 
     const visible = this.serverState !== 'dead';
-    this.collisionDebug.setVisible(visible);
+    this.collisionShadow.setVisible(visible);
   }
 
   private updateAnimation(): void {
@@ -160,7 +182,8 @@ export class BlobEntity {
 
   destroy(): void {
     this.sprite.destroy();
-    this.collisionDebug.destroy();
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();
   }

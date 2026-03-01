@@ -237,7 +237,6 @@ export class InstanceManager {
     let nearbyDragon = false;
     for (const boss of this.phase2World.bosses.values()) {
       if (!(boss instanceof DragonLord)) continue;
-      if (boss.state === 'dead') continue;
       const dx = boss.x - x;
       const dy = boss.y - y;
       if (dx * dx + dy * dy <= PHASE2_DRAGON_NEARBY_RADIUS * PHASE2_DRAGON_NEARBY_RADIUS) {

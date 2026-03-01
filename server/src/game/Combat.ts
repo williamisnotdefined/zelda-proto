@@ -5,7 +5,7 @@ import {
 } from '@gelehka/shared/constants';
 import { ENEMY_KINDS } from '@gelehka/shared';
 import { BOSS_HEIGHT, BOSS_WIDTH, BossGelehk } from '../entities/BossGelehk.js';
-import { aabbOverlap, entityAABB } from './Physics.js';
+import { aabbOverlap, circleAabbOverlap, entityAABB, entityCircle } from './Physics.js';
 import {
   Player,
   PLAYER_DAMAGE,
@@ -15,17 +15,20 @@ import {
 } from '../entities/Player.js';
 import {
   Blob,
-  BLOB_CONTACT_HEIGHT,
-  BLOB_CONTACT_WIDTH,
+  BLOB_CONTACT_RADIUS,
   BLOB_DAMAGE_COOLDOWN,
   BLOB_HEIGHT,
   BLOB_WIDTH,
 } from '../entities/Blob.js';
-import { DragonLord, DRAGON_LORD_HEIGHT, DRAGON_LORD_WIDTH } from '../entities/DragonLord.js';
-import { SLIME_CONTACT_HEIGHT, SLIME_CONTACT_WIDTH } from '../entities/Slime.js';
+import {
+  DragonLord,
+  DRAGON_LORD_CONTACT_RADIUS,
+  DRAGON_LORD_HEIGHT,
+  DRAGON_LORD_WIDTH,
+} from '../entities/DragonLord.js';
+import { SLIME_CONTACT_RADIUS } from '../entities/Slime.js';
 
 type BossLike = BossGelehk | DragonLord;
-const DRAGON_CONTACT_SCALE = 1;
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
@@ -130,9 +133,8 @@ export function resolveEnemyContactDamageWithSafeZone(
     if (blob.damageCooldown > 0) continue;
 
     const isSlime = blob.kind === ENEMY_KINDS.SLIME;
-    const contactWidth = isSlime ? SLIME_CONTACT_WIDTH : BLOB_CONTACT_WIDTH;
-    const contactHeight = isSlime ? SLIME_CONTACT_HEIGHT : BLOB_CONTACT_HEIGHT;
-    const blobBox = entityAABB(blob.x, blob.y, contactWidth, contactHeight);
+    const contactRadius = isSlime ? SLIME_CONTACT_RADIUS : BLOB_CONTACT_RADIUS;
+    const blobCircle = entityCircle(blob.x, blob.y, contactRadius);
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
@@ -142,7 +144,7 @@ export function resolveEnemyContactDamageWithSafeZone(
       }
 
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-      if (aabbOverlap(blobBox, playerBox)) {
+      if (circleAabbOverlap(blobCircle, playerBox)) {
         player.takeDamage(blob.damage);
         blob.damageCooldown = BLOB_DAMAGE_COOLDOWN;
         break;
@@ -171,12 +173,7 @@ export function resolveBossContactDamageWithSafeZone(
     if (!(boss instanceof DragonLord)) continue;
     if (boss.state === 'dead') continue;
 
-    const bossBox = entityAABB(
-      boss.x,
-      boss.y,
-      DRAGON_LORD_WIDTH * DRAGON_CONTACT_SCALE,
-      DRAGON_LORD_HEIGHT * DRAGON_CONTACT_SCALE
-    );
+    const bossCircle = entityCircle(boss.x, boss.y, DRAGON_LORD_CONTACT_RADIUS);
     for (const player of players.values()) {
       if (player.state === 'dead') continue;
 
@@ -184,9 +181,14 @@ export function resolveBossContactDamageWithSafeZone(
         continue;
       }
 
+      if (!boss.canDealContactDamageTo(player.id)) {
+        continue;
+      }
+
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-      if (aabbOverlap(bossBox, playerBox)) {
+      if (circleAabbOverlap(bossCircle, playerBox)) {
         player.takeDamage(boss.damage);
+        boss.markContactDamageDealt(player.id);
       }
     }
   }

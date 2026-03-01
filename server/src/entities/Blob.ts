@@ -18,6 +18,7 @@ export const BLOB_WIDTH = 48;
 export const BLOB_HEIGHT = 48;
 export const BLOB_CONTACT_WIDTH = 28;
 export const BLOB_CONTACT_HEIGHT = 28;
+export const BLOB_CONTACT_RADIUS = 14;
 export const BLOB_DAMAGE_COOLDOWN = 1000;
 export const BLOB_RESPAWN_TIME = 10000;
 const SNAPSHOT_POSITION_PRECISION = 10;

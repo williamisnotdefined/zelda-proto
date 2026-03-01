@@ -8,14 +8,17 @@ const DRAGON_SIZE_PX = 120;
 const LABEL_OFFSET_Y = 72;
 const HP_BAR_OFFSET_Y = 58;
 const HP_BAR_WIDTH = 86;
-const DEBUG_COLLISION_SIZE = 96;
-const DEBUG_COLLISION_COLOR = 0xff4fd8;
-const DEBUG_COLLISION_ALPHA = 0.8;
+const CONTACT_SHADOW_RADIUS = 48;
+const CONTACT_SHADOW_COLOR = 0x000000;
+const CONTACT_SHADOW_ALPHA = 0.3;
+const EXPULSION_PULSE_ALPHA = 0.55;
+const EXPULSION_PULSE_DISTANCE = 72;
+const EXPULSION_PULSE_DURATION_MS = 140;
 
 export class BossDragonLordEntity {
   element: Phaser.GameObjects.DOMElement;
   private readonly img: HTMLImageElement;
-  collisionDebug: Phaser.GameObjects.Rectangle;
+  collisionShadow: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
@@ -27,7 +30,8 @@ export class BossDragonLordEntity {
   phase: number;
   private prevX: number;
   private prevY: number;
-  private facing: 'left' | 'right';
+  private facing: 'up' | 'down' | 'left' | 'right';
+  private shadowPulseTween: Phaser.Tweens.Tween | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
@@ -38,7 +42,8 @@ export class BossDragonLordEntity {
     this.maxHp = 220;
     this.serverState = 'idle';
     this.phase = 1;
-    this.facing = 'right';
+    this.facing = 'down';
+    this.shadowPulseTween = null;
 
     const img = document.createElement('img');
     img.src = DRAGON_GIF_PATH;
@@ -56,15 +61,14 @@ export class BossDragonLordEntity {
     this.element.setDepth(8);
     this.element.setOrigin(0.5, 0.5);
 
-    this.collisionDebug = scene.add.rectangle(
+    this.collisionShadow = scene.add.circle(
       x,
       y,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_COLOR,
-      DEBUG_COLLISION_ALPHA
+      CONTACT_SHADOW_RADIUS,
+      CONTACT_SHADOW_COLOR,
+      CONTACT_SHADOW_ALPHA
     );
-    this.collisionDebug.setDepth(8.5);
+    this.collisionShadow.setDepth(7.5);
 
     this.label = scene.add.text(x, y - LABEL_OFFSET_Y, 'DRAGON LORD', {
       fontSize: '12px',
@@ -109,14 +113,45 @@ export class BossDragonLordEntity {
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
-    if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) > 0.5) {
-      this.facing = dx < 0 ? 'left' : 'right';
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        this.facing = dx < 0 ? 'left' : 'right';
+      } else {
+        this.facing = dy < 0 ? 'up' : 'down';
+      }
     }
+
+    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+      this.pulseCollisionShadow();
+    }
+  }
+
+  private pulseCollisionShadow(): void {
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
+    this.shadowPulseTween = this.element.scene.tweens.add({
+      targets: this.collisionShadow,
+      alpha: CONTACT_SHADOW_ALPHA,
+      duration: EXPULSION_PULSE_DURATION_MS,
+      ease: 'Sine.Out',
+      onComplete: () => {
+        this.shadowPulseTween = null;
+      },
+    });
   }
 
   update(dt: number): void {
     const dx = this.targetX - this.element.x;
     const dy = this.targetY - this.element.y;
+
+    if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        this.facing = dx < 0 ? 'left' : 'right';
+      } else {
+        this.facing = dy < 0 ? 'up' : 'down';
+      }
+    }
+
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist > SNAP_DISTANCE) {
       this.element.x = this.targetX;
@@ -130,8 +165,8 @@ export class BossDragonLordEntity {
 
     this.label.x = this.element.x;
     this.label.y = this.element.y - LABEL_OFFSET_Y;
-    this.collisionDebug.x = this.element.x;
-    this.collisionDebug.y = this.element.y;
+    this.collisionShadow.x = this.element.x;
+    this.collisionShadow.y = this.element.y;
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBarBg.x = this.element.x;
@@ -142,9 +177,11 @@ export class BossDragonLordEntity {
     this.hpBar.fillColor = 0xff8844;
 
     const visible = this.serverState !== 'dead';
-    this.img.style.transform = this.facing === 'left' ? 'scaleX(-1)' : 'scaleX(1)';
+    const rotationDeg =
+      this.facing === 'up' ? 180 : this.facing === 'left' ? 90 : this.facing === 'right' ? -90 : 0;
+    this.element.setAngle(rotationDeg);
     this.element.setVisible(visible);
-    this.collisionDebug.setVisible(visible);
+    this.collisionShadow.setVisible(visible);
     this.label.setVisible(visible);
     this.hpBar.setVisible(visible);
     this.hpBarBg.setVisible(visible);
@@ -152,7 +189,8 @@ export class BossDragonLordEntity {
 
   destroy(): void {
     this.element.destroy();
-    this.collisionDebug.destroy();
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.destroy();
     this.label.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();

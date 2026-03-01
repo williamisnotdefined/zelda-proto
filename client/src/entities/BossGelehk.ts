@@ -7,10 +7,13 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
 const AOE_TELEGRAPH_COLOR = 0xffdd33;
 const AOE_HIT_COLOR = 0xff0000;
-const DEBUG_COLLISION_SIZE = 72;
-const DEBUG_COLLISION_COLOR = 0xff4fd8;
-const DEBUG_COLLISION_ALPHA = 0.8;
-const DEBUG_COLLISION_OFFSET_Y = 8;
+const CONTACT_SHADOW_RADIUS = 36;
+const CONTACT_SHADOW_COLOR = 0x000000;
+const CONTACT_SHADOW_ALPHA = 0.3;
+const CONTACT_SHADOW_OFFSET_Y = 8;
+const EXPULSION_PULSE_ALPHA = 0.55;
+const EXPULSION_PULSE_DISTANCE = 66;
+const EXPULSION_PULSE_DURATION_MS = 140;
 
 interface IceZoneData {
   x: number;
@@ -29,7 +32,7 @@ interface AoeData {
 
 export class BossGelehkEntity {
   sprite: Phaser.GameObjects.Sprite;
-  collisionDebug: Phaser.GameObjects.Rectangle;
+  collisionShadow: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
@@ -50,6 +53,7 @@ export class BossGelehkEntity {
   private scene: Phaser.Scene;
   private lastIceZoneCount: number;
   private lastAoeCount: number;
+  private shadowPulseTween: Phaser.Tweens.Tween | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -68,20 +72,20 @@ export class BossGelehkEntity {
     this.aoeGraphics = [];
     this.lastIceZoneCount = 0;
     this.lastAoeCount = 0;
+    this.shadowPulseTween = null;
 
     this.sprite = scene.add.sprite(x, y, 'skeleton');
     this.sprite.setScale(BOSS_SCALE);
     this.sprite.setDepth(8);
 
-    this.collisionDebug = scene.add.rectangle(
+    this.collisionShadow = scene.add.circle(
       x,
       y,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_SIZE,
-      DEBUG_COLLISION_COLOR,
-      DEBUG_COLLISION_ALPHA
+      CONTACT_SHADOW_RADIUS,
+      CONTACT_SHADOW_COLOR,
+      CONTACT_SHADOW_ALPHA
     );
-    this.collisionDebug.setDepth(8.5);
+    this.collisionShadow.setDepth(7.5);
 
     this.label = scene.add.text(x, y - 56, 'GELEHK', {
       fontSize: '12px',
@@ -136,8 +140,26 @@ export class BossGelehkEntity {
       }
     }
 
+    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+      this.pulseCollisionShadow();
+    }
+
     this.updateIceZones(iceZones);
     this.updateAoeIndicators(aoeIndicators);
+  }
+
+  private pulseCollisionShadow(): void {
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
+    this.shadowPulseTween = this.scene.tweens.add({
+      targets: this.collisionShadow,
+      alpha: CONTACT_SHADOW_ALPHA,
+      duration: EXPULSION_PULSE_DURATION_MS,
+      ease: 'Sine.Out',
+      onComplete: () => {
+        this.shadowPulseTween = null;
+      },
+    });
   }
 
   private updateIceZones(zones: IceZoneData[]): void {
@@ -214,8 +236,8 @@ export class BossGelehkEntity {
 
     this.label.x = this.sprite.x;
     this.label.y = this.sprite.y - 56;
-    this.collisionDebug.x = this.sprite.x;
-    this.collisionDebug.y = this.sprite.y + DEBUG_COLLISION_OFFSET_Y;
+    this.collisionShadow.x = this.sprite.x;
+    this.collisionShadow.y = this.sprite.y + CONTACT_SHADOW_OFFSET_Y;
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBarBg.x = this.sprite.x;
@@ -229,7 +251,7 @@ export class BossGelehkEntity {
     this.updateTint();
 
     const visible = this.serverState !== 'dead';
-    this.collisionDebug.setVisible(visible);
+    this.collisionShadow.setVisible(visible);
   }
 
   private updateAnimation(): void {
@@ -312,7 +334,8 @@ export class BossGelehkEntity {
 
   destroy(): void {
     this.sprite.destroy();
-    this.collisionDebug.destroy();
+    this.shadowPulseTween?.stop();
+    this.collisionShadow.destroy();
     this.label.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();

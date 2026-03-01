@@ -5,7 +5,13 @@ import {
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
 import { Entity } from '../core/Entity.js';
-import { aabbOverlap, distance, distanceSquared, entityAABB } from '../game/Physics.js';
+import {
+  circleAabbOverlap,
+  distance,
+  distanceSquared,
+  entityAABB,
+  entityCircle,
+} from '../game/Physics.js';
 import type {
   AoeIndicator,
   BossKind,
@@ -16,10 +22,11 @@ import type {
 } from '../network/MessageTypes.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
 
-export const BOSS_MAX_HP = 1; //150;
+export const BOSS_MAX_HP = 100;
 export const BOSS_SPEED = 80;
 export const BOSS_WIDTH = 72;
 export const BOSS_HEIGHT = 72;
+export const BOSS_CONTACT_RADIUS = 36;
 export const BOSS_ACTIVATION_RADIUS = 500;
 export const BOSS_RESPAWN_TIME = 15000;
 
@@ -304,12 +311,12 @@ export class BossGelehk extends Entity {
     this.y += this.chargeDy * CHARGE_SPEED * (dt / 1000);
 
     if (!this.hasDealtChargeDamage) {
-      const bossBox = entityAABB(this.x, this.y, BOSS_WIDTH, BOSS_HEIGHT);
+      const bossCircle = entityCircle(this.x, this.y, BOSS_CONTACT_RADIUS);
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
         if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
         const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-        if (aabbOverlap(bossBox, playerBox)) {
+        if (circleAabbOverlap(bossCircle, playerBox)) {
           player.takeDamage(CHARGE_DAMAGE);
           this.hasDealtChargeDamage = true;
           break;
