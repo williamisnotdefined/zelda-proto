@@ -131,8 +131,12 @@ If users get stuck on "Connecting..." in production:
 
 ## Next Steps
 
+- [ ] Pesquisar sobre baixa performance de gifs
+- [ ] Ataque especial do Gelehk
+- [ ] Dragon Lord deve tocar fire field na diagonal
+- [ ] Dragon lord quando morre precisa deixar portal para a fase 3
+- [ ] Fase 3
 - [ ] Distance weapon (e.g. bow)
 - [ ] client assets cleanup, delete unused assets
-- [ ] Add "toasty" when player kills more than 10 monsters at once.
 
 
