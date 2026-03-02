@@ -14,8 +14,9 @@ export const DRAGON_LORD_HEIGHT = 96;
 export const DRAGON_LORD_CONTACT_RADIUS = 48;
 export const DRAGON_LORD_CONTACT_DAMAGE_COOLDOWN = 1000;
 export const DRAGON_LORD_RESPAWN_TIME = 15000;
-export const DRAGON_LORD_ATTACK_COOLDOWN = 3000;
+export const DRAGON_LORD_ATTACK_COOLDOWN = 2500;
 const DRAGON_AXIS_HYSTERESIS = 18;
+const DRAGON_FIRE_DIAGONAL_RATIO_THRESHOLD = 0.82;
 const SNAPSHOT_POSITION_PRECISION = 10;
 
 function quantizePosition(value: number): number {
@@ -94,34 +95,71 @@ export class DragonLord extends Entity {
       const dy = nearestPlayer.y - this.y;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
-      let nx = 0;
-      let ny = 0;
+      let moveX = 0;
+      let moveY = 0;
 
       if (Math.abs(absDx - absDy) <= DRAGON_AXIS_HYSTERESIS) {
         if (this.moveAxis === 'x') {
-          nx = Math.sign(dx);
+          moveX = Math.sign(dx);
         } else {
-          ny = Math.sign(dy);
+          moveY = Math.sign(dy);
         }
       } else if (absDx > absDy) {
         this.moveAxis = 'x';
-        nx = Math.sign(dx);
+        moveX = Math.sign(dx);
       } else {
         this.moveAxis = 'y';
-        ny = Math.sign(dy);
+        moveY = Math.sign(dy);
       }
 
-      this.x += nx * this.speed * (dt / 1000);
-      this.y += ny * this.speed * (dt / 1000);
+      this.x += moveX * this.speed * (dt / 1000);
+      this.y += moveY * this.speed * (dt / 1000);
 
       if (this.attackCooldownMs <= 0) {
         this.state = 'attacking';
         this.attackCooldownMs = DRAGON_LORD_ATTACK_COOLDOWN;
-        if (nx === 0 && ny === 0) {
-          nx = dx !== 0 ? Math.sign(dx) : 1;
-          ny = dx !== 0 ? 0 : Math.sign(dy);
+        let fireDirX = 0;
+        let fireDirY = 0;
+        const absDxForFire = Math.abs(dx);
+        const absDyForFire = Math.abs(dy);
+
+        if (absDxForFire === 0 && absDyForFire === 0) {
+          if (this.moveAxis === 'x') {
+            fireDirX = 1;
+            fireDirY = 0;
+          } else {
+            fireDirX = 0;
+            fireDirY = 1;
+          }
+        } else if (absDxForFire === 0) {
+          fireDirY = Math.sign(dy);
+        } else if (absDyForFire === 0) {
+          fireDirX = Math.sign(dx);
+        } else {
+          const smaller = Math.min(absDxForFire, absDyForFire);
+          const larger = Math.max(absDxForFire, absDyForFire);
+          const ratio = smaller / larger;
+
+          if (ratio >= DRAGON_FIRE_DIAGONAL_RATIO_THRESHOLD) {
+            fireDirX = Math.sign(dx);
+            fireDirY = Math.sign(dy);
+          } else if (absDxForFire > absDyForFire) {
+            fireDirX = Math.sign(dx);
+          } else {
+            fireDirY = Math.sign(dy);
+          }
         }
-        spawnFireLine(this.x, this.y, nx, ny);
+
+        if (fireDirX === 0 && fireDirY === 0) {
+          if (this.moveAxis === 'x') {
+            fireDirX = 1;
+            fireDirY = 0;
+          } else {
+            fireDirX = 0;
+            fireDirY = 1;
+          }
+        }
+        spawnFireLine(this.x, this.y, fireDirX, fireDirY);
       }
     } else {
       this.targetPlayerId = null;

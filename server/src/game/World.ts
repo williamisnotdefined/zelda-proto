@@ -31,6 +31,7 @@ const PORTAL_RADIUS = 42;
 const FIRE_FIELD_DURATION_MS = 1800;
 const FIRE_FIELD_SEGMENTS = 7;
 const FIRE_FIELD_SPACING = 36;
+const FIRE_FIELD_SEGMENT_INTERVAL_MS = 40;
 const FIRE_FIELD_HIT_RADIUS = 18;
 const PORTAL_TRANSFER_COOLDOWN_MS = 600;
 
@@ -74,6 +75,15 @@ export interface PortalTransferRequest {
   toInstanceId: InstanceId;
   targetX: number;
   targetY: number;
+}
+
+interface PendingFireFieldLine {
+  x: number;
+  y: number;
+  dirX: number;
+  dirY: number;
+  nextSegment: number;
+  nextSpawnAtMs: number;
 }
 
 export interface PortalConfig {
@@ -128,6 +138,7 @@ export class World extends EntityWorld<Entity> {
   private readonly hazardSpatialIndex: SpatialHash<Hazard>;
   private readonly dropSystem: DropSystem;
   private transferRequests: PortalTransferRequest[];
+  private pendingFireFieldLines: PendingFireFieldLine[];
   private portalOverlapsByPlayer: Map<string, Set<string>>;
   private wasSpawnSafeZoneActive: boolean;
 
@@ -153,6 +164,7 @@ export class World extends EntityWorld<Entity> {
 
     this.dropSystem = new DropSystem();
     this.transferRequests = [];
+    this.pendingFireFieldLines = [];
     this.portalOverlapsByPlayer = new Map();
     this.wasSpawnSafeZoneActive = false;
 
@@ -318,6 +330,7 @@ export class World extends EntityWorld<Entity> {
     });
 
     this.updateHazards(dt);
+    this.updatePendingFireFieldLines();
     this.resolveHazardDamage();
     this.handleBossDeathPortals();
 
@@ -388,20 +401,61 @@ export class World extends EntityWorld<Entity> {
   }
 
   private spawnFireFieldLine(x: number, y: number, dirX: number, dirY: number): void {
-    for (let i = 1; i <= FIRE_FIELD_SEGMENTS; i++) {
-      const hx = x + dirX * FIRE_FIELD_SPACING * i;
-      const hy = y + dirY * FIRE_FIELD_SPACING * i;
-      const id = `hazard_fire_${nanoid(8)}`;
-      this.hazards.set(id, {
-        id,
-        x: hx,
-        y: hy,
-        kind: HAZARD_KINDS.FIRE_FIELD,
-        ttlMs: FIRE_FIELD_DURATION_MS,
-        damage: BLOB_DAMAGE,
-        burningTicks: 3,
-        hitPlayerIds: new Set<string>(),
-      });
+    const normalizedDirX = Math.sign(dirX);
+    const normalizedDirY = Math.sign(dirY);
+    if (normalizedDirX === 0 && normalizedDirY === 0) {
+      return;
+    }
+
+    this.pendingFireFieldLines.push({
+      x,
+      y,
+      dirX: normalizedDirX,
+      dirY: normalizedDirY,
+      nextSegment: 1,
+      nextSpawnAtMs: this.now,
+    });
+  }
+
+  private spawnFireFieldSegment(
+    x: number,
+    y: number,
+    dirX: number,
+    dirY: number,
+    segmentIndex: number
+  ): void {
+    const hx = x + dirX * FIRE_FIELD_SPACING * segmentIndex;
+    const hy = y + dirY * FIRE_FIELD_SPACING * segmentIndex;
+    const id = `hazard_fire_${nanoid(8)}`;
+    this.hazards.set(id, {
+      id,
+      x: hx,
+      y: hy,
+      kind: HAZARD_KINDS.FIRE_FIELD,
+      ttlMs: FIRE_FIELD_DURATION_MS,
+      damage: BLOB_DAMAGE,
+      burningTicks: 3,
+      hitPlayerIds: new Set<string>(),
+    });
+  }
+
+  private updatePendingFireFieldLines(): void {
+    if (this.pendingFireFieldLines.length === 0) {
+      return;
+    }
+
+    for (let i = this.pendingFireFieldLines.length - 1; i >= 0; i -= 1) {
+      const line = this.pendingFireFieldLines[i];
+
+      while (line.nextSegment <= FIRE_FIELD_SEGMENTS && line.nextSpawnAtMs <= this.now) {
+        this.spawnFireFieldSegment(line.x, line.y, line.dirX, line.dirY, line.nextSegment);
+        line.nextSegment += 1;
+        line.nextSpawnAtMs += FIRE_FIELD_SEGMENT_INTERVAL_MS;
+      }
+
+      if (line.nextSegment > FIRE_FIELD_SEGMENTS) {
+        this.pendingFireFieldLines.splice(i, 1);
+      }
     }
   }
 
