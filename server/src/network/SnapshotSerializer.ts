@@ -76,19 +76,57 @@ function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
   return true;
 }
 
+function statusEffectsEqual(
+  a: PlayerSnapshot['statusEffects'],
+  b: PlayerSnapshot['statusEffects']
+): boolean {
+  const aBurning = a.burning?.ticksRemaining;
+  const bBurning = b.burning?.ticksRemaining;
+  return aBurning === bBurning;
+}
+
+function playerSnapshotEqual(a: PlayerSnapshot, b: PlayerSnapshot): boolean {
+  return (
+    a.id === b.id &&
+    a.nickname === b.nickname &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.hp === b.hp &&
+    a.maxHp === b.maxHp &&
+    a.state === b.state &&
+    a.direction === b.direction &&
+    a.playerKills === b.playerKills &&
+    a.monsterKills === b.monsterKills &&
+    a.deaths === b.deaths &&
+    a.toastyCount === b.toastyCount &&
+    a.lastProcessedInputSeq === b.lastProcessedInputSeq &&
+    statusEffectsEqual(a.statusEffects, b.statusEffects)
+  );
+}
+
 function diffCollection<T extends { id: string }>(
   prev: Map<string, T>,
-  curr: Map<string, T>
+  curr: Map<string, T>,
+  equals?: (a: T, b: T) => boolean
 ): { changed: T[]; removed: string[] } {
   const changed: T[] = [];
   const removed: string[] = [];
 
   for (const item of curr.values()) {
     const previous = prev.get(item.id);
-    if (
-      !previous ||
-      !shallowEqual(previous as Record<string, unknown>, item as Record<string, unknown>)
-    ) {
+    if (!previous) {
+      changed.push(item);
+      continue;
+    }
+
+    if (equals) {
+      if (!equals(previous, item)) {
+        changed.push(item);
+      }
+      continue;
+    }
+
+    if (!shallowEqual(previous as Record<string, unknown>, item as Record<string, unknown>)) {
       changed.push(item);
     }
   }
@@ -139,7 +177,7 @@ export function diffSnapshot(
   const dropsDiff = diffCollection(prev.drops, currState.drops);
   const portalsDiff = diffCollection(prev.portals, currState.portals);
   const hazardsDiff = diffCollection(prev.hazards, currState.hazards);
-  const playersDiff = diffCollection(prev.players, currState.players);
+  const playersDiff = diffCollection(prev.players, currState.players, playerSnapshotEqual);
 
   return {
     message: {

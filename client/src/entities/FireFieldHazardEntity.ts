@@ -7,6 +7,9 @@ const FIRE_FIELD_SPRITE_OFFSET_Y = -6;
 const HIT_ZONE_COLOR = 0xff3b30;
 const HIT_ZONE_ALPHA = 0.22;
 const HIT_ZONE_STROKE_ALPHA = 0.8;
+const LERP_BASE = 0.28;
+const MAX_LERP_DT_MS = 50;
+const SNAP_DISTANCE = 140;
 
 export class FireFieldHazardEntity {
   element: Phaser.GameObjects.DOMElement;
@@ -46,17 +49,36 @@ export class FireFieldHazardEntity {
     this.targetY = y;
   }
 
-  update(_dt: number): void {
-    this.element.x = Phaser.Math.Linear(
-      this.element.x,
-      this.targetX + FIRE_FIELD_SPRITE_OFFSET_X,
-      0.2
-    );
-    this.element.y = Phaser.Math.Linear(
-      this.element.y,
-      this.targetY + FIRE_FIELD_SPRITE_OFFSET_Y,
-      0.2
-    );
+  get x(): number {
+    return this.element.x - FIRE_FIELD_SPRITE_OFFSET_X;
+  }
+
+  get y(): number {
+    return this.element.y - FIRE_FIELD_SPRITE_OFFSET_Y;
+  }
+
+  update(dt: number, inView: boolean): void {
+    this.element.setVisible(inView);
+    this.hitZone.setVisible(inView);
+    if (!inView) {
+      return;
+    }
+
+    const targetX = this.targetX + FIRE_FIELD_SPRITE_OFFSET_X;
+    const targetY = this.targetY + FIRE_FIELD_SPRITE_OFFSET_Y;
+    const dx = targetX - this.element.x;
+    const dy = targetY - this.element.y;
+
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
+      this.element.x = targetX;
+      this.element.y = targetY;
+    } else {
+      const dtMs = Math.min(dt, MAX_LERP_DT_MS);
+      const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
+      this.element.x += dx * factor;
+      this.element.y += dy * factor;
+    }
+
     this.hitZone.x = this.element.x - FIRE_FIELD_SPRITE_OFFSET_X;
     this.hitZone.y = this.element.y - FIRE_FIELD_SPRITE_OFFSET_Y;
   }

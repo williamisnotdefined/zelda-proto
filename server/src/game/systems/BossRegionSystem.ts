@@ -105,15 +105,21 @@ export class BossRegionSystem<TBoss extends BossActor> {
     }
 
     for (const [key, region] of this.bossRegions) {
-      if (!activeRegionKeys.has(key) || now - region.lastPlayerNearby > this.config.despawnTimeMs) {
-        const boss = bosses.get(region.bossId);
-        const bossInactive = boss && boss.state === 'idle' && !boss.active;
-        const bossDead = boss && boss.state === 'dead';
-        if (boss && (bossInactive || bossDead)) {
-          bosses.delete(region.bossId);
-          removeEntity(region.bossId);
-          this.bossRegions.delete(key);
-        }
+      if (activeRegionKeys.has(key)) {
+        continue;
+      }
+
+      if (now - region.lastPlayerNearby <= this.config.despawnTimeMs) {
+        continue;
+      }
+
+      const boss = bosses.get(region.bossId);
+      const bossInactive = boss && boss.state === 'idle' && !boss.active;
+      const bossDead = boss && boss.state === 'dead';
+      if (boss && (bossInactive || bossDead)) {
+        bosses.delete(region.bossId);
+        removeEntity(region.bossId);
+        this.bossRegions.delete(key);
       }
     }
 

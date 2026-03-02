@@ -31,11 +31,15 @@ export class DropEntity {
     this.targetY = y;
   }
 
-  update(dt: number): void {
+  update(dt: number, inView: boolean): void {
+    this.sprite.setVisible(inView);
+    if (!inView) {
+      return;
+    }
+
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > SNAP_DISTANCE) {
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
       this.sprite.x = this.targetX;
       this.sprite.y = this.targetY;
       return;

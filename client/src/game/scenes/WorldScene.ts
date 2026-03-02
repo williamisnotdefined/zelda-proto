@@ -69,6 +69,15 @@ const TOASTY_SLIDE_IN_DURATION_MS = 120;
 const TOASTY_HOLD_DURATION_MS = 550;
 const TOASTY_SLIDE_OUT_DURATION_MS = 120;
 const SAFE_ZONE_VISUAL_DURATION_MS = 3000;
+const ENTITY_CULL_MARGIN_PX = 220;
+const PICKUP_ENTITY_CULL_MARGIN_PX = 160;
+const STATIC_ENTITY_CULL_MARGIN_PX = 260;
+const MINIMAP_UPDATE_INTERVAL_MS = 100;
+const ANIM_LOD_NEAR_DISTANCE_PX = 420;
+const ANIM_LOD_MID_DISTANCE_PX = 860;
+const ANIM_LOD_NEAR_TIME_SCALE = 1;
+const ANIM_LOD_MID_TIME_SCALE = 0.75;
+const ANIM_LOD_FAR_TIME_SCALE = 0.5;
 
 interface PendingInput {
   input: InputMessage;
@@ -85,6 +94,8 @@ interface InputState {
 }
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity;
+type Destroyable = { destroy: () => void };
+type PositionSyncEntity = Destroyable & { updatePosition: (x: number, y: number) => void };
 
 export class WorldScene extends Phaser.Scene {
   private localPlayerId: string | null = null;
@@ -123,6 +134,7 @@ export class WorldScene extends Phaser.Scene {
   private lastLocalToastyCount: number | null = null;
   private currentInstanceId: InstanceId | null = null;
   private pendingSafeZoneForLocalPlayer = false;
+  private minimapAccumulatorMs = 0;
 
   constructor() {
     super({ key: 'WorldScene' });
@@ -405,27 +417,15 @@ export class WorldScene extends Phaser.Scene {
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
+    this.minimapAccumulatorMs = 0;
 
-    for (const entity of this.playerEntities.values()) entity.destroy();
-    this.playerEntities.clear();
-
-    for (const entity of this.blobEntities.values()) entity.destroy();
-    this.blobEntities.clear();
-
-    for (const entity of this.slimeEntities.values()) entity.destroy();
-    this.slimeEntities.clear();
-
-    for (const entity of this.bossEntities.values()) entity.destroy();
-    this.bossEntities.clear();
-
-    for (const entity of this.dropEntities.values()) entity.destroy();
-    this.dropEntities.clear();
-
-    for (const entity of this.portalEntities.values()) entity.destroy();
-    this.portalEntities.clear();
-
-    for (const entity of this.hazardEntities.values()) entity.destroy();
-    this.hazardEntities.clear();
+    this.destroyEntityMap(this.playerEntities);
+    this.destroyEntityMap(this.blobEntities);
+    this.destroyEntityMap(this.slimeEntities);
+    this.destroyEntityMap(this.bossEntities);
+    this.destroyEntityMap(this.dropEntities);
+    this.destroyEntityMap(this.portalEntities);
+    this.destroyEntityMap(this.hazardEntities);
 
     useGameStore.getState().setLocalPlayer(null);
     useGameStore.getState().setBoss(null);
@@ -588,63 +588,27 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private syncDrops(drops: DropSnapshot[]): void {
-    const seenDropIds = new Set<string>();
-    for (const d of drops) {
-      seenDropIds.add(d.id);
-      let entity = this.dropEntities.get(d.id);
-      if (!entity) {
-        entity = new DropEntity(this, d.x, d.y, d.kind);
-        this.dropEntities.set(d.id, entity);
-      }
-      entity.updatePosition(d.x, d.y);
-    }
-
-    for (const [id, entity] of this.dropEntities) {
-      if (!seenDropIds.has(id)) {
-        entity.destroy();
-        this.dropEntities.delete(id);
-      }
-    }
+    this.syncPositionEntities(
+      drops,
+      this.dropEntities,
+      (drop) => new DropEntity(this, drop.x, drop.y, drop.kind)
+    );
   }
 
   private syncPortals(portals: PortalSnapshot[]): void {
-    const seenPortalIds = new Set<string>();
-    for (const portal of portals) {
-      seenPortalIds.add(portal.id);
-      let entity = this.portalEntities.get(portal.id);
-      if (!entity) {
-        entity = new PortalEntity(this, portal.x, portal.y);
-        this.portalEntities.set(portal.id, entity);
-      }
-      entity.updatePosition(portal.x, portal.y);
-    }
-
-    for (const [id, entity] of this.portalEntities) {
-      if (!seenPortalIds.has(id)) {
-        entity.destroy();
-        this.portalEntities.delete(id);
-      }
-    }
+    this.syncPositionEntities(
+      portals,
+      this.portalEntities,
+      (portal) => new PortalEntity(this, portal.x, portal.y)
+    );
   }
 
   private syncHazards(hazards: HazardSnapshot[]): void {
-    const seenHazardIds = new Set<string>();
-    for (const hazard of hazards) {
-      seenHazardIds.add(hazard.id);
-      let entity = this.hazardEntities.get(hazard.id);
-      if (!entity) {
-        entity = new FireFieldHazardEntity(this, hazard.x, hazard.y);
-        this.hazardEntities.set(hazard.id, entity);
-      }
-      entity.updatePosition(hazard.x, hazard.y);
-    }
-
-    for (const [id, entity] of this.hazardEntities) {
-      if (!seenHazardIds.has(id)) {
-        entity.destroy();
-        this.hazardEntities.delete(id);
-      }
-    }
+    this.syncPositionEntities(
+      hazards,
+      this.hazardEntities,
+      (hazard) => new FireFieldHazardEntity(this, hazard.x, hazard.y)
+    );
   }
 
   update(_time: number, delta: number): void {
@@ -719,12 +683,45 @@ export class WorldScene extends Phaser.Scene {
       entity.update(this, delta);
     }
 
+    const expandedView = new Phaser.Geom.Rectangle(
+      this.cameras.main.worldView.x - ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.y - ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.width + ENTITY_CULL_MARGIN_PX * 2,
+      this.cameras.main.worldView.height + ENTITY_CULL_MARGIN_PX * 2
+    );
+
+    const pickupView = new Phaser.Geom.Rectangle(
+      this.cameras.main.worldView.x - PICKUP_ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.y - PICKUP_ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.width + PICKUP_ENTITY_CULL_MARGIN_PX * 2,
+      this.cameras.main.worldView.height + PICKUP_ENTITY_CULL_MARGIN_PX * 2
+    );
+
+    const staticEntityView = new Phaser.Geom.Rectangle(
+      this.cameras.main.worldView.x - STATIC_ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.y - STATIC_ENTITY_CULL_MARGIN_PX,
+      this.cameras.main.worldView.width + STATIC_ENTITY_CULL_MARGIN_PX * 2,
+      this.cameras.main.worldView.height + STATIC_ENTITY_CULL_MARGIN_PX * 2
+    );
+
+    const localX = localEntity?.sprite.x ?? this.cameras.main.midPoint.x;
+    const localY = localEntity?.sprite.y ?? this.cameras.main.midPoint.y;
+
     for (const entity of this.blobEntities.values()) {
-      entity.update(delta);
+      const inView = this.isEntityInView(expandedView, entity.sprite.x, entity.sprite.y);
+      const animTimeScale = this.getAnimationLodTimeScale(
+        localX,
+        localY,
+        entity.sprite.x,
+        entity.sprite.y
+      );
+      entity.update(delta, inView, animTimeScale);
     }
 
     for (const entity of this.slimeEntities.values()) {
-      entity.update(delta);
+      const inView = this.isEntityInView(expandedView, entity.x, entity.y);
+      const animTimeScale = this.getAnimationLodTimeScale(localX, localY, entity.x, entity.y);
+      entity.update(delta, inView, animTimeScale);
     }
 
     for (const entity of this.bossEntities.values()) {
@@ -732,29 +729,58 @@ export class WorldScene extends Phaser.Scene {
     }
 
     for (const entity of this.dropEntities.values()) {
-      entity.update(delta);
+      entity.update(delta, this.isEntityInView(pickupView, entity.sprite.x, entity.sprite.y));
     }
 
     for (const entity of this.portalEntities.values()) {
-      entity.update(delta);
+      entity.update(delta, this.isEntityInView(staticEntityView, entity.x, entity.y));
     }
 
     for (const entity of this.hazardEntities.values()) {
-      entity.update(delta);
+      entity.update(delta, this.isEntityInView(staticEntityView, entity.x, entity.y));
     }
 
     if (localEntity) {
       this.cameras.main.centerOn(localEntity.sprite.x, localEntity.sprite.y);
-      this.minimap.draw(
-        localEntity.sprite.x,
-        localEntity.sprite.y,
-        this.playerEntities,
-        this.blobEntities,
-        this.slimeEntities,
-        this.bossEntities,
-        this.localPlayerId
-      );
+      this.minimapAccumulatorMs += delta;
+      if (this.minimapAccumulatorMs >= MINIMAP_UPDATE_INTERVAL_MS) {
+        this.minimapAccumulatorMs = 0;
+        this.minimap.draw(
+          localEntity.sprite.x,
+          localEntity.sprite.y,
+          this.playerEntities,
+          this.blobEntities,
+          this.slimeEntities,
+          this.bossEntities,
+          this.localPlayerId
+        );
+      }
     }
+  }
+
+  private isEntityInView(view: Phaser.Geom.Rectangle, x: number, y: number): boolean {
+    return x >= view.left && x <= view.right && y >= view.top && y <= view.bottom;
+  }
+
+  private getAnimationLodTimeScale(
+    originX: number,
+    originY: number,
+    targetX: number,
+    targetY: number
+  ): number {
+    const dx = targetX - originX;
+    const dy = targetY - originY;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq <= ANIM_LOD_NEAR_DISTANCE_PX * ANIM_LOD_NEAR_DISTANCE_PX) {
+      return ANIM_LOD_NEAR_TIME_SCALE;
+    }
+
+    if (distSq <= ANIM_LOD_MID_DISTANCE_PX * ANIM_LOD_MID_DISTANCE_PX) {
+      return ANIM_LOD_MID_TIME_SCALE;
+    }
+
+    return ANIM_LOD_FAR_TIME_SCALE;
   }
 
   private trimPendingInputs(): void {
@@ -773,27 +799,15 @@ export class WorldScene extends Phaser.Scene {
     this.lastSentInputState = null;
     this.currentInstanceId = null;
     this.pendingSafeZoneForLocalPlayer = false;
+    this.minimapAccumulatorMs = 0;
 
-    for (const entity of this.playerEntities.values()) entity.destroy();
-    this.playerEntities.clear();
-
-    for (const entity of this.blobEntities.values()) entity.destroy();
-    this.blobEntities.clear();
-
-    for (const entity of this.slimeEntities.values()) entity.destroy();
-    this.slimeEntities.clear();
-
-    for (const entity of this.bossEntities.values()) entity.destroy();
-    this.bossEntities.clear();
-
-    for (const entity of this.dropEntities.values()) entity.destroy();
-    this.dropEntities.clear();
-
-    for (const entity of this.portalEntities.values()) entity.destroy();
-    this.portalEntities.clear();
-
-    for (const entity of this.hazardEntities.values()) entity.destroy();
-    this.hazardEntities.clear();
+    this.destroyEntityMap(this.playerEntities);
+    this.destroyEntityMap(this.blobEntities);
+    this.destroyEntityMap(this.slimeEntities);
+    this.destroyEntityMap(this.bossEntities);
+    this.destroyEntityMap(this.dropEntities);
+    this.destroyEntityMap(this.portalEntities);
+    this.destroyEntityMap(this.hazardEntities);
 
     for (const sprites of this.activeChunks.values()) {
       for (const s of sprites) s.destroy();
@@ -815,6 +829,36 @@ export class WorldScene extends Phaser.Scene {
     this.lastLocalToastyCount = null;
 
     this.bgTileSprite?.destroy();
+  }
+
+  private destroyEntityMap<T extends Destroyable>(entities: Map<string, T>): void {
+    for (const entity of entities.values()) {
+      entity.destroy();
+    }
+    entities.clear();
+  }
+
+  private syncPositionEntities<
+    T extends { id: string; x: number; y: number },
+    TEntity extends PositionSyncEntity,
+  >(snapshots: T[], entities: Map<string, TEntity>, createEntity: (snapshot: T) => TEntity): void {
+    const seenIds = new Set<string>();
+
+    for (const snapshot of snapshots) {
+      seenIds.add(snapshot.id);
+      let entity = entities.get(snapshot.id);
+      if (!entity) {
+        entity = createEntity(snapshot);
+        entities.set(snapshot.id, entity);
+      }
+      entity.updatePosition(snapshot.x, snapshot.y);
+    }
+
+    for (const [id, entity] of entities) {
+      if (seenIds.has(id)) continue;
+      entity.destroy();
+      entities.delete(id);
+    }
   }
 
   private applyLocalPrediction(input: InputState, dtMs: number): void {

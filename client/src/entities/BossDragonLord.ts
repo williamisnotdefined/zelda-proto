@@ -3,17 +3,7 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.25;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
-const DRAGON_SPRITE_BASE_PATH = '/assets/sprites/monsters/dragon_lord';
-const DRAGON_SPRITE_PATHS = {
-  up: `${DRAGON_SPRITE_BASE_PATH}/up.gif`,
-  down: `${DRAGON_SPRITE_BASE_PATH}/down.gif`,
-  left: `${DRAGON_SPRITE_BASE_PATH}/left.gif`,
-  right: `${DRAGON_SPRITE_BASE_PATH}/right.gif`,
-} as const;
-const DRAGON_DEAD_SPRITE_PATH = `${DRAGON_SPRITE_BASE_PATH}/Dead_Dragon_Lord.gif`;
-const DRAGON_SIZE_PX = 120;
-const DRAGON_ALIVE_DEPTH = 8;
-const DRAGON_DEAD_DEPTH = 7;
+const DRAGON_SCALE = 2;
 const LABEL_OFFSET_Y = 72;
 const HP_BAR_OFFSET_Y = 58;
 const HP_BAR_WIDTH = 86;
@@ -24,9 +14,10 @@ const EXPULSION_PULSE_ALPHA = 0.55;
 const EXPULSION_PULSE_DISTANCE = 72;
 const EXPULSION_PULSE_DURATION_MS = 140;
 
+type FacingDirection = 'up' | 'down' | 'left' | 'right';
+
 export class BossDragonLordEntity {
-  element: Phaser.GameObjects.DOMElement;
-  private readonly img: HTMLImageElement;
+  sprite: Phaser.GameObjects.Sprite;
   collisionShadow: Phaser.GameObjects.Arc;
   label: Phaser.GameObjects.Text;
   hpBar: Phaser.GameObjects.Rectangle;
@@ -39,8 +30,8 @@ export class BossDragonLordEntity {
   phase: number;
   private prevX: number;
   private prevY: number;
-  private facing: 'up' | 'down' | 'left' | 'right';
-  private spritePath: string;
+  private facing: FacingDirection;
+  private currentAnimKey: string;
   private shadowPulseTween: Phaser.Tweens.Tween | null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -53,24 +44,12 @@ export class BossDragonLordEntity {
     this.serverState = 'idle';
     this.phase = 1;
     this.facing = 'down';
-    this.spritePath = DRAGON_SPRITE_PATHS[this.facing];
+    this.currentAnimKey = '';
     this.shadowPulseTween = null;
 
-    const img = document.createElement('img');
-    img.src = this.spritePath;
-    img.alt = 'Dragon Lord';
-    img.draggable = false;
-    img.style.width = `${DRAGON_SIZE_PX}px`;
-    img.style.height = `${DRAGON_SIZE_PX}px`;
-    img.style.pointerEvents = 'none';
-    img.style.userSelect = 'none';
-    img.style.transformOrigin = 'center';
-
-    this.img = img;
-
-    this.element = scene.add.dom(x, y, this.img);
-    this.element.setDepth(DRAGON_ALIVE_DEPTH);
-    this.element.setOrigin(0.5, 0.5);
+    this.sprite = scene.add.sprite(x, y, 'dragon_lord');
+    this.sprite.setDepth(8);
+    this.sprite.setScale(DRAGON_SCALE);
 
     this.collisionShadow = scene.add.circle(
       x,
@@ -98,11 +77,11 @@ export class BossDragonLordEntity {
   }
 
   get x(): number {
-    return this.element.x;
+    return this.sprite.x;
   }
 
   get y(): number {
-    return this.element.y;
+    return this.sprite.y;
   }
 
   updateFromServer(
@@ -132,7 +111,7 @@ export class BossDragonLordEntity {
       }
     }
 
-    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+    if (dx * dx + dy * dy >= EXPULSION_PULSE_DISTANCE * EXPULSION_PULSE_DISTANCE) {
       this.pulseCollisionShadow();
     }
   }
@@ -140,7 +119,7 @@ export class BossDragonLordEntity {
   private pulseCollisionShadow(): void {
     this.shadowPulseTween?.stop();
     this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
-    this.shadowPulseTween = this.element.scene.tweens.add({
+    this.shadowPulseTween = this.sprite.scene.tweens.add({
       targets: this.collisionShadow,
       alpha: CONTACT_SHADOW_ALPHA,
       duration: EXPULSION_PULSE_DURATION_MS,
@@ -152,8 +131,8 @@ export class BossDragonLordEntity {
   }
 
   update(dt: number): void {
-    const dx = this.targetX - this.element.x;
-    const dy = this.targetY - this.element.y;
+    const dx = this.targetX - this.sprite.x;
+    const dy = this.targetY - this.sprite.y;
 
     if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
       if (Math.abs(dx) >= Math.abs(dy)) {
@@ -163,48 +142,64 @@ export class BossDragonLordEntity {
       }
     }
 
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > SNAP_DISTANCE) {
-      this.element.x = this.targetX;
-      this.element.y = this.targetY;
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
+      this.sprite.x = this.targetX;
+      this.sprite.y = this.targetY;
     }
 
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
     const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
-    this.element.x += (this.targetX - this.element.x) * factor;
-    this.element.y += (this.targetY - this.element.y) * factor;
+    this.sprite.x += (this.targetX - this.sprite.x) * factor;
+    this.sprite.y += (this.targetY - this.sprite.y) * factor;
 
-    this.label.x = this.element.x;
-    this.label.y = this.element.y - LABEL_OFFSET_Y;
-    this.collisionShadow.x = this.element.x;
-    this.collisionShadow.y = this.element.y;
+    this.label.x = this.sprite.x;
+    this.label.y = this.sprite.y - LABEL_OFFSET_Y;
+    this.collisionShadow.x = this.sprite.x;
+    this.collisionShadow.y = this.sprite.y;
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-    this.hpBarBg.x = this.element.x;
-    this.hpBarBg.y = this.element.y - HP_BAR_OFFSET_Y;
+    this.hpBarBg.x = this.sprite.x;
+    this.hpBarBg.y = this.sprite.y - HP_BAR_OFFSET_Y;
     this.hpBar.width = HP_BAR_WIDTH * hpRatio;
-    this.hpBar.x = this.element.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
-    this.hpBar.y = this.element.y - HP_BAR_OFFSET_Y;
+    this.hpBar.x = this.sprite.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
+    this.hpBar.y = this.sprite.y - HP_BAR_OFFSET_Y;
     this.hpBar.fillColor = 0xff8844;
 
-    const nextSpritePath =
-      this.serverState === 'dead' ? DRAGON_DEAD_SPRITE_PATH : DRAGON_SPRITE_PATHS[this.facing];
-    if (this.spritePath !== nextSpritePath) {
-      this.img.src = nextSpritePath;
-      this.spritePath = nextSpritePath;
-    }
+    this.updateAnimation();
 
     const alive = this.serverState !== 'dead';
-    this.element.setDepth(alive ? DRAGON_ALIVE_DEPTH : DRAGON_DEAD_DEPTH);
-    this.element.setVisible(true);
+    this.sprite.setDepth(alive ? 8 : 7);
     this.collisionShadow.setVisible(alive);
     this.label.setVisible(alive);
     this.hpBar.setVisible(alive);
     this.hpBarBg.setVisible(alive);
   }
 
+  private updateAnimation(): void {
+    const preferredKey = this.serverState === 'dead' ? 'dragon_dead' : `dragon_${this.facing}`;
+    const fallbackKey = 'dragon_dead';
+    const animKey = this.sprite.scene.anims.exists(preferredKey)
+      ? preferredKey
+      : this.sprite.scene.anims.exists(fallbackKey)
+        ? fallbackKey
+        : '';
+
+    if (!animKey) {
+      this.sprite.setFrame(0);
+      this.currentAnimKey = '';
+      return;
+    }
+
+    if (this.currentAnimKey === animKey) {
+      return;
+    }
+
+    this.sprite.play(animKey, true);
+    this.currentAnimKey = animKey;
+  }
+
   destroy(): void {
-    this.element.destroy();
+    this.sprite.destroy();
     this.shadowPulseTween?.stop();
     this.collisionShadow.destroy();
     this.label.destroy();

@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 
 const PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
 const PORTAL_SIZE_PX = 64;
+const LERP_BASE = 0.3;
+const MAX_LERP_DT_MS = 50;
+const SNAP_DISTANCE = 180;
 
 export class PortalEntity {
   element: Phaser.GameObjects.DOMElement;
@@ -31,9 +34,32 @@ export class PortalEntity {
     this.targetY = y;
   }
 
-  update(_dt: number): void {
-    this.element.x = Phaser.Math.Linear(this.element.x, this.targetX, 0.25);
-    this.element.y = Phaser.Math.Linear(this.element.y, this.targetY, 0.25);
+  get x(): number {
+    return this.element.x;
+  }
+
+  get y(): number {
+    return this.element.y;
+  }
+
+  update(dt: number, inView: boolean): void {
+    this.element.setVisible(inView);
+    if (!inView) {
+      return;
+    }
+
+    const dx = this.targetX - this.element.x;
+    const dy = this.targetY - this.element.y;
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
+      this.element.x = this.targetX;
+      this.element.y = this.targetY;
+      return;
+    }
+
+    const dtMs = Math.min(dt, MAX_LERP_DT_MS);
+    const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
+    this.element.x += dx * factor;
+    this.element.y += dy * factor;
   }
 
   destroy(): void {

@@ -100,9 +100,11 @@ export class Minimap {
   ): void {
     const dx = (entityX - localX) * scale;
     const dy = (entityY - localY) * scale;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const distSq = dx * dx + dy * dy;
+    const maxDist = MINIMAP_RADIUS - radius;
+    const maxDistSq = maxDist * maxDist;
 
-    if (dist > MINIMAP_RADIUS - radius) return;
+    if (distSq > maxDistSq) return;
 
     g.fillCircle(this.screenX + dx, this.screenY + dy, radius);
   }

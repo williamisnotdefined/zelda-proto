@@ -81,7 +81,7 @@ export class BlobEntity {
       }
     }
 
-    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+    if (dx * dx + dy * dy >= EXPULSION_PULSE_DISTANCE * EXPULSION_PULSE_DISTANCE) {
       this.pulseCollisionShadow();
     }
   }
@@ -100,11 +100,10 @@ export class BlobEntity {
     });
   }
 
-  update(dt: number): void {
+  update(dt: number, inView: boolean, animationTimeScale: number): void {
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > SNAP_DISTANCE) {
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
       this.sprite.x = this.targetX;
       this.sprite.y = this.targetY;
     }
@@ -113,6 +112,21 @@ export class BlobEntity {
     const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
     this.sprite.x += (this.targetX - this.sprite.x) * factor;
     this.sprite.y += (this.targetY - this.sprite.y) * factor;
+
+    const alive = this.serverState !== 'dead';
+    const visible = alive && inView;
+    this.sprite.setVisible(visible);
+    this.collisionShadow.setVisible(visible);
+    this.hpBar.setVisible(visible);
+    this.hpBarBg.setVisible(visible);
+
+    if (!visible) {
+      this.sprite.anims.stop();
+      this.currentAnimKey = '';
+      return;
+    }
+
+    this.sprite.anims.timeScale = animationTimeScale;
 
     this.hpBarBg.x = this.sprite.x;
     this.hpBarBg.y = this.sprite.y - 20;
@@ -126,9 +140,6 @@ export class BlobEntity {
     this.hpBar.y = this.sprite.y - 20;
 
     this.updateAnimation();
-
-    const visible = this.serverState !== 'dead';
-    this.collisionShadow.setVisible(visible);
   }
 
   private updateAnimation(): void {

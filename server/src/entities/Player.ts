@@ -28,6 +28,7 @@ export const BURNING_TICK_DAMAGE = 4;
 export const BURNING_TICKS = 3;
 export const BURNING_TICK_MS = 1000;
 const SNAPSHOT_POSITION_PRECISION = 10;
+const EMPTY_STATUS_EFFECTS: PlayerSnapshot['statusEffects'] = {};
 
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
@@ -58,6 +59,8 @@ export class Player extends Entity {
   burningTicksRemaining: number;
   burningTickTimer: number;
   phaseTransferCooldownMs: number;
+  private cachedStatusEffects: PlayerSnapshot['statusEffects'];
+  private cachedBurningTicks: number;
 
   readonly stateMachine: StateMachine;
   private readonly fsmStates: Record<PlayerState, State>;
@@ -88,6 +91,8 @@ export class Player extends Entity {
     this.burningTicksRemaining = 0;
     this.burningTickTimer = 0;
     this.phaseTransferCooldownMs = 0;
+    this.cachedStatusEffects = EMPTY_STATUS_EFFECTS;
+    this.cachedBurningTicks = 0;
 
     this.stateMachine = new StateMachine();
     this.fsmStates = {
@@ -256,6 +261,14 @@ export class Player extends Entity {
   }
 
   toSnapshot(): PlayerSnapshot {
+    if (this.burningTicksRemaining !== this.cachedBurningTicks) {
+      this.cachedBurningTicks = this.burningTicksRemaining;
+      this.cachedStatusEffects =
+        this.burningTicksRemaining > 0
+          ? { burning: { ticksRemaining: this.burningTicksRemaining } }
+          : EMPTY_STATUS_EFFECTS;
+    }
+
     return {
       id: this.id,
       nickname: this.nickname,
@@ -270,12 +283,7 @@ export class Player extends Entity {
       deaths: this.deaths,
       toastyCount: this.toastyCount,
       lastProcessedInputSeq: this.lastProcessedInputSeq,
-      statusEffects: {
-        burning:
-          this.burningTicksRemaining > 0
-            ? { ticksRemaining: this.burningTicksRemaining }
-            : undefined,
-      },
+      statusEffects: this.cachedStatusEffects,
     };
   }
 

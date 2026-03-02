@@ -88,13 +88,15 @@ export interface PortalConfig {
   durationMs?: number;
 }
 
+export type BossActorEntity = (BossGelehk | DragonLord) & BossActor;
+
 export interface WorldConfig {
   instanceId: InstanceId;
   spawnX: number;
   spawnY: number;
   enemyCollection: 'blobs' | 'slimes';
   spawnSystem: SpawnSystem;
-  bossRegionSystem: BossRegionSystem<any>;
+  bossRegionSystem: BossRegionSystem<BossActorEntity>;
   onBossDeathPortal?: {
     kind: PortalKind;
     toInstanceId: InstanceId;
@@ -105,8 +107,6 @@ export interface WorldConfig {
   };
   initialPortals?: PortalConfig[];
 }
-
-export type BossActorEntity = (BossGelehk | DragonLord) & BossActor;
 
 export class World extends EntityWorld<Entity> {
   readonly instanceId: InstanceId;
@@ -265,7 +265,7 @@ export class World extends EntityWorld<Entity> {
       (id) => this.remove(id)
     );
 
-    for (const enemy of this.getAllEnemiesMap().values()) {
+    for (const enemy of this.getAllEnemies()) {
       enemy.updateWithSafeZone(dt, this.players, spawnSafeZoneActive, {
         x: spawnSafeZone.x,
         y: spawnSafeZone.y,
@@ -300,15 +300,13 @@ export class World extends EntityWorld<Entity> {
       this.expelHostilesFromSafeZone(spawnSafeZone);
     }
 
-    const enemies = this.getAllEnemiesMap();
-
-    resolvePlayerAttacks(this.players, enemies, this.bosses);
+    resolvePlayerAttacks(this.players, this.getAllEnemies(), this.bosses);
     resolvePlayerVsPlayerWithSafeZone(this.players, {
       x: spawnSafeZone.x,
       y: spawnSafeZone.y,
       radius: spawnSafeZone.radius,
     });
-    resolveEnemyContactDamageWithSafeZone(enemies, this.players, {
+    resolveEnemyContactDamageWithSafeZone(this.getAllEnemies(), this.players, {
       x: spawnSafeZone.x,
       y: spawnSafeZone.y,
       radius: spawnSafeZone.radius,
@@ -323,7 +321,7 @@ export class World extends EntityWorld<Entity> {
     this.resolveHazardDamage();
     this.handleBossDeathPortals();
 
-    this.dropSystem.update(this.players, enemies, this.drops);
+    this.dropSystem.update(this.players, this.getAllEnemies(), this.drops);
     this.updatePortals();
     this.resolvePortalTransfers();
     this.rebuildSpatialIndexes();
@@ -440,7 +438,7 @@ export class World extends EntityWorld<Entity> {
   private expelHostilesFromSafeZone(safeZone: { x: number; y: number; radius: number }): void {
     const pushDistance = safeZone.radius + 12;
 
-    for (const enemy of this.getAllEnemiesMap().values()) {
+    for (const enemy of this.getAllEnemies()) {
       if (enemy.state === 'dead') continue;
       if (!this.pushPointOutsideSafeZone(enemy, safeZone, pushDistance)) continue;
       enemy.targetPlayerId = null;
@@ -602,13 +600,12 @@ export class World extends EntityWorld<Entity> {
     return this.config.enemyCollection === 'slimes' ? this.slimes : this.blobs;
   }
 
-  private getAllEnemiesMap(): Map<string, Blob> {
-    if (this.slimes.size === 0) return this.blobs;
-    if (this.blobs.size === 0) return this.slimes;
-    const merged = new Map<string, Blob>(this.blobs);
-    for (const [id, slime] of this.slimes) {
-      merged.set(id, slime);
+  private *getAllEnemies(): Iterable<Blob> {
+    for (const blob of this.blobs.values()) {
+      yield blob;
     }
-    return merged;
+    for (const slime of this.slimes.values()) {
+      yield slime;
+    }
   }
 }

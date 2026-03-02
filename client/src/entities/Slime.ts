@@ -3,19 +3,21 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
-const SLIME_GIF_PATH = '/assets/sprites/monsters/Slime.gif';
-const SLIME_SIZE_PX = 44;
 const HP_BAR_WIDTH = 24;
 const HP_BAR_OFFSET_Y = 40;
 const CONTACT_SHADOW_RADIUS = 24;
 const CONTACT_SHADOW_COLOR = 0x000000;
 const CONTACT_SHADOW_ALPHA = 0.3;
+const SLIME_SCALE = 1.24;
+const SLIME_SPRITE_OFFSET_X = -2;
 const EXPULSION_PULSE_ALPHA = 0.55;
 const EXPULSION_PULSE_DISTANCE = 44;
 const EXPULSION_PULSE_DURATION_MS = 130;
 
+type FacingDirection = 'up' | 'down' | 'left' | 'right';
+
 export class SlimeEntity {
-  element: Phaser.GameObjects.DOMElement;
+  sprite: Phaser.GameObjects.Sprite;
   collisionShadow: Phaser.GameObjects.Arc;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
@@ -27,6 +29,8 @@ export class SlimeEntity {
   private prevX: number;
   private prevY: number;
   private shadowPulseTween: Phaser.Tweens.Tween | null;
+  private facing: FacingDirection;
+  private currentAnimKey: string;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
@@ -37,19 +41,12 @@ export class SlimeEntity {
     this.prevX = x;
     this.prevY = y;
     this.shadowPulseTween = null;
+    this.facing = 'down';
+    this.currentAnimKey = '';
 
-    const img = document.createElement('img');
-    img.src = SLIME_GIF_PATH;
-    img.alt = 'Slime';
-    img.draggable = false;
-    img.style.width = `${SLIME_SIZE_PX}px`;
-    img.style.height = `${SLIME_SIZE_PX}px`;
-    img.style.pointerEvents = 'none';
-    img.style.userSelect = 'none';
-
-    this.element = scene.add.dom(x, y, img);
-    this.element.setDepth(8);
-    this.element.setOrigin(0.5, 0.5);
+    this.sprite = scene.add.sprite(x + SLIME_SPRITE_OFFSET_X, y, 'slime');
+    this.sprite.setDepth(8);
+    this.sprite.setScale(SLIME_SCALE);
 
     this.collisionShadow = scene.add.circle(
       x,
@@ -68,11 +65,11 @@ export class SlimeEntity {
   }
 
   get x(): number {
-    return this.element.x;
+    return this.sprite.x - SLIME_SPRITE_OFFSET_X;
   }
 
   get y(): number {
-    return this.element.y;
+    return this.sprite.y;
   }
 
   updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
@@ -86,7 +83,15 @@ export class SlimeEntity {
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
-    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+    if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
+      if (Math.abs(dx) >= Math.abs(dy)) {
+        this.facing = dx < 0 ? 'left' : 'right';
+      } else {
+        this.facing = dy < 0 ? 'up' : 'down';
+      }
+    }
+
+    if (dx * dx + dy * dy >= EXPULSION_PULSE_DISTANCE * EXPULSION_PULSE_DISTANCE) {
       this.pulseCollisionShadow();
     }
   }
@@ -94,7 +99,7 @@ export class SlimeEntity {
   private pulseCollisionShadow(): void {
     this.shadowPulseTween?.stop();
     this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
-    this.shadowPulseTween = this.element.scene.tweens.add({
+    this.shadowPulseTween = this.sprite.scene.tweens.add({
       targets: this.collisionShadow,
       alpha: CONTACT_SHADOW_ALPHA,
       duration: EXPULSION_PULSE_DURATION_MS,
@@ -105,39 +110,71 @@ export class SlimeEntity {
     });
   }
 
-  update(dt: number): void {
-    const dx = this.targetX - this.element.x;
-    const dy = this.targetY - this.element.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > SNAP_DISTANCE) {
-      this.element.x = this.targetX;
-      this.element.y = this.targetY;
+  update(dt: number, inView: boolean, animationTimeScale: number): void {
+    const targetSpriteX = this.targetX + SLIME_SPRITE_OFFSET_X;
+    const dx = targetSpriteX - this.sprite.x;
+    const dy = this.targetY - this.sprite.y;
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
+      this.sprite.x = targetSpriteX;
+      this.sprite.y = this.targetY;
+    }
+
+    const logicalDx = this.targetX - (this.sprite.x - SLIME_SPRITE_OFFSET_X);
+    const logicalDy = this.targetY - this.sprite.y;
+    if (Math.abs(logicalDx) > 0.6 || Math.abs(logicalDy) > 0.6) {
+      if (Math.abs(logicalDx) >= Math.abs(logicalDy)) {
+        this.facing = logicalDx < 0 ? 'left' : 'right';
+      } else {
+        this.facing = logicalDy < 0 ? 'up' : 'down';
+      }
     }
 
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
     const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
-    this.element.x += (this.targetX - this.element.x) * factor;
-    this.element.y += (this.targetY - this.element.y) * factor;
+    this.sprite.x += (targetSpriteX - this.sprite.x) * factor;
+    this.sprite.y += (this.targetY - this.sprite.y) * factor;
 
-    this.hpBarBg.x = this.element.x;
-    this.hpBarBg.y = this.element.y - HP_BAR_OFFSET_Y;
-    this.collisionShadow.x = this.element.x;
-    this.collisionShadow.y = this.element.y;
-
-    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-    this.hpBar.width = HP_BAR_WIDTH * hpRatio;
-    this.hpBar.x = this.element.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
-    this.hpBar.y = this.element.y - HP_BAR_OFFSET_Y;
-
-    const visible = this.serverState !== 'dead';
-    this.element.setVisible(visible);
+    const alive = this.serverState !== 'dead';
+    const visible = alive && inView;
+    this.sprite.setVisible(visible);
     this.collisionShadow.setVisible(visible);
     this.hpBar.setVisible(visible);
     this.hpBarBg.setVisible(visible);
+
+    if (!visible) {
+      this.sprite.anims.stop();
+      this.currentAnimKey = '';
+      return;
+    }
+
+    this.sprite.anims.timeScale = animationTimeScale;
+
+    this.collisionShadow.x = this.sprite.x - SLIME_SPRITE_OFFSET_X;
+    this.collisionShadow.y = this.sprite.y;
+    this.hpBarBg.x = this.collisionShadow.x;
+    this.hpBarBg.y = this.sprite.y - HP_BAR_OFFSET_Y;
+
+    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
+    this.hpBar.width = HP_BAR_WIDTH * hpRatio;
+    this.hpBar.x = this.collisionShadow.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
+    this.hpBar.y = this.sprite.y - HP_BAR_OFFSET_Y;
+
+    this.updateAnimation();
+  }
+
+  private updateAnimation(): void {
+    const preferredKey = `slime_${this.facing}`;
+    const animKey = this.sprite.scene.anims.exists(preferredKey) ? preferredKey : 'slime_down';
+    if (this.currentAnimKey === animKey) {
+      return;
+    }
+
+    this.sprite.play(animKey, true);
+    this.currentAnimKey = animKey;
   }
 
   destroy(): void {
-    this.element.destroy();
+    this.sprite.destroy();
     this.shadowPulseTween?.stop();
     this.collisionShadow.destroy();
     this.hpBar.destroy();

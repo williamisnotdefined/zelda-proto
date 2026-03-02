@@ -87,4 +87,66 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'damaged_up', row: 11, repeat: 0, frameRate: 10 },
     { key: 'death', row: 12, repeat: 0, frameRate: 6 },
   ]);
+
+  // Slime spritesheet is a single horizontal strip split by direction blocks.
+  // No death animation is used (slime disappears on death).
+  const slimeAnims = [
+    { key: 'slime_down', start: 0, end: 7 },
+    { key: 'slime_right', start: 8, end: 15 },
+    { key: 'slime_left', start: 16, end: 23 },
+    { key: 'slime_up', start: 24, end: 31 },
+  ] as const;
+
+  const slimeTexture = scene.textures.get('slime');
+  const slimeFrameIndexes = slimeTexture
+    .getFrameNames()
+    .map((name) => Number(name))
+    .filter((value) => Number.isInteger(value));
+  const slimeLastFrameIndex = slimeFrameIndexes.length > 0 ? Math.max(...slimeFrameIndexes) : 0;
+
+  for (const anim of slimeAnims) {
+    const start = Math.min(anim.start, slimeLastFrameIndex);
+    const end = Math.min(anim.end, slimeLastFrameIndex);
+    if (end < start) continue;
+
+    scene.anims.remove(anim.key);
+    scene.anims.create({
+      key: anim.key,
+      frames: scene.anims.generateFrameNumbers('slime', { start, end }),
+      frameRate: 10,
+      repeat: -1,
+    });
+  }
+
+  // Dragon Lord spritesheet is a single horizontal strip:
+  // 1st frame = dead, frames 2..9 = down, then left, right, up.
+  // (Frame indexes below are 0-based.)
+  const dragonAnims = [
+    { key: 'dragon_dead', start: 0, end: 0 },
+    { key: 'dragon_down', start: 1, end: 8 },
+    { key: 'dragon_left', start: 9, end: 16 },
+    { key: 'dragon_right', start: 17, end: 24 },
+    { key: 'dragon_up', start: 25, end: 32 },
+  ] as const;
+
+  const dragonTexture = scene.textures.get('dragon_lord');
+  const dragonFrameIndexes = dragonTexture
+    .getFrameNames()
+    .map((name) => Number(name))
+    .filter((value) => Number.isInteger(value));
+  const dragonLastFrameIndex = dragonFrameIndexes.length > 0 ? Math.max(...dragonFrameIndexes) : 0;
+
+  for (const anim of dragonAnims) {
+    const start = Math.min(anim.start, dragonLastFrameIndex);
+    const end = Math.min(anim.end, dragonLastFrameIndex);
+    if (end < start) continue;
+
+    scene.anims.remove(anim.key);
+    scene.anims.create({
+      key: anim.key,
+      frames: scene.anims.generateFrameNumbers('dragon_lord', { start, end }),
+      frameRate: 10,
+      repeat: -1,
+    });
+  }
 }

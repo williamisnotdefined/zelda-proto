@@ -1,4 +1,11 @@
-import type { PlayerSnapshot, ServerChatMessage } from '@gelehka/shared';
+import type {
+  BossKind,
+  BossState,
+  Direction,
+  PlayerSnapshot,
+  PlayerState,
+  ServerChatMessage,
+} from '@gelehka/shared';
 import { create } from 'zustand';
 
 export interface PlayerData {
@@ -8,8 +15,8 @@ export interface PlayerData {
   y: number;
   hp: number;
   maxHp: number;
-  state: string;
-  direction: string;
+  state: PlayerState;
+  direction: Direction;
 }
 
 export interface BlobData {
@@ -23,12 +30,12 @@ export interface BlobData {
 
 export interface BossData {
   id: string;
-  kind: string;
+  kind: BossKind;
   x: number;
   y: number;
   hp: number;
   maxHp: number;
-  state: string;
+  state: BossState;
   phase: number;
 }
 

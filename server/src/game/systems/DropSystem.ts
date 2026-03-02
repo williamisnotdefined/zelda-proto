@@ -4,15 +4,20 @@ import { Player } from '../../entities/Player.js';
 import { Blob } from '../../entities/Blob.js';
 import type { Drop } from '../World.js';
 
+const DROP_CHANCE = 0.5;
+const PICKUP_RADIUS = 24;
+const PICKUP_RADIUS_SQ = PICKUP_RADIUS * PICKUP_RADIUS;
+const SMALL_HEAL_AMOUNT = 5;
+const LARGE_HEAL_AMOUNT = 10;
+
 export class DropSystem {
-  update(players: Map<string, Player>, blobs: Map<string, Blob>, drops: Map<string, Drop>): void {
+  update(players: Map<string, Player>, blobs: Iterable<Blob>, drops: Map<string, Drop>): void {
     this.handleDropPickup(players, drops);
     this.handleEnemyDrops(blobs, drops);
   }
 
-  private handleEnemyDrops(blobs: Map<string, Blob>, drops: Map<string, Drop>): void {
-    const DROP_CHANCE = 0.5;
-    for (const blob of blobs.values()) {
+  private handleEnemyDrops(blobs: Iterable<Blob>, drops: Map<string, Drop>): void {
+    for (const blob of blobs) {
       if (blob.state === 'dead' && !blob.hasDropped) {
         blob.hasDropped = true;
         if (Math.random() < DROP_CHANCE) {
@@ -29,11 +34,6 @@ export class DropSystem {
   }
 
   private handleDropPickup(players: Map<string, Player>, drops: Map<string, Drop>): void {
-    const PICKUP_RADIUS = 24;
-    const PICKUP_RADIUS_SQ = PICKUP_RADIUS * PICKUP_RADIUS;
-    const SMALL_HEAL_AMOUNT = 5;
-    const LARGE_HEAL_AMOUNT = 10;
-
     for (const [dropId, drop] of drops) {
       for (const player of players.values()) {
         if (player.state === 'dead') continue;

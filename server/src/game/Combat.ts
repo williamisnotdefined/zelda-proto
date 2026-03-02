@@ -32,14 +32,14 @@ type BossLike = BossGelehk | DragonLord;
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
-  blobs: Map<string, Blob>,
+  blobs: Iterable<Blob>,
   bosses: Map<string, BossLike>
 ): void {
   for (const player of players.values()) {
     const hitbox = player.getAttackHitbox();
     if (!hitbox) continue;
 
-    for (const blob of blobs.values()) {
+    for (const blob of blobs) {
       if (blob.state === 'dead') continue;
       // One hit per enemy per swing
       if (player.attackHitEnemyIds.has(blob.id)) continue;
@@ -113,7 +113,7 @@ export function resolvePlayerVsPlayerWithSafeZone(
 }
 
 export function resolveEnemyContactDamage(
-  blobs: Map<string, Blob>,
+  blobs: Iterable<Blob>,
   players: Map<string, Player>
 ): void {
   resolveEnemyContactDamageWithSafeZone(blobs, players, {
@@ -124,11 +124,11 @@ export function resolveEnemyContactDamage(
 }
 
 export function resolveEnemyContactDamageWithSafeZone(
-  blobs: Map<string, Blob>,
+  blobs: Iterable<Blob>,
   players: Map<string, Player>,
   safeZone: { x: number; y: number; radius: number }
 ): void {
-  for (const blob of blobs.values()) {
+  for (const blob of blobs) {
     if (blob.state === 'dead') continue;
     if (blob.damageCooldown > 0) continue;
 

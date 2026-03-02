@@ -122,6 +122,13 @@ If users get stuck on "Connecting..." in production:
 
 - `NODE_ENV=production` - Enables production mode (port 3001, serves static files)
 - `PORT=<custom_port>` - Override default port (optional)
+- `DEV_START_PHASE=<phase>` - Development only. Chooses the phase where new players spawn. Accepted formats: phase id (`phase1`, `phase2`, ... ) or number (`1`, `2`, `3`, ...). If the phase does not exist yet, server falls back to `phase1`.
+
+Example (dev):
+
+```bash
+DEV_START_PHASE=2 npm run dev:server
+```
 
 ## Architecture
 
@@ -140,3 +147,6 @@ If users get stuck on "Connecting..." in production:
 - [ ] client assets cleanup, delete unused assets
 
 
+## Sprite Sheet Generator
+
+https://codeshack.io/images-sprite-sheet-generator/

@@ -19,12 +19,22 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
 
+    this.load.spritesheet('slime', 'assets/sprites/monsters/Slime.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
     this.load.audio('bg_music', 'assets/sounds/bg_music.mp3');
     this.load.audio('toasty_sfx', 'assets/sounds/toasty.mp3');
 
     this.load.spritesheet('skeleton', 'assets/sprites/monsters/gelehk.png', {
       frameWidth: 48,
       frameHeight: 48,
+    });
+
+    this.load.spritesheet('dragon_lord', 'assets/sprites/monsters/dragon_lord.png', {
+      frameWidth: 64,
+      frameHeight: 64,
     });
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');

@@ -9,6 +9,7 @@ import { Slime } from '../entities/Slime.js';
 import { Player } from '../entities/Player.js';
 import type { InputMessage } from '../network/MessageTypes.js';
 import { World } from './World.js';
+import type { BossActorEntity } from './World.js';
 import { BossRegionSystem } from './systems/BossRegionSystem.js';
 import { SpawnSystem } from './systems/SpawnSystem.js';
 
@@ -17,12 +18,14 @@ const PHASE2_NEARBY_RADIUS = 900;
 const PHASE2_MIN_NEARBY_SLIMES = 4;
 const PHASE2_STARTER_SLIMES = 8;
 const PHASE2_DRAGON_NEARBY_RADIUS = 1800;
+const DEV_START_PHASE_ENV = 'DEV_START_PHASE';
 
 export class InstanceManager {
   readonly phase1World: World;
   readonly phase2World: World;
   private readonly phase2SpawnX: number;
   private readonly phase2SpawnY: number;
+  private readonly initialInstanceId: InstanceId;
 
   private readonly playerInstances: Map<string, InstanceId>;
 
@@ -41,7 +44,7 @@ export class InstanceManager {
       createEnemy: (id, x, y, chunkKey) => new Slime(id, x, y, chunkKey),
     });
 
-    const phase1BossSystem = new BossRegionSystem({
+    const phase1BossSystem = new BossRegionSystem<BossActorEntity>({
       regionSize: 2000,
       activeRange: 2000,
       despawnTimeMs: 60000,
@@ -62,7 +65,7 @@ export class InstanceManager {
       },
     });
 
-    const phase2BossSystem = new BossRegionSystem({
+    const phase2BossSystem = new BossRegionSystem<BossActorEntity>({
       regionSize: 2600,
       activeRange: 2200,
       despawnTimeMs: 60000,
@@ -116,6 +119,8 @@ export class InstanceManager {
 
     this.seedPhase2StarterContent();
 
+    this.initialInstanceId = this.resolveInitialInstanceId();
+
     this.playerInstances = new Map();
   }
 
@@ -126,8 +131,8 @@ export class InstanceManager {
   }
 
   addPlayer(id: string, nickname: string): Player {
-    this.playerInstances.set(id, INSTANCE_IDS.PHASE1);
-    return this.phase1World.addPlayer(id, nickname);
+    this.playerInstances.set(id, this.initialInstanceId);
+    return this.getWorld(this.initialInstanceId).addPlayer(id, nickname);
   }
 
   removePlayer(id: string): void {
@@ -204,6 +209,46 @@ export class InstanceManager {
 
   private getWorld(instanceId: InstanceId): World {
     return instanceId === INSTANCE_IDS.PHASE1 ? this.phase1World : this.phase2World;
+  }
+
+  private resolveInitialInstanceId(): InstanceId {
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (!isDev) {
+      return INSTANCE_IDS.PHASE1;
+    }
+
+    const raw = process.env[DEV_START_PHASE_ENV]?.trim().toLowerCase();
+    if (!raw) {
+      return INSTANCE_IDS.PHASE1;
+    }
+
+    const availableInstanceIds = new Set<InstanceId>(Object.values(INSTANCE_IDS));
+
+    if (availableInstanceIds.has(raw as InstanceId)) {
+      const selected = raw as InstanceId;
+      console.log(
+        `[InstanceManager] ${DEV_START_PHASE_ENV}=${raw} -> players spawn in ${selected}`
+      );
+      return selected;
+    }
+
+    const phaseNumber = Number(raw.replace('phase', ''));
+    if (Number.isInteger(phaseNumber) && phaseNumber > 0) {
+      const candidate = `phase${phaseNumber}` as InstanceId;
+      if (availableInstanceIds.has(candidate)) {
+        console.log(
+          `[InstanceManager] ${DEV_START_PHASE_ENV}=${raw} -> players spawn in ${candidate}`
+        );
+        return candidate;
+      }
+    }
+
+    console.warn(
+      `[InstanceManager] Invalid ${DEV_START_PHASE_ENV}="${raw}". Available: ${Array.from(
+        availableInstanceIds
+      ).join(', ')}. Falling back to ${INSTANCE_IDS.PHASE1}.`
+    );
+    return INSTANCE_IDS.PHASE1;
   }
 
   private seedPhase2StarterContent(): void {

@@ -140,7 +140,7 @@ export class BossGelehkEntity {
       }
     }
 
-    if (Math.sqrt(dx * dx + dy * dy) >= EXPULSION_PULSE_DISTANCE) {
+    if (dx * dx + dy * dy >= EXPULSION_PULSE_DISTANCE * EXPULSION_PULSE_DISTANCE) {
       this.pulseCollisionShadow();
     }
 
@@ -223,8 +223,7 @@ export class BossGelehkEntity {
   update(dt: number): void {
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > SNAP_DISTANCE) {
+    if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
       this.sprite.x = this.targetX;
       this.sprite.y = this.targetY;
     }

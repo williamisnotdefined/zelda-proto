@@ -9,6 +9,7 @@ import { InstanceManager } from './InstanceManager.js';
 const SIM_TICK_MS = 1000 / SERVER_SIM_TICK_RATE;
 const NET_TICK_MS = 1000 / SERVER_NET_TICK_RATE;
 const METRICS_LOG_INTERVAL_MS = 5000;
+const MAX_SIM_STEPS_PER_TICK = 5;
 
 export class GameLoop {
   instances: InstanceManager;
@@ -24,6 +25,7 @@ export class GameLoop {
   private totalDriftMs: number;
   private maxDriftMs: number;
   private totalUpdateDurationMs: number;
+  private droppedSimSteps: number;
   private onNetworkTick: (instances: InstanceManager) => void;
 
   constructor(onNetworkTick: (instances: InstanceManager) => void) {
@@ -40,6 +42,7 @@ export class GameLoop {
     this.totalDriftMs = 0;
     this.maxDriftMs = 0;
     this.totalUpdateDurationMs = 0;
+    this.droppedSimSteps = 0;
     this.onNetworkTick = onNetworkTick;
   }
 
@@ -58,6 +61,7 @@ export class GameLoop {
     this.totalDriftMs = 0;
     this.maxDriftMs = 0;
     this.totalUpdateDurationMs = 0;
+    this.droppedSimSteps = 0;
 
     this.scheduleNext(0);
   }
@@ -86,14 +90,23 @@ export class GameLoop {
     this.networkAccumulatorMs += frameDtMs;
 
     try {
-      while (this.accumulatorMs >= SIM_TICK_MS) {
+      let simSteps = 0;
+      while (this.accumulatorMs >= SIM_TICK_MS && simSteps < MAX_SIM_STEPS_PER_TICK) {
         this.instances.update(SIM_TICK_MS);
         this.accumulatorMs -= SIM_TICK_MS;
+        simSteps += 1;
       }
 
-      while (this.networkAccumulatorMs >= NET_TICK_MS) {
+      if (this.accumulatorMs >= SIM_TICK_MS) {
+        const skippedSteps = Math.floor(this.accumulatorMs / SIM_TICK_MS);
+        this.droppedSimSteps += skippedSteps;
+        this.accumulatorMs -= skippedSteps * SIM_TICK_MS;
+      }
+
+      const networkSteps = Math.floor(this.networkAccumulatorMs / NET_TICK_MS);
+      if (networkSteps > 0) {
         this.onNetworkTick(this.instances);
-        this.networkAccumulatorMs -= NET_TICK_MS;
+        this.networkAccumulatorMs -= networkSteps * NET_TICK_MS;
       }
     } catch (error) {
       console.error('[GameLoop] Error in tick:', error);
@@ -134,7 +147,7 @@ export class GameLoop {
       this.totalTicks > 0 ? this.totalUpdateDurationMs / this.totalTicks : 0;
 
     console.log(
-      `[GameLoop] metrics tick_drift_ms=${avgDriftMs.toFixed(2)} max_drift_ms=${this.maxDriftMs.toFixed(2)} update_duration_ms=${avgUpdateDurationMs.toFixed(2)} slow_ticks=${this.slowTicks}/${this.totalTicks}`
+      `[GameLoop] metrics tick_drift_ms=${avgDriftMs.toFixed(2)} max_drift_ms=${this.maxDriftMs.toFixed(2)} update_duration_ms=${avgUpdateDurationMs.toFixed(2)} slow_ticks=${this.slowTicks}/${this.totalTicks} dropped_sim_steps=${this.droppedSimSteps}`
     );
 
     this.lastMetricsLogMs = nowMs;
@@ -143,5 +156,6 @@ export class GameLoop {
     this.totalDriftMs = 0;
     this.maxDriftMs = 0;
     this.totalUpdateDurationMs = 0;
+    this.droppedSimSteps = 0;
   }
 }
