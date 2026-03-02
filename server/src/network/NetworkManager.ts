@@ -5,28 +5,18 @@ import type { ClientMessage, ServerMessage } from './MessageTypes.js';
 
 export class NetworkManager {
   decodeClientMessage(data: RawData): ClientMessage | null {
-    if (typeof data === 'string') {
-      return this.tryParseJson(data);
-    }
-
     if (data instanceof Buffer) {
-      const asBinary = this.tryUnpack(data);
-      if (asBinary) return asBinary;
-      return this.tryParseJson(data.toString());
+      return this.tryUnpack(data);
     }
 
     if (Array.isArray(data)) {
       const merged = Buffer.concat(data);
-      const asBinary = this.tryUnpack(merged);
-      if (asBinary) return asBinary;
-      return this.tryParseJson(merged.toString());
+      return this.tryUnpack(merged);
     }
 
     if (data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(data);
-      const asBinary = this.tryUnpack(bytes);
-      if (asBinary) return asBinary;
-      return this.tryParseJson(Buffer.from(bytes).toString());
+      return this.tryUnpack(bytes);
     }
 
     return null;
@@ -41,14 +31,6 @@ export class NetworkManager {
 
     ws.send(pack(message));
     return true;
-  }
-
-  private tryParseJson(data: string): ClientMessage | null {
-    try {
-      return JSON.parse(data) as ClientMessage;
-    } catch {
-      return null;
-    }
   }
 
   private tryUnpack(data: Uint8Array): ClientMessage | null {

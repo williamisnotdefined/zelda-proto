@@ -11,7 +11,7 @@ import type {
   SnapshotDeltaMessage,
   SnapshotMessage,
 } from './MessageTypes.js';
-import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 
 export interface SnapshotBundle {
   instanceId: InstanceId;
@@ -53,6 +53,7 @@ export function toSnapshotState(snapshot: SnapshotBundle): SnapshotState {
 
 export function toSnapshotMessage(snapshot: SnapshotBundle): SnapshotMessage {
   return {
+    protocolVersion: PROTOCOL_VERSION,
     type: SERVER_MESSAGE_TYPES.SNAPSHOT,
     instanceId: snapshot.instanceId,
     players: snapshot.players,
@@ -149,6 +150,7 @@ export function diffSnapshot(
   if (!prev || full) {
     return {
       message: {
+        protocolVersion: PROTOCOL_VERSION,
         type: SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA,
         tick,
         full: true,
@@ -181,6 +183,7 @@ export function diffSnapshot(
 
   return {
     message: {
+      protocolVersion: PROTOCOL_VERSION,
       type: SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA,
       tick,
       full: false,

@@ -1,4 +1,4 @@
-import { CLIENT_MESSAGE_TYPES } from '@gelehka/shared';
+import { CLIENT_MESSAGE_TYPES, PROTOCOL_VERSION } from '@gelehka/shared';
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
 import { ConnectionState, NetworkManager } from './NetworkManager';
 
@@ -17,11 +17,11 @@ export function send(msg: ClientMessage): void {
 }
 
 export function sendJoin(nickname: string): void {
-  send({ type: CLIENT_MESSAGE_TYPES.JOIN, nickname });
+  send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.JOIN, nickname });
 }
 
 export function sendChat(text: string): void {
-  send({ type: CLIENT_MESSAGE_TYPES.CHAT, text });
+  send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.CHAT, text });
 }
 
 export function onceOpen(cb: () => void): void {

@@ -1,5 +1,5 @@
 import { pack, unpack } from 'msgpackr';
-import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import type {
   ClientMessage,
@@ -60,6 +60,7 @@ function toSnapshotCache(snapshot: SnapshotMessage): SnapshotCache {
 
 function toSnapshotMessage(cache: SnapshotCache): SnapshotMessage {
   return {
+    protocolVersion: PROTOCOL_VERSION,
     type: SERVER_MESSAGE_TYPES.SNAPSHOT,
     instanceId: cache.instanceId,
     players: Array.from(cache.players.values()),
@@ -83,6 +84,7 @@ export class NetworkManager {
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private snapshotCache: SnapshotCache | null = null;
   private connectionState: ConnectionState = 'DISCONNECTED';
+  private lastSnapshotTick = -1;
 
   connect(): void {
     if (
@@ -95,6 +97,7 @@ export class NetworkManager {
     try {
       this.ws = new WebSocket(WS_URL);
       this.snapshotCache = null;
+      this.lastSnapshotTick = -1;
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
       this.notifyError(errorMsg);
@@ -125,12 +128,26 @@ export class NetworkManager {
       for (const cb of this.openCallbacks) cb();
       this.openCallbacks = [];
       this.snapshotCache = null;
+      this.lastSnapshotTick = -1;
       this.setConnectionState('CONNECTED');
     };
 
     this.ws.onmessage = (event) => {
       const message = this.decodeServerMessage(event.data);
       if (!message) return;
+
+      if (message.protocolVersion !== PROTOCOL_VERSION) {
+        this.notifyError('Protocol version mismatch with server');
+        this.disconnect();
+        return;
+      }
+
+      if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
+        if (message.tick <= this.lastSnapshotTick) {
+          return;
+        }
+        this.lastSnapshotTick = message.tick;
+      }
 
       const normalized = this.normalizeMessage(message);
       for (const handler of this.handlers) {
@@ -223,6 +240,7 @@ export class NetworkManager {
       this.ws = null;
     }
     this.snapshotCache = null;
+    this.lastSnapshotTick = -1;
     this.setConnectionState('DISCONNECTED');
   }
 
@@ -245,14 +263,6 @@ export class NetworkManager {
   }
 
   private decodeServerMessage(raw: unknown): ServerMessage | null {
-    if (typeof raw === 'string') {
-      try {
-        return JSON.parse(raw) as ServerMessage;
-      } catch {
-        return null;
-      }
-    }
-
     try {
       if (raw instanceof ArrayBuffer) {
         return unpack(new Uint8Array(raw)) as ServerMessage;

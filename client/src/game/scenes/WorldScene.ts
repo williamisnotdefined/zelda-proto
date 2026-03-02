@@ -12,7 +12,12 @@ import type {
   ServerChatMessage,
   ServerMessage,
 } from '@gelehka/shared';
-import { CLIENT_MESSAGE_TYPES, INSTANCE_IDS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import {
+  CLIENT_MESSAGE_TYPES,
+  INSTANCE_IDS,
+  PROTOCOL_VERSION,
+  SERVER_MESSAGE_TYPES,
+} from '@gelehka/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
@@ -655,6 +660,7 @@ export class WorldScene extends Phaser.Scene {
       this.inputSendAccumulatorMs = 0;
 
       const input: InputMessage = {
+        protocolVersion: PROTOCOL_VERSION,
         type: CLIENT_MESSAGE_TYPES.INPUT,
         seq: this.nextInputSeq++,
         up: inputState.up,

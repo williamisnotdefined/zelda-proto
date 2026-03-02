@@ -1,5 +1,10 @@
 import { Server } from 'node:http';
-import { CLIENT_MESSAGE_TYPES, INSTANCE_IDS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import {
+  CLIENT_MESSAGE_TYPES,
+  INSTANCE_IDS,
+  PROTOCOL_VERSION,
+  SERVER_MESSAGE_TYPES,
+} from '@gelehka/shared';
 import {
   SERVER_LEADERBOARD_TICK_RATE,
   SERVER_NET_TICK_RATE,
@@ -11,6 +16,11 @@ import { InstanceManager } from '../game/InstanceManager.js';
 import type { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
 import type { InstanceId } from '@gelehka/shared';
 import { SnapshotSystem } from '../game/systems/SnapshotSystem.js';
+import {
+  MAX_CHAT_LENGTH,
+  MAX_NICKNAME_LENGTH,
+  validateClientMessage,
+} from './MessageValidation.js';
 import { NetworkManager } from './NetworkManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
 
@@ -18,52 +28,13 @@ const MAX_CONNECTIONS = 200;
 const INPUT_RATE_LIMIT = 65;
 const CHAT_RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 1000;
-const MAX_NICKNAME_LENGTH = 16;
-const MAX_CHAT_LENGTH = 100;
+const MAX_RATE_LIMIT_VIOLATIONS_PER_WINDOW = 15;
+const MAX_INVALID_MESSAGES_PER_WINDOW = 8;
 const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 40;
 const LEADERBOARD_INTERVAL_TICKS = Math.max(
   1,
   Math.round(SERVER_NET_TICK_RATE / SERVER_LEADERBOARD_TICK_RATE)
 );
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isJoinMessage(
-  msg: ClientMessage
-): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.JOIN }> {
-  return (
-    msg.type === CLIENT_MESSAGE_TYPES.JOIN &&
-    typeof (msg as { nickname?: unknown }).nickname === 'string'
-  );
-}
-
-function isInputMessage(
-  msg: ClientMessage
-): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.INPUT }> {
-  if (msg.type !== CLIENT_MESSAGE_TYPES.INPUT) return false;
-  const candidate = msg as unknown;
-  if (!isRecord(candidate)) return false;
-  return (
-    typeof candidate.seq === 'number' &&
-    Number.isSafeInteger(candidate.seq) &&
-    candidate.seq >= 0 &&
-    typeof candidate.up === 'boolean' &&
-    typeof candidate.down === 'boolean' &&
-    typeof candidate.left === 'boolean' &&
-    typeof candidate.right === 'boolean' &&
-    typeof candidate.attack === 'boolean'
-  );
-}
-
-function isChatMessage(
-  msg: ClientMessage
-): msg is Extract<ClientMessage, { type: typeof CLIENT_MESSAGE_TYPES.CHAT }> {
-  return (
-    msg.type === CLIENT_MESSAGE_TYPES.CHAT && typeof (msg as { text?: unknown }).text === 'string'
-  );
-}
 
 function formatDateTime(): string {
   return new Date().toLocaleString('en-GB', {
@@ -107,25 +78,69 @@ export class WebSocketHandler {
       let hasJoined = false;
       let inputCount = 0;
       let chatCount = 0;
+      let rateLimitViolations = 0;
+      let invalidMessages = 0;
       let rateWindowStart = Date.now();
+
+      const resetWindow = (now: number) => {
+        if (now - rateWindowStart <= RATE_WINDOW_MS) {
+          return;
+        }
+        inputCount = 0;
+        chatCount = 0;
+        rateLimitViolations = 0;
+        invalidMessages = 0;
+        rateWindowStart = now;
+      };
+
+      const closeForPolicyViolation = (reason: string) => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(1008, reason);
+        }
+      };
+
+      const registerInvalidMessage = () => {
+        invalidMessages += 1;
+        if (invalidMessages > MAX_INVALID_MESSAGES_PER_WINDOW) {
+          closeForPolicyViolation('Too many invalid messages');
+        }
+      };
+
+      const registerRateViolation = () => {
+        rateLimitViolations += 1;
+        if (rateLimitViolations > MAX_RATE_LIMIT_VIOLATIONS_PER_WINDOW) {
+          closeForPolicyViolation('Rate limit exceeded');
+        }
+      };
 
       this.clients.set(playerId, ws);
 
       ws.on('message', (data) => {
         try {
           const now = Date.now();
-          if (now - rateWindowStart > RATE_WINDOW_MS) {
-            inputCount = 0;
-            chatCount = 0;
-            rateWindowStart = now;
-          }
+          resetWindow(now);
 
           const msg = this.networkManager.decodeClientMessage(data) as ClientMessage | null;
-          if (!msg) return;
+          if (!msg) {
+            registerInvalidMessage();
+            return;
+          }
 
-          if (isJoinMessage(msg) && !hasJoined) {
+          const validation = validateClientMessage(msg, hasJoined);
+          if (!validation.ok) {
+            if (validation.reason === 'protocol_mismatch') {
+              ws.close(1002, 'Protocol version mismatch');
+              return;
+            }
+            registerInvalidMessage();
+            return;
+          }
+
+          const validMessage = validation.message;
+
+          if (validMessage.type === CLIENT_MESSAGE_TYPES.JOIN) {
             const nickname =
-              msg.nickname
+              validMessage.nickname
                 .replace(/[^a-zA-Z0-9 ]/g, '')
                 .slice(0, MAX_NICKNAME_LENGTH)
                 .trim() || 'Player';
@@ -138,6 +153,7 @@ export class WebSocketHandler {
             );
 
             const welcome: ServerMessage = {
+              protocolVersion: PROTOCOL_VERSION,
               type: SERVER_MESSAGE_TYPES.WELCOME,
               id: playerId,
               mapWidth: 0,
@@ -145,12 +161,20 @@ export class WebSocketHandler {
             };
             this.networkManager.send(ws, welcome);
             this.networkManager.send(ws, this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1));
-          } else if (isInputMessage(msg) && hasJoined) {
-            if (++inputCount > INPUT_RATE_LIMIT) return;
-            instances.handleInput(playerId, msg);
-          } else if (isChatMessage(msg) && hasJoined) {
-            if (++chatCount > CHAT_RATE_LIMIT) return;
-            this.handleChat(instances, playerId, msg.text);
+          } else if (validMessage.type === CLIENT_MESSAGE_TYPES.INPUT) {
+            if (++inputCount > INPUT_RATE_LIMIT) {
+              registerRateViolation();
+              return;
+            }
+            instances.handleInput(playerId, validMessage);
+          } else if (validMessage.type === CLIENT_MESSAGE_TYPES.CHAT) {
+            if (++chatCount > CHAT_RATE_LIMIT) {
+              registerRateViolation();
+              return;
+            }
+            this.handleChat(instances, playerId, validMessage.text);
+          } else {
+            registerInvalidMessage();
           }
         } catch (err) {
           console.error(`[WebSocket] Error parsing message from ${playerId}:`, err);
@@ -187,6 +211,7 @@ export class WebSocketHandler {
     if (text.length === 0) return;
 
     const chatMsg: ServerChatMessage = {
+      protocolVersion: PROTOCOL_VERSION,
       type: SERVER_MESSAGE_TYPES.CHAT,
       id: playerId,
       nickname: player.nickname,
@@ -248,6 +273,7 @@ export class WebSocketHandler {
 
   private buildLeaderboard(instances: InstanceManager, instanceId: InstanceId): ServerMessage {
     return {
+      protocolVersion: PROTOCOL_VERSION,
       type: SERVER_MESSAGE_TYPES.LEADERBOARD,
       players: Array.from(instances.getPlayersInInstance(instanceId).values()).map((player) =>
         player.toSnapshot()

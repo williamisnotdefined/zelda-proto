@@ -1,5 +1,5 @@
 import { WORLD_VIEW_RADIUS } from '@gelehka/shared/constants';
-import { SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import type {
   AoeIndicator,
   IceZone,
@@ -154,6 +154,7 @@ export class SnapshotSystem {
 
   getLeaderboard(world: World): LeaderboardMessage {
     return {
+      protocolVersion: PROTOCOL_VERSION,
       type: SERVER_MESSAGE_TYPES.LEADERBOARD,
       players: this.getPlayerSnapshots(world),
     };

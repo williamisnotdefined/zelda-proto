@@ -48,6 +48,12 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
+export const PROTOCOL_VERSION = 1 as const;
+
+interface ProtocolEnvelope {
+  protocolVersion: number;
+}
+
 export const SERVER_MESSAGE_TYPES = {
   SNAPSHOT: 'snapshot',
   SNAPSHOT_DELTA: 'snapshot_delta',
@@ -162,7 +168,7 @@ export interface HazardSnapshot {
   ttlMs: number;
 }
 
-export interface SnapshotMessage {
+export interface SnapshotMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.SNAPSHOT;
   instanceId: InstanceId;
   players: PlayerSnapshot[];
@@ -175,24 +181,24 @@ export interface SnapshotMessage {
   hazards: HazardSnapshot[];
 }
 
-export interface WelcomeMessage {
+export interface WelcomeMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.WELCOME;
   id: string;
   mapWidth: number;
   mapHeight: number;
 }
 
-export interface PlayerJoinMessage {
+export interface PlayerJoinMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.PLAYER_JOIN;
   id: string;
 }
 
-export interface PlayerLeaveMessage {
+export interface PlayerLeaveMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.PLAYER_LEAVE;
   id: string;
 }
 
-export interface ServerChatMessage {
+export interface ServerChatMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.CHAT;
   id: string;
   nickname: string;
@@ -200,12 +206,12 @@ export interface ServerChatMessage {
   timestamp: number;
 }
 
-export interface LeaderboardMessage {
+export interface LeaderboardMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.LEADERBOARD;
   players: PlayerSnapshot[];
 }
 
-export interface SnapshotDeltaMessage {
+export interface SnapshotDeltaMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA;
   tick: number;
   full: boolean;
@@ -238,6 +244,7 @@ export type ServerMessage =
   | ServerChatMessage;
 
 export interface InputMessage {
+  protocolVersion: number;
   type: typeof CLIENT_MESSAGE_TYPES.INPUT;
   seq: number;
   up: boolean;
@@ -248,11 +255,13 @@ export interface InputMessage {
 }
 
 export interface JoinMessage {
+  protocolVersion: number;
   type: typeof CLIENT_MESSAGE_TYPES.JOIN;
   nickname: string;
 }
 
 export interface ClientChatMessage {
+  protocolVersion: number;
   type: typeof CLIENT_MESSAGE_TYPES.CHAT;
   text: string;
 }
