@@ -150,3 +150,4 @@ DEV_START_PHASE=2 npm run dev:server
 ## Sprite Sheet Generator
 
 https://codeshack.io/images-sprite-sheet-generator/
+https://www.tibiawiki.com.br/wiki/Outfitter?&o=39&an&q
