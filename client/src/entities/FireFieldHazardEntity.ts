@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 
-const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
 const FIRE_FIELD_HIT_RADIUS = 18;
 const FIRE_FIELD_SPRITE_OFFSET_X = -6;
 const FIRE_FIELD_SPRITE_OFFSET_Y = -6;
@@ -12,32 +11,33 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 140;
 
 export class FireFieldHazardEntity {
-  element: Phaser.GameObjects.DOMElement;
+  sprite: Phaser.GameObjects.Image;
   hitZone: Phaser.GameObjects.Arc;
   private targetX: number;
   private targetY: number;
+  private pulseTween: Phaser.Tweens.Tween;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
     this.targetY = y;
 
-    const img = document.createElement('img');
-    img.src = FIRE_FIELD_GIF_PATH;
-    img.alt = 'Fire field';
-    img.draggable = false;
-    img.style.width = '58px';
-    img.style.height = '58px';
-    img.style.pointerEvents = 'none';
-    img.style.userSelect = 'none';
-    img.style.opacity = '0.7';
-
-    this.element = scene.add.dom(
+    this.sprite = scene.add.image(
       x + FIRE_FIELD_SPRITE_OFFSET_X,
       y + FIRE_FIELD_SPRITE_OFFSET_Y,
-      img
+      'fire_field'
     );
-    this.element.setDepth(4);
-    this.element.setOrigin(0.5, 0.5);
+    this.sprite.setDepth(4);
+    this.sprite.setAlpha(0.7);
+
+    this.pulseTween = scene.tweens.add({
+      targets: this.sprite,
+      alpha: 0.86,
+      scale: 1.05,
+      duration: 240,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.InOut',
+    });
 
     this.hitZone = scene.add.circle(x, y, FIRE_FIELD_HIT_RADIUS, HIT_ZONE_COLOR, HIT_ZONE_ALPHA);
     this.hitZone.setStrokeStyle(2, HIT_ZONE_COLOR, HIT_ZONE_STROKE_ALPHA);
@@ -50,15 +50,15 @@ export class FireFieldHazardEntity {
   }
 
   get x(): number {
-    return this.element.x - FIRE_FIELD_SPRITE_OFFSET_X;
+    return this.sprite.x - FIRE_FIELD_SPRITE_OFFSET_X;
   }
 
   get y(): number {
-    return this.element.y - FIRE_FIELD_SPRITE_OFFSET_Y;
+    return this.sprite.y - FIRE_FIELD_SPRITE_OFFSET_Y;
   }
 
   update(dt: number, inView: boolean): void {
-    this.element.setVisible(inView);
+    this.sprite.setVisible(inView);
     this.hitZone.setVisible(inView);
     if (!inView) {
       return;
@@ -66,25 +66,26 @@ export class FireFieldHazardEntity {
 
     const targetX = this.targetX + FIRE_FIELD_SPRITE_OFFSET_X;
     const targetY = this.targetY + FIRE_FIELD_SPRITE_OFFSET_Y;
-    const dx = targetX - this.element.x;
-    const dy = targetY - this.element.y;
+    const dx = targetX - this.sprite.x;
+    const dy = targetY - this.sprite.y;
 
     if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
-      this.element.x = targetX;
-      this.element.y = targetY;
+      this.sprite.x = targetX;
+      this.sprite.y = targetY;
     } else {
       const dtMs = Math.min(dt, MAX_LERP_DT_MS);
       const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
-      this.element.x += dx * factor;
-      this.element.y += dy * factor;
+      this.sprite.x += dx * factor;
+      this.sprite.y += dy * factor;
     }
 
-    this.hitZone.x = this.element.x - FIRE_FIELD_SPRITE_OFFSET_X;
-    this.hitZone.y = this.element.y - FIRE_FIELD_SPRITE_OFFSET_Y;
+    this.hitZone.x = this.sprite.x - FIRE_FIELD_SPRITE_OFFSET_X;
+    this.hitZone.y = this.sprite.y - FIRE_FIELD_SPRITE_OFFSET_Y;
   }
 
   destroy(): void {
-    this.element.destroy();
+    this.pulseTween.stop();
+    this.sprite.destroy();
     this.hitZone.destroy();
   }
 }

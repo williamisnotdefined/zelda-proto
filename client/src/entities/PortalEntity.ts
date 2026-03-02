@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 const PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
-const PORTAL_SIZE_PX = 64;
+const PORTAL_SIZE_PX = 36;
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
