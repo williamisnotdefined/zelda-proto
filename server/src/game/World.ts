@@ -3,16 +3,13 @@ import {
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import { HAZARD_KINDS } from '@gelehka/shared';
 import type { DropKind, HazardKind, InstanceId, PortalKind } from '@gelehka/shared';
-import { nanoid } from 'nanoid';
 import { Entity } from '../core/Entity.js';
-import { SpatialHash } from '../core/SpatialHash.js';
 import { World as EntityWorld } from '../core/World.js';
-import { BLOB_DAMAGE, Blob } from '../entities/Blob.js';
+import { Blob } from '../entities/Blob.js';
 import { BossGelehk, ICE_ZONE_SLOW } from '../entities/BossGelehk.js';
 import { DragonLord } from '../entities/DragonLord.js';
-import { Player } from '../entities/Player.js';
+import { Player, SAFE_ZONE_DURATION } from '../entities/Player.js';
 import type { InputMessage } from '../network/MessageTypes.js';
 import {
   resolveBossContactDamageWithSafeZone,
@@ -21,19 +18,15 @@ import {
   resolvePlayerVsPlayerWithSafeZone,
 } from './Combat.js';
 import { BossRegionSystem } from './systems/BossRegionSystem.js';
-import type { BossActor } from './systems/BossRegionSystem.js';
 import { DropSystem } from './systems/DropSystem.js';
+import { HazardSystem } from './systems/HazardSystem.js';
+import { PortalSystem } from './systems/PortalSystem.js';
+import { SafeZoneSystem } from './systems/SafeZoneSystem.js';
 import { SpawnSystem } from './systems/SpawnSystem.js';
-import { SAFE_ZONE_DURATION } from '../entities/Player.js';
+import { SpatialIndexSystem } from './systems/SpatialIndexSystem.js';
+import type { BossActor } from './systems/BossRegionSystem.js';
 
 const PLAYER_RESPAWN_TIME = 1500;
-const PORTAL_RADIUS = 42;
-const FIRE_FIELD_DURATION_MS = 1800;
-const FIRE_FIELD_SEGMENTS = 7;
-const FIRE_FIELD_SPACING = 36;
-const FIRE_FIELD_SEGMENT_INTERVAL_MS = 40;
-const FIRE_FIELD_HIT_RADIUS = 18;
-const PORTAL_TRANSFER_COOLDOWN_MS = 600;
 
 export const PLAYER_SPAWN_X = WORLD_SPAWN_X;
 export const PLAYER_SPAWN_Y = WORLD_SPAWN_Y;
@@ -75,15 +68,6 @@ export interface PortalTransferRequest {
   toInstanceId: InstanceId;
   targetX: number;
   targetY: number;
-}
-
-interface PendingFireFieldLine {
-  x: number;
-  y: number;
-  dirX: number;
-  dirY: number;
-  nextSegment: number;
-  nextSpawnAtMs: number;
 }
 
 export interface PortalConfig {
@@ -130,17 +114,11 @@ export class World extends EntityWorld<Entity> {
 
   private now: number;
   private readonly config: WorldConfig;
-  private readonly playerSpatialIndex: SpatialHash<Player>;
-  private readonly enemySpatialIndex: SpatialHash<Blob>;
-  private readonly bossSpatialIndex: SpatialHash<BossActorEntity>;
-  private readonly dropSpatialIndex: SpatialHash<Drop>;
-  private readonly portalSpatialIndex: SpatialHash<Portal>;
-  private readonly hazardSpatialIndex: SpatialHash<Hazard>;
   private readonly dropSystem: DropSystem;
-  private transferRequests: PortalTransferRequest[];
-  private pendingFireFieldLines: PendingFireFieldLine[];
-  private portalOverlapsByPlayer: Map<string, Set<string>>;
-  private wasSpawnSafeZoneActive: boolean;
+  private readonly safeZoneSystem: SafeZoneSystem;
+  private readonly hazardSystem: HazardSystem;
+  private readonly portalSystem: PortalSystem;
+  private readonly spatialIndexSystem: SpatialIndexSystem;
 
   constructor(config: WorldConfig) {
     super();
@@ -155,18 +133,11 @@ export class World extends EntityWorld<Entity> {
     this.hazards = new Map();
     this.now = Date.now();
 
-    this.playerSpatialIndex = new SpatialHash(512);
-    this.enemySpatialIndex = new SpatialHash(512);
-    this.bossSpatialIndex = new SpatialHash(512);
-    this.dropSpatialIndex = new SpatialHash(512);
-    this.portalSpatialIndex = new SpatialHash(512);
-    this.hazardSpatialIndex = new SpatialHash(512);
-
     this.dropSystem = new DropSystem();
-    this.transferRequests = [];
-    this.pendingFireFieldLines = [];
-    this.portalOverlapsByPlayer = new Map();
-    this.wasSpawnSafeZoneActive = false;
+    this.safeZoneSystem = new SafeZoneSystem();
+    this.hazardSystem = new HazardSystem();
+    this.portalSystem = new PortalSystem();
+    this.spatialIndexSystem = new SpatialIndexSystem(512);
 
     for (const portal of config.initialPortals ?? []) {
       this.spawnPortal(portal);
@@ -177,7 +148,7 @@ export class World extends EntityWorld<Entity> {
     const player = new Player(id, x ?? this.config.spawnX, y ?? this.config.spawnY, nickname);
     this.players.set(id, player);
     this.add(player);
-    this.expelHostilesFromSafeZone({
+    this.safeZoneSystem.enforceHostilesOutside(this.getAllEnemies(), this.bosses.values(), {
       x: this.config.spawnX,
       y: this.config.spawnY,
       radius: SPAWN_SAFE_ZONE_RADIUS,
@@ -193,7 +164,7 @@ export class World extends EntityWorld<Entity> {
     player.safeZoneTimer = SAFE_ZONE_DURATION;
     this.players.set(player.id, player);
     this.add(player);
-    this.expelHostilesFromSafeZone({
+    this.safeZoneSystem.enforceHostilesOutside(this.getAllEnemies(), this.bosses.values(), {
       x: this.config.spawnX,
       y: this.config.spawnY,
       radius: SPAWN_SAFE_ZONE_RADIUS,
@@ -205,7 +176,7 @@ export class World extends EntityWorld<Entity> {
     const player = this.players.get(id) ?? null;
     this.remove(id);
     this.players.delete(id);
-    this.portalOverlapsByPlayer.delete(id);
+    this.portalSystem.removePlayer(id);
     this.rebuildSpatialIndexes();
     return player;
   }
@@ -218,10 +189,7 @@ export class World extends EntityWorld<Entity> {
   }
 
   isSpawnSafeZoneActive(): boolean {
-    for (const player of this.players.values()) {
-      if (player.safeZoneTimer > 0) return true;
-    }
-    return false;
+    return this.safeZoneSystem.isActive(this.players.values());
   }
 
   update(dt: number): void {
@@ -263,11 +231,14 @@ export class World extends EntityWorld<Entity> {
       y: this.config.spawnY,
       radius: SPAWN_SAFE_ZONE_RADIUS,
     };
-    const spawnSafeZoneActive = this.isSpawnSafeZoneActive();
-    if (spawnSafeZoneActive && (!this.wasSpawnSafeZoneActive || safeZoneCreatedThisTick)) {
-      this.expelHostilesFromSafeZone(spawnSafeZone);
-    }
-    this.wasSpawnSafeZoneActive = spawnSafeZoneActive;
+
+    const spawnSafeZoneActive = this.safeZoneSystem.update(
+      this.players.values(),
+      this.getAllEnemies(),
+      this.bosses.values(),
+      spawnSafeZone,
+      safeZoneCreatedThisTick
+    );
 
     this.config.spawnSystem.update(
       this.now,
@@ -278,11 +249,7 @@ export class World extends EntityWorld<Entity> {
     );
 
     for (const enemy of this.getAllEnemies()) {
-      enemy.updateWithSafeZone(dt, this.players, spawnSafeZoneActive, {
-        x: spawnSafeZone.x,
-        y: spawnSafeZone.y,
-        radius: spawnSafeZone.radius,
-      });
+      enemy.updateWithSafeZone(dt, this.players, spawnSafeZoneActive, spawnSafeZone);
       enemy.tryRespawn(dt);
     }
 
@@ -299,355 +266,79 @@ export class World extends EntityWorld<Entity> {
           this.config.spawnSystem.spawnMinions(x, y, this.getSpawnTargetEnemies(), (entity) =>
             this.add(entity)
           ),
-        spawnFireLine: (x, y, dirX, dirY) => this.spawnFireFieldLine(x, y, dirX, dirY),
-        safeZone: {
-          x: spawnSafeZone.x,
-          y: spawnSafeZone.y,
-          radius: spawnSafeZone.radius,
-        },
+        spawnFireLine: (x, y, dirX, dirY) =>
+          this.hazardSystem.spawnFireFieldLine(x, y, dirX, dirY, this.now),
+        safeZone: spawnSafeZone,
       }
     );
 
     if (spawnSafeZoneActive) {
-      this.expelHostilesFromSafeZone(spawnSafeZone);
+      this.safeZoneSystem.enforceHostilesOutside(
+        this.getAllEnemies(),
+        this.bosses.values(),
+        spawnSafeZone
+      );
     }
 
     resolvePlayerAttacks(this.players, this.getAllEnemies(), this.bosses);
-    resolvePlayerVsPlayerWithSafeZone(this.players, {
-      x: spawnSafeZone.x,
-      y: spawnSafeZone.y,
-      radius: spawnSafeZone.radius,
-    });
-    resolveEnemyContactDamageWithSafeZone(this.getAllEnemies(), this.players, {
-      x: spawnSafeZone.x,
-      y: spawnSafeZone.y,
-      radius: spawnSafeZone.radius,
-    });
-    resolveBossContactDamageWithSafeZone(this.bosses, this.players, {
-      x: spawnSafeZone.x,
-      y: spawnSafeZone.y,
-      radius: spawnSafeZone.radius,
-    });
+    resolvePlayerVsPlayerWithSafeZone(this.players, spawnSafeZone);
+    resolveEnemyContactDamageWithSafeZone(this.getAllEnemies(), this.players, spawnSafeZone);
+    resolveBossContactDamageWithSafeZone(this.bosses, this.players, spawnSafeZone);
 
-    this.updateHazards(dt);
-    this.updatePendingFireFieldLines();
-    this.resolveHazardDamage();
-    this.handleBossDeathPortals();
-
+    this.hazardSystem.update(dt, this.now, this.players, this.hazards, spawnSafeZone);
     this.dropSystem.update(this.players, this.getAllEnemies(), this.drops);
-    this.updatePortals();
-    this.resolvePortalTransfers();
+    this.portalSystem.update(
+      this.now,
+      this.players,
+      this.portals,
+      this.bosses,
+      this.config.onBossDeathPortal
+    );
     this.rebuildSpatialIndexes();
   }
 
   consumeTransferRequests(): PortalTransferRequest[] {
-    const out = this.transferRequests;
-    this.transferRequests = [];
-    return out;
+    return this.portalSystem.consumeTransferRequests();
   }
 
   queryPlayersInRadius(x: number, y: number, radius: number): Player[] {
-    return this.playerSpatialIndex.queryRadius(x, y, radius);
+    return this.spatialIndexSystem.queryPlayersInRadius(x, y, radius);
   }
 
   queryEnemiesInRadius(x: number, y: number, radius: number): Blob[] {
-    return this.enemySpatialIndex.queryRadius(x, y, radius);
+    return this.spatialIndexSystem.queryEnemiesInRadius(x, y, radius);
   }
 
   queryBossesInRadius(x: number, y: number, radius: number): BossActorEntity[] {
-    const bossesInRadius = this.bossSpatialIndex.queryRadius(x, y, radius);
-    const radiusSq = radius * radius;
-
-    for (const boss of this.bosses.values()) {
-      if (boss.state !== 'dead') continue;
-      const dx = boss.x - x;
-      const dy = boss.y - y;
-      if (dx * dx + dy * dy <= radiusSq) {
-        bossesInRadius.push(boss);
-      }
-    }
-
-    return bossesInRadius;
+    return this.spatialIndexSystem.queryBossesInRadius(x, y, radius, this.bosses);
   }
 
   queryDropsInRadius(x: number, y: number, radius: number): Drop[] {
-    return this.dropSpatialIndex.queryRadius(x, y, radius);
+    return this.spatialIndexSystem.queryDropsInRadius(x, y, radius);
   }
 
   queryPortalsInRadius(x: number, y: number, radius: number): Portal[] {
-    return this.portalSpatialIndex.queryRadius(x, y, radius);
+    return this.spatialIndexSystem.queryPortalsInRadius(x, y, radius);
   }
 
   queryHazardsInRadius(x: number, y: number, radius: number): Hazard[] {
-    return this.hazardSpatialIndex.queryRadius(x, y, radius);
+    return this.spatialIndexSystem.queryHazardsInRadius(x, y, radius);
   }
 
   spawnPortal(config: PortalConfig): Portal {
-    const id = `portal_${nanoid(8)}`;
-    const portal: Portal = {
-      id,
-      x: config.x,
-      y: config.y,
-      kind: config.kind,
-      sourceBossId: config.sourceBossId,
-      toInstanceId: config.toInstanceId,
-      targetX: config.targetX,
-      targetY: config.targetY,
-      activeAtMs: this.now + (config.activationDelayMs ?? 0),
-      expiresAtMs: config.durationMs !== undefined ? this.now + config.durationMs : null,
-    };
-    this.portals.set(id, portal);
-    return portal;
-  }
-
-  private spawnFireFieldLine(x: number, y: number, dirX: number, dirY: number): void {
-    const normalizedDirX = Math.sign(dirX);
-    const normalizedDirY = Math.sign(dirY);
-    if (normalizedDirX === 0 && normalizedDirY === 0) {
-      return;
-    }
-
-    this.pendingFireFieldLines.push({
-      x,
-      y,
-      dirX: normalizedDirX,
-      dirY: normalizedDirY,
-      nextSegment: 1,
-      nextSpawnAtMs: this.now,
-    });
-  }
-
-  private spawnFireFieldSegment(
-    x: number,
-    y: number,
-    dirX: number,
-    dirY: number,
-    segmentIndex: number
-  ): void {
-    const hx = x + dirX * FIRE_FIELD_SPACING * segmentIndex;
-    const hy = y + dirY * FIRE_FIELD_SPACING * segmentIndex;
-    const id = `hazard_fire_${nanoid(8)}`;
-    this.hazards.set(id, {
-      id,
-      x: hx,
-      y: hy,
-      kind: HAZARD_KINDS.FIRE_FIELD,
-      ttlMs: FIRE_FIELD_DURATION_MS,
-      damage: BLOB_DAMAGE,
-      burningTicks: 3,
-      hitPlayerIds: new Set<string>(),
-    });
-  }
-
-  private updatePendingFireFieldLines(): void {
-    if (this.pendingFireFieldLines.length === 0) {
-      return;
-    }
-
-    for (let i = this.pendingFireFieldLines.length - 1; i >= 0; i -= 1) {
-      const line = this.pendingFireFieldLines[i];
-
-      while (line.nextSegment <= FIRE_FIELD_SEGMENTS && line.nextSpawnAtMs <= this.now) {
-        this.spawnFireFieldSegment(line.x, line.y, line.dirX, line.dirY, line.nextSegment);
-        line.nextSegment += 1;
-        line.nextSpawnAtMs += FIRE_FIELD_SEGMENT_INTERVAL_MS;
-      }
-
-      if (line.nextSegment > FIRE_FIELD_SEGMENTS) {
-        this.pendingFireFieldLines.splice(i, 1);
-      }
-    }
-  }
-
-  private updateHazards(dt: number): void {
-    for (const [hazardId, hazard] of this.hazards) {
-      hazard.ttlMs -= dt;
-      if (hazard.ttlMs <= 0) {
-        this.hazards.delete(hazardId);
-      }
-    }
-  }
-
-  private resolveHazardDamage(): void {
-    const hitRadiusSq = FIRE_FIELD_HIT_RADIUS * FIRE_FIELD_HIT_RADIUS;
-    for (const hazard of this.hazards.values()) {
-      for (const player of this.players.values()) {
-        if (player.state === 'dead') continue;
-        if (hazard.hitPlayerIds.has(player.id)) continue;
-        if (player.isProtected(this.config.spawnX, this.config.spawnY, SPAWN_SAFE_ZONE_RADIUS)) {
-          continue;
-        }
-
-        const dx = player.x - hazard.x;
-        const dy = player.y - hazard.y;
-        if (dx * dx + dy * dy <= hitRadiusSq) {
-          player.takeDamage(hazard.damage);
-          player.applyBurning(hazard.burningTicks);
-          hazard.hitPlayerIds.add(player.id);
-        }
-      }
-    }
-  }
-
-  private expelHostilesFromSafeZone(safeZone: { x: number; y: number; radius: number }): void {
-    const pushDistance = safeZone.radius + 12;
-
-    for (const enemy of this.getAllEnemies()) {
-      if (enemy.state === 'dead') continue;
-      if (!this.pushPointOutsideSafeZone(enemy, safeZone, pushDistance)) continue;
-      enemy.targetPlayerId = null;
-      enemy.state = 'idle';
-    }
-
-    for (const boss of this.bosses.values()) {
-      if (boss.state === 'dead') continue;
-      if (!this.pushPointOutsideSafeZone(boss, safeZone, pushDistance)) continue;
-
-      if (boss instanceof DragonLord) {
-        boss.targetPlayerId = null;
-      }
-      boss.state = 'idle';
-    }
-  }
-
-  private pushPointOutsideSafeZone(
-    entity: { x: number; y: number },
-    safeZone: { x: number; y: number; radius: number },
-    pushDistance: number
-  ): boolean {
-    const dx = entity.x - safeZone.x;
-    const dy = entity.y - safeZone.y;
-    const distSq = dx * dx + dy * dy;
-    if (distSq > safeZone.radius * safeZone.radius) {
-      return false;
-    }
-
-    if (distSq === 0) {
-      entity.x = safeZone.x + pushDistance;
-      entity.y = safeZone.y;
-      return true;
-    }
-
-    const dist = Math.sqrt(distSq);
-    entity.x = safeZone.x + (dx / dist) * pushDistance;
-    entity.y = safeZone.y + (dy / dist) * pushDistance;
-    return true;
-  }
-
-  private handleBossDeathPortals(): void {
-    if (!this.config.onBossDeathPortal) return;
-
-    for (const [portalId, portal] of this.portals) {
-      if (portal.kind !== this.config.onBossDeathPortal.kind) continue;
-      if (!portal.sourceBossId) {
-        this.portals.delete(portalId);
-        continue;
-      }
-      const sourceBoss = this.bosses.get(portal.sourceBossId);
-      if (!(sourceBoss instanceof BossGelehk) || sourceBoss.state !== 'dead') {
-        this.portals.delete(portalId);
-      }
-    }
-
-    for (const boss of this.bosses.values()) {
-      if (!(boss instanceof BossGelehk)) continue;
-      if (boss.state !== 'dead' || boss.deathHandled) continue;
-      boss.deathHandled = true;
-      this.spawnPortal({
-        kind: this.config.onBossDeathPortal.kind,
-        x: boss.x,
-        y: boss.y,
-        sourceBossId: boss.id,
-        toInstanceId: this.config.onBossDeathPortal.toInstanceId,
-        targetX: this.config.onBossDeathPortal.targetX,
-        targetY: this.config.onBossDeathPortal.targetY,
-        activationDelayMs: this.config.onBossDeathPortal.activationDelayMs,
-        durationMs: this.config.onBossDeathPortal.durationMs,
-      });
-    }
-  }
-
-  private updatePortals(): void {
-    for (const [portalId, portal] of this.portals) {
-      if (portal.expiresAtMs !== null && this.now >= portal.expiresAtMs) {
-        this.portals.delete(portalId);
-      }
-    }
-  }
-
-  private resolvePortalTransfers(): void {
-    const portalRadiusSq = PORTAL_RADIUS * PORTAL_RADIUS;
-    for (const player of this.players.values()) {
-      const prevOverlaps = this.portalOverlapsByPlayer.get(player.id) ?? new Set<string>();
-      const currOverlaps = new Set<string>();
-
-      if (player.state !== 'dead') {
-        for (const portal of this.portals.values()) {
-          if (this.now < portal.activeAtMs) continue;
-          const dx = player.x - portal.x;
-          const dy = player.y - portal.y;
-          const overlapping = dx * dx + dy * dy <= portalRadiusSq;
-          if (!overlapping) continue;
-
-          currOverlaps.add(portal.id);
-
-          const justEntered = !prevOverlaps.has(portal.id);
-          if (!justEntered) continue;
-          if (player.phaseTransferCooldownMs > 0) continue;
-
-          player.markPhaseTransferCooldown(PORTAL_TRANSFER_COOLDOWN_MS);
-          this.transferRequests.push({
-            playerId: player.id,
-            toInstanceId: portal.toInstanceId,
-            targetX: portal.targetX,
-            targetY: portal.targetY,
-          });
-          break;
-        }
-      }
-
-      this.portalOverlapsByPlayer.set(player.id, currOverlaps);
-    }
+    return this.portalSystem.spawnPortal(this.portals, config, this.now);
   }
 
   private rebuildSpatialIndexes(): void {
-    this.playerSpatialIndex.clear();
-    this.enemySpatialIndex.clear();
-    this.bossSpatialIndex.clear();
-    this.dropSpatialIndex.clear();
-    this.portalSpatialIndex.clear();
-    this.hazardSpatialIndex.clear();
-
-    for (const player of this.players.values()) {
-      this.playerSpatialIndex.insert(player.x, player.y, player);
-    }
-
-    for (const blob of this.blobs.values()) {
-      if (blob.state === 'dead') continue;
-      this.enemySpatialIndex.insert(blob.x, blob.y, blob);
-    }
-
-    for (const slime of this.slimes.values()) {
-      if (slime.state === 'dead') continue;
-      this.enemySpatialIndex.insert(slime.x, slime.y, slime);
-    }
-
-    for (const boss of this.bosses.values()) {
-      if (boss.state === 'dead') continue;
-      this.bossSpatialIndex.insert(boss.x, boss.y, boss);
-    }
-
-    for (const drop of this.drops.values()) {
-      this.dropSpatialIndex.insert(drop.x, drop.y, drop);
-    }
-
-    for (const portal of this.portals.values()) {
-      this.portalSpatialIndex.insert(portal.x, portal.y, portal);
-    }
-
-    for (const hazard of this.hazards.values()) {
-      this.hazardSpatialIndex.insert(hazard.x, hazard.y, hazard);
-    }
+    this.spatialIndexSystem.rebuild(
+      this.players,
+      this.blobs,
+      this.slimes,
+      this.bosses,
+      this.drops,
+      this.portals,
+      this.hazards
+    );
   }
 
   private getSpawnTargetEnemies(): Map<string, Blob> {
