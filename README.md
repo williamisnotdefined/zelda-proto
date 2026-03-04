@@ -138,13 +138,11 @@ DEV_START_PHASE=2 npm run dev:server
 
 ## Next Steps
 
-- [ ] Pesquisar sobre baixa performance de gifs
+- [ ] Portal no minimap
+- [ ] Portal cores diferentes
+- [ ] Nick em cima dos Players
 - [ ] Ataque especial do Gelehk
-- [ ] Dragon Lord deve tocar fire field na diagonal
-- [ ] Dragon lord quando morre precisa deixar portal para a fase 3
-- [ ] Fase 3
 - [ ] Distance weapon (e.g. bow)
-- [ ] client assets cleanup, delete unused assets
 
 
 ## Sprite Sheet Generator
