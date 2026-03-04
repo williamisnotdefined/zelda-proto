@@ -174,14 +174,21 @@ export class BossPhase3Entity {
     this.hpBar.y = this.sprite.y - HP_BAR_OFFSET_Y;
     this.hpBar.fillColor = 0xffcc66;
 
-    this.updateAnimation();
-
     const alive = this.serverState !== 'dead';
+    this.sprite.setVisible(alive);
     this.sprite.setDepth(alive ? 8 : 7);
     this.collisionShadow.setVisible(alive);
     this.label.setVisible(alive);
     this.hpBar.setVisible(alive);
     this.hpBarBg.setVisible(alive);
+
+    if (!alive) {
+      this.sprite.anims.stop();
+      this.currentAnimKey = '';
+      return;
+    }
+
+    this.updateAnimation();
   }
 
   private updateAnimation(): void {
