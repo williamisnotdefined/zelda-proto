@@ -1,7 +1,6 @@
 import { nanoid } from 'nanoid';
-import { BossGelehk } from '../../entities/BossGelehk.js';
 import { Player } from '../../entities/Player.js';
-import type { InstanceId, PortalKind } from '@gelehka/shared';
+import type { BossKind, InstanceId, PortalKind } from '@gelehka/shared';
 import type { BossActorEntity, Portal, PortalConfig, PortalTransferRequest } from '../World.js';
 
 const PORTAL_RADIUS = 42;
@@ -9,6 +8,7 @@ const PORTAL_TRANSFER_COOLDOWN_MS = 600;
 
 export interface BossDeathPortalConfig {
   kind: PortalKind;
+  sourceBossKinds?: readonly BossKind[];
   toInstanceId: InstanceId;
   targetX: number;
   targetY: number;
@@ -19,6 +19,7 @@ export interface BossDeathPortalConfig {
 export class PortalSystem {
   private transferRequests: PortalTransferRequest[] = [];
   private portalOverlapsByPlayer: Map<string, Set<string>> = new Map();
+  private handledBossDeathIds: Set<string> = new Set();
 
   spawnPortal(portals: Map<string, Portal>, config: PortalConfig, now: number): Portal {
     const id = `portal_${nanoid(8)}`;
@@ -67,6 +68,17 @@ export class PortalSystem {
     onBossDeathPortal?: BossDeathPortalConfig
   ): void {
     if (!onBossDeathPortal) return;
+    const allowedBossKinds =
+      onBossDeathPortal.sourceBossKinds && onBossDeathPortal.sourceBossKinds.length > 0
+        ? new Set(onBossDeathPortal.sourceBossKinds)
+        : null;
+
+    for (const handledBossId of this.handledBossDeathIds) {
+      const handledBoss = bosses.get(handledBossId);
+      if (!handledBoss || handledBoss.state !== 'dead') {
+        this.handledBossDeathIds.delete(handledBossId);
+      }
+    }
 
     for (const [portalId, portal] of portals) {
       if (portal.kind !== onBossDeathPortal.kind) continue;
@@ -75,15 +87,21 @@ export class PortalSystem {
         continue;
       }
       const sourceBoss = bosses.get(portal.sourceBossId);
-      if (!(sourceBoss instanceof BossGelehk) || sourceBoss.state !== 'dead') {
+      if (
+        !sourceBoss ||
+        sourceBoss.state !== 'dead' ||
+        (allowedBossKinds && !allowedBossKinds.has(sourceBoss.kind))
+      ) {
         portals.delete(portalId);
       }
     }
 
     for (const boss of bosses.values()) {
-      if (!(boss instanceof BossGelehk)) continue;
-      if (boss.state !== 'dead' || boss.deathHandled) continue;
-      boss.deathHandled = true;
+      if (boss.state !== 'dead') continue;
+      if (allowedBossKinds && !allowedBossKinds.has(boss.kind)) continue;
+      if (this.handledBossDeathIds.has(boss.id)) continue;
+
+      this.handledBossDeathIds.add(boss.id);
       this.spawnPortal(
         portals,
         {

@@ -26,9 +26,10 @@ import {
   DRAGON_LORD_HEIGHT,
   DRAGON_LORD_WIDTH,
 } from '../entities/DragonLord.js';
+import { Phase3Boss } from '../entities/Phase3Boss.js';
 import { SLIME_CONTACT_RADIUS } from '../entities/Slime.js';
 
-type BossLike = BossGelehk | DragonLord;
+type BossLike = BossGelehk | DragonLord | Phase3Boss;
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
@@ -132,8 +133,9 @@ export function resolveEnemyContactDamageWithSafeZone(
     if (blob.state === 'dead') continue;
     if (blob.damageCooldown > 0) continue;
 
-    const isSlime = blob.kind === ENEMY_KINDS.SLIME;
-    const contactRadius = isSlime ? SLIME_CONTACT_RADIUS : BLOB_CONTACT_RADIUS;
+    const usesSlimeContactRadius =
+      blob.kind === ENEMY_KINDS.SLIME || blob.kind === ENEMY_KINDS.HAND;
+    const contactRadius = usesSlimeContactRadius ? SLIME_CONTACT_RADIUS : BLOB_CONTACT_RADIUS;
     const blobCircle = entityCircle(blob.x, blob.y, contactRadius);
 
     for (const player of players.values()) {

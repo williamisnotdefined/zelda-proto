@@ -37,10 +37,31 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet('hand', 'assets/sprites/monsters/hand.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet('silverback_wainer', 'assets/sprites/monsters/Silverback Wainer.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet('slim_maioli', 'assets/sprites/monsters/Slim Maioli.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
+    this.load.spritesheet('frankly_stein', 'assets/sprites/monsters/Frankly Stein.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+
     this.load.image('fire_field', 'assets/sprites/fields/Fire_Field.gif');
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
+    this.load.image('ice_stone_floor_tile', 'assets/sprites/tilesets/Ice_Stone_Floor.gif');
     this.load.image('cut_grass_tile', 'assets/sprites/tilesets/Cut_Grass.gif');
     this.load.image('humanoid_remains', 'assets/sprites/objects/Humanoid_Remains.gif');
     this.load.image('pile_of_bones_animal', 'assets/sprites/objects/Pile_of_Bones_(Animal).gif');

@@ -10,6 +10,7 @@ export type BlobState = 'idle' | 'chasing' | 'attacking' | 'dead';
 export const INSTANCE_IDS = {
   PHASE1: 'phase1',
   PHASE2: 'phase2',
+  PHASE3: 'phase3',
 } as const;
 
 export type InstanceId = (typeof INSTANCE_IDS)[keyof typeof INSTANCE_IDS];
@@ -17,6 +18,7 @@ export type InstanceId = (typeof INSTANCE_IDS)[keyof typeof INSTANCE_IDS];
 export const ENEMY_KINDS = {
   BLOB: 'blob',
   SLIME: 'slime',
+  HAND: 'hand',
 } as const;
 
 export type EnemyKind = (typeof ENEMY_KINDS)[keyof typeof ENEMY_KINDS];
@@ -24,6 +26,9 @@ export type EnemyKind = (typeof ENEMY_KINDS)[keyof typeof ENEMY_KINDS];
 export const BOSS_KINDS = {
   GELEHK: 'gelehk',
   DRAGON_LORD: 'dragon_lord',
+  SILVERBACK_WAINER: 'silverback_wainer',
+  SLIM_MAIOLI: 'slim_maioli',
+  FRANKLY_STEIN: 'frankly_stein',
 } as const;
 
 export type BossKind = (typeof BOSS_KINDS)[keyof typeof BOSS_KINDS];
@@ -38,6 +43,8 @@ export type DropKind = (typeof DROP_KINDS)[keyof typeof DROP_KINDS];
 export const PORTAL_KINDS = {
   PHASE1_TO_PHASE2: 'phase1_to_phase2',
   PHASE2_TO_PHASE1: 'phase2_to_phase1',
+  PHASE2_TO_PHASE3: 'phase2_to_phase3',
+  PHASE3_TO_PHASE2: 'phase3_to_phase2',
 } as const;
 
 export type PortalKind = (typeof PORTAL_KINDS)[keyof typeof PORTAL_KINDS];

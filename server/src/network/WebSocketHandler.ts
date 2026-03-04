@@ -160,7 +160,13 @@ export class WebSocketHandler {
               mapHeight: 0,
             };
             this.networkManager.send(ws, welcome);
-            this.networkManager.send(ws, this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1));
+            this.networkManager.send(
+              ws,
+              this.buildLeaderboard(
+                instances,
+                instances.getInstanceForPlayer(playerId) ?? INSTANCE_IDS.PHASE1
+              )
+            );
           } else if (validMessage.type === CLIENT_MESSAGE_TYPES.INPUT) {
             if (++inputCount > INPUT_RATE_LIMIT) {
               registerRateViolation();
@@ -232,13 +238,18 @@ export class WebSocketHandler {
     if (this.snapshotTick % LEADERBOARD_INTERVAL_TICKS === 0) {
       const phase1Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1);
       const phase2Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE2);
+      const phase3Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE3);
 
       for (const [playerId, ws] of this.clients.entries()) {
         if (ws.readyState !== WebSocket.OPEN) continue;
         const instanceId = instances.getInstanceForPlayer(playerId);
         if (!instanceId) continue;
         const leaderboard =
-          instanceId === INSTANCE_IDS.PHASE1 ? phase1Leaderboard : phase2Leaderboard;
+          instanceId === INSTANCE_IDS.PHASE1
+            ? phase1Leaderboard
+            : instanceId === INSTANCE_IDS.PHASE2
+              ? phase2Leaderboard
+              : phase3Leaderboard;
         this.networkManager.send(ws, leaderboard);
       }
     }

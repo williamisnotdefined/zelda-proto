@@ -9,6 +9,7 @@ import { World as EntityWorld } from '../core/World.js';
 import { Blob } from '../entities/Blob.js';
 import { BossGelehk, ICE_ZONE_SLOW } from '../entities/BossGelehk.js';
 import { DragonLord } from '../entities/DragonLord.js';
+import { Phase3Boss } from '../entities/Phase3Boss.js';
 import { Player, SAFE_ZONE_DURATION } from '../entities/Player.js';
 import type { InputMessage } from '../network/MessageTypes.js';
 import {
@@ -82,17 +83,18 @@ export interface PortalConfig {
   durationMs?: number;
 }
 
-export type BossActorEntity = (BossGelehk | DragonLord) & BossActor;
+export type BossActorEntity = (BossGelehk | DragonLord | Phase3Boss) & BossActor;
 
 export interface WorldConfig {
   instanceId: InstanceId;
   spawnX: number;
   spawnY: number;
-  enemyCollection: 'blobs' | 'slimes';
+  enemyCollection: 'blobs' | 'slimes' | 'hands';
   spawnSystem: SpawnSystem;
   bossRegionSystem: BossRegionSystem<BossActorEntity>;
   onBossDeathPortal?: {
     kind: PortalKind;
+    sourceBossKinds?: readonly BossActorEntity['kind'][];
     toInstanceId: InstanceId;
     targetX: number;
     targetY: number;
@@ -107,6 +109,7 @@ export class World extends EntityWorld<Entity> {
   players: Map<string, Player>;
   blobs: Map<string, Blob>;
   slimes: Map<string, Blob>;
+  hands: Map<string, Blob>;
   bosses: Map<string, BossActorEntity>;
   drops: Map<string, Drop>;
   portals: Map<string, Portal>;
@@ -127,6 +130,7 @@ export class World extends EntityWorld<Entity> {
     this.players = new Map();
     this.blobs = new Map();
     this.slimes = new Map();
+    this.hands = new Map();
     this.bosses = new Map();
     this.drops = new Map();
     this.portals = new Map();
@@ -334,6 +338,7 @@ export class World extends EntityWorld<Entity> {
       this.players,
       this.blobs,
       this.slimes,
+      this.hands,
       this.bosses,
       this.drops,
       this.portals,
@@ -342,7 +347,13 @@ export class World extends EntityWorld<Entity> {
   }
 
   private getSpawnTargetEnemies(): Map<string, Blob> {
-    return this.config.enemyCollection === 'slimes' ? this.slimes : this.blobs;
+    if (this.config.enemyCollection === 'slimes') {
+      return this.slimes;
+    }
+    if (this.config.enemyCollection === 'hands') {
+      return this.hands;
+    }
+    return this.blobs;
   }
 
   private *getAllEnemies(): Iterable<Blob> {
@@ -351,6 +362,9 @@ export class World extends EntityWorld<Entity> {
     }
     for (const slime of this.slimes.values()) {
       yield slime;
+    }
+    for (const hand of this.hands.values()) {
+      yield hand;
     }
   }
 }

@@ -24,6 +24,7 @@ export class SpatialIndexSystem {
     players: Map<string, Player>,
     blobs: Map<string, Blob>,
     slimes: Map<string, Blob>,
+    hands: Map<string, Blob>,
     bosses: Map<string, BossActorEntity>,
     drops: Map<string, Drop>,
     portals: Map<string, Portal>,
@@ -48,6 +49,11 @@ export class SpatialIndexSystem {
     for (const slime of slimes.values()) {
       if (slime.state === 'dead') continue;
       this.enemySpatialIndex.insert(slime.x, slime.y, slime);
+    }
+
+    for (const hand of hands.values()) {
+      if (hand.state === 'dead') continue;
+      this.enemySpatialIndex.insert(hand.x, hand.y, hand);
     }
 
     for (const boss of bosses.values()) {

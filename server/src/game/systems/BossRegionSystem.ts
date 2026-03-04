@@ -1,8 +1,10 @@
 import { distanceSquared } from '../Physics.js';
 import { Entity } from '../../core/Entity.js';
 import { Player } from '../../entities/Player.js';
+import type { BossKind } from '@gelehka/shared';
 
 export interface BossActor extends Entity {
+  kind: BossKind;
   state: string;
   active?: boolean;
   update: (
@@ -22,6 +24,7 @@ export interface BossRegionContext {
 }
 
 export interface BossRegionSystemConfig<TBoss extends BossActor> {
+  enableRegionSpawns?: boolean;
   regionSize: number;
   activeRange: number;
   despawnTimeMs: number;
@@ -32,6 +35,7 @@ export interface BossRegionSystemConfig<TBoss extends BossActor> {
 }
 
 const DEFAULT_CONFIG: BossRegionSystemConfig<BossActor> = {
+  enableRegionSpawns: true,
   regionSize: 2000,
   activeRange: 2000,
   despawnTimeMs: 60000,
@@ -72,54 +76,56 @@ export class BossRegionSystem<TBoss extends BossActor> {
   ): void {
     const activeRegionKeys = new Set<string>();
 
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
+    if (this.config.enableRegionSpawns !== false) {
+      for (const player of players.values()) {
+        if (player.state === 'dead') continue;
 
-      const prx = Math.floor(player.x / this.config.regionSize);
-      const pry = Math.floor(player.y / this.config.regionSize);
+        const prx = Math.floor(player.x / this.config.regionSize);
+        const pry = Math.floor(player.y / this.config.regionSize);
 
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const rx = prx + dx;
-          const ry = pry + dy;
-          const key = `${this.config.keyPrefix}_${rx},${ry}`;
-          activeRegionKeys.add(key);
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const rx = prx + dx;
+            const ry = pry + dy;
+            const key = `${this.config.keyPrefix}_${rx},${ry}`;
+            activeRegionKeys.add(key);
 
-          const center = this.getBossRegionCenter(rx, ry);
-          const distSq = distanceSquared(player.x, player.y, center.x, center.y);
-          if (distSq > this.config.activeRange * this.config.activeRange) continue;
+            const center = this.getBossRegionCenter(rx, ry);
+            const distSq = distanceSquared(player.x, player.y, center.x, center.y);
+            if (distSq > this.config.activeRange * this.config.activeRange) continue;
 
-          let region = this.bossRegions.get(key);
-          if (!region) {
-            const bossId = `${this.config.bossPrefix}_${rx}_${ry}`;
-            const boss = this.config.createBoss(bossId, center.x, center.y);
-            bosses.set(bossId, boss);
-            addEntity(boss);
-            region = { key, bossId, lastPlayerNearby: now };
-            this.bossRegions.set(key, region);
-          } else {
-            region.lastPlayerNearby = now;
+            let region = this.bossRegions.get(key);
+            if (!region) {
+              const bossId = `${this.config.bossPrefix}_${rx}_${ry}`;
+              const boss = this.config.createBoss(bossId, center.x, center.y);
+              bosses.set(bossId, boss);
+              addEntity(boss);
+              region = { key, bossId, lastPlayerNearby: now };
+              this.bossRegions.set(key, region);
+            } else {
+              region.lastPlayerNearby = now;
+            }
           }
         }
       }
-    }
 
-    for (const [key, region] of this.bossRegions) {
-      if (activeRegionKeys.has(key)) {
-        continue;
-      }
+      for (const [key, region] of this.bossRegions) {
+        if (activeRegionKeys.has(key)) {
+          continue;
+        }
 
-      if (now - region.lastPlayerNearby <= this.config.despawnTimeMs) {
-        continue;
-      }
+        if (now - region.lastPlayerNearby <= this.config.despawnTimeMs) {
+          continue;
+        }
 
-      const boss = bosses.get(region.bossId);
-      const bossInactive = boss && boss.state === 'idle' && !boss.active;
-      const bossDead = boss && boss.state === 'dead';
-      if (boss && (bossInactive || bossDead)) {
-        bosses.delete(region.bossId);
-        removeEntity(region.bossId);
-        this.bossRegions.delete(key);
+        const boss = bosses.get(region.bossId);
+        const bossInactive = boss && boss.state === 'idle' && !boss.active;
+        const bossDead = boss && boss.state === 'dead';
+        if (boss && (bossInactive || bossDead)) {
+          bosses.delete(region.bossId);
+          removeEntity(region.bossId);
+          this.bossRegions.delete(key);
+        }
       }
     }
 

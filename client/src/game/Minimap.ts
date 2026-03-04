@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 import { BlobEntity } from '../entities/Blob';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';
+import { BossPhase3Entity } from '../entities/BossPhase3';
+import { HandEntity } from '../entities/Hand';
 import { PlayerEntity } from '../entities/Player';
 import { SlimeEntity } from '../entities/Slime';
 
-type BossEntity = BossGelehkEntity | BossDragonLordEntity;
+type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
 
 const MINIMAP_RADIUS = 60;
 const MINIMAP_SCREEN_MULTIPLIER = 3;
@@ -35,6 +37,7 @@ export class Minimap {
     playerEntities: Map<string, PlayerEntity>,
     blobEntities: Map<string, BlobEntity>,
     slimeEntities: Map<string, SlimeEntity>,
+    handEntities: Map<string, HandEntity>,
     bossEntities: Map<string, BossEntity>,
     localPlayerId: string | null
   ): void {
@@ -67,6 +70,10 @@ export class Minimap {
     for (const slime of slimeEntities.values()) {
       if (slime.serverState === 'dead') continue;
       this.drawDot(g, localX, localY, slime.x, slime.y, scale, 1.5);
+    }
+    for (const hand of handEntities.values()) {
+      if (hand.serverState === 'dead') continue;
+      this.drawDot(g, localX, localY, hand.x, hand.y, scale, 1.5);
     }
 
     // Draw bosses (purple dots, larger)

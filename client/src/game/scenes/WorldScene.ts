@@ -12,14 +12,22 @@ import type {
   ServerChatMessage,
   ServerMessage,
 } from '@gelehka/shared';
-import { CLIENT_MESSAGE_TYPES, PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import {
+  BOSS_KINDS,
+  CLIENT_MESSAGE_TYPES,
+  ENEMY_KINDS,
+  PROTOCOL_VERSION,
+  SERVER_MESSAGE_TYPES,
+} from '@gelehka/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import Phaser from 'phaser';
 import { BlobEntity } from '../../entities/Blob';
 import { BossDragonLordEntity } from '../../entities/BossDragonLord';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
+import { BossPhase3Entity } from '../../entities/BossPhase3';
 import { DropEntity } from '../../entities/DropEntity';
 import { FireFieldHazardEntity } from '../../entities/FireFieldHazardEntity';
+import { HandEntity } from '../../entities/Hand';
 import { PlayerEntity } from '../../entities/Player';
 import { PortalEntity } from '../../entities/PortalEntity';
 import { SlimeEntity } from '../../entities/Slime';
@@ -43,7 +51,7 @@ const ANIM_LOD_NEAR_TIME_SCALE = 1;
 const ANIM_LOD_MID_TIME_SCALE = 0.75;
 const ANIM_LOD_FAR_TIME_SCALE = 0.5;
 
-type BossEntity = BossGelehkEntity | BossDragonLordEntity;
+type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
 type Destroyable = { destroy: () => void };
 type PositionSyncEntity = Destroyable & { updatePosition: (x: number, y: number) => void };
 
@@ -53,6 +61,7 @@ export class WorldScene extends Phaser.Scene {
   private playerEntities: Map<string, PlayerEntity> = new Map();
   private blobEntities: Map<string, BlobEntity> = new Map();
   private slimeEntities: Map<string, SlimeEntity> = new Map();
+  private handEntities: Map<string, HandEntity> = new Map();
   private bossEntities: Map<string, BossEntity> = new Map();
   private dropEntities: Map<string, DropEntity> = new Map();
   private portalEntities: Map<string, PortalEntity> = new Map();
@@ -174,6 +183,7 @@ export class WorldScene extends Phaser.Scene {
     this.destroyEntityMap(this.playerEntities);
     this.destroyEntityMap(this.blobEntities);
     this.destroyEntityMap(this.slimeEntities);
+    this.destroyEntityMap(this.handEntities);
     this.destroyEntityMap(this.bossEntities);
     this.destroyEntityMap(this.dropEntities);
     this.destroyEntityMap(this.portalEntities);
@@ -249,8 +259,9 @@ export class WorldScene extends Phaser.Scene {
   private syncBlobs(enemies: EnemySnapshot[]): void {
     const seenBlobIds = new Set<string>();
     const seenSlimeIds = new Set<string>();
+    const seenHandIds = new Set<string>();
     for (const b of enemies) {
-      if (b.kind === 'blob') {
+      if (b.kind === ENEMY_KINDS.BLOB) {
         seenBlobIds.add(b.id);
         let entity = this.blobEntities.get(b.id);
         if (!entity) {
@@ -258,12 +269,26 @@ export class WorldScene extends Phaser.Scene {
           this.blobEntities.set(b.id, entity);
         }
         entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
-      } else {
+        continue;
+      }
+
+      if (b.kind === ENEMY_KINDS.SLIME) {
         seenSlimeIds.add(b.id);
         let entity = this.slimeEntities.get(b.id);
         if (!entity) {
           entity = new SlimeEntity(this, b.x, b.y);
           this.slimeEntities.set(b.id, entity);
+        }
+        entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
+        continue;
+      }
+
+      if (b.kind === ENEMY_KINDS.HAND) {
+        seenHandIds.add(b.id);
+        let entity = this.handEntities.get(b.id);
+        if (!entity) {
+          entity = new HandEntity(this, b.x, b.y);
+          this.handEntities.set(b.id, entity);
         }
         entity.updateFromServer(b.x, b.y, b.hp, b.maxHp, b.state);
       }
@@ -280,6 +305,13 @@ export class WorldScene extends Phaser.Scene {
       if (!seenSlimeIds.has(id)) {
         entity.destroy();
         this.slimeEntities.delete(id);
+      }
+    }
+
+    for (const [id, entity] of this.handEntities) {
+      if (!seenHandIds.has(id)) {
+        entity.destroy();
+        this.handEntities.delete(id);
       }
     }
   }
@@ -301,10 +333,21 @@ export class WorldScene extends Phaser.Scene {
       seenBossIds.add(b.id);
       let entity = this.bossEntities.get(b.id);
       if (!entity) {
-        entity =
-          b.kind === 'gelehk'
-            ? new BossGelehkEntity(this, b.x, b.y)
-            : new BossDragonLordEntity(this, b.x, b.y);
+        if (b.kind === BOSS_KINDS.GELEHK) {
+          entity = new BossGelehkEntity(this, b.x, b.y);
+        } else if (b.kind === BOSS_KINDS.DRAGON_LORD) {
+          entity = new BossDragonLordEntity(this, b.x, b.y);
+        } else {
+          const visual = this.getPhase3BossVisual(b.kind);
+          entity = new BossPhase3Entity(
+            this,
+            b.x,
+            b.y,
+            visual.textureKey,
+            visual.animPrefix,
+            visual.label
+          );
+        }
         this.bossEntities.set(b.id, entity);
       }
       if (entity instanceof BossGelehkEntity) {
@@ -483,6 +526,12 @@ export class WorldScene extends Phaser.Scene {
       entity.update(delta, inView, animTimeScale);
     }
 
+    for (const entity of this.handEntities.values()) {
+      const inView = this.isEntityInView(expandedView, entity.x, entity.y);
+      const animTimeScale = this.getAnimationLodTimeScale(localX, localY, entity.x, entity.y);
+      entity.update(delta, inView, animTimeScale);
+    }
+
     for (const entity of this.bossEntities.values()) {
       entity.update(delta);
     }
@@ -510,6 +559,7 @@ export class WorldScene extends Phaser.Scene {
           this.playerEntities,
           this.blobEntities,
           this.slimeEntities,
+          this.handEntities,
           this.bossEntities,
           this.localPlayerId
         );
@@ -532,6 +582,7 @@ export class WorldScene extends Phaser.Scene {
     this.destroyEntityMap(this.playerEntities);
     this.destroyEntityMap(this.blobEntities);
     this.destroyEntityMap(this.slimeEntities);
+    this.destroyEntityMap(this.handEntities);
     this.destroyEntityMap(this.bossEntities);
     this.destroyEntityMap(this.dropEntities);
     this.destroyEntityMap(this.portalEntities);
@@ -607,5 +658,31 @@ export class WorldScene extends Phaser.Scene {
       return true;
     }
     return active.isContentEditable;
+  }
+
+  private getPhase3BossVisual(kind: BossSnapshot['kind']): {
+    textureKey: string;
+    animPrefix: string;
+    label: string;
+  } {
+    if (kind === BOSS_KINDS.SILVERBACK_WAINER) {
+      return {
+        textureKey: 'silverback_wainer',
+        animPrefix: 'silverback_wainer',
+        label: 'SILVERBACK WAINER',
+      };
+    }
+    if (kind === BOSS_KINDS.SLIM_MAIOLI) {
+      return {
+        textureKey: 'slim_maioli',
+        animPrefix: 'slim_maioli',
+        label: 'SLIM MAIOLI',
+      };
+    }
+    return {
+      textureKey: 'frankly_stein',
+      animPrefix: 'frankly_stein',
+      label: 'FRANKLY STEIN',
+    };
   }
 }

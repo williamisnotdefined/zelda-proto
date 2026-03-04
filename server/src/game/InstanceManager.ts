@@ -1,10 +1,12 @@
 import { WORLD_SPAWN_X, WORLD_SPAWN_Y } from '@gelehka/shared/constants';
-import { DROP_KINDS, INSTANCE_IDS, PORTAL_KINDS } from '@gelehka/shared';
+import { BOSS_KINDS, DROP_KINDS, INSTANCE_IDS, PORTAL_KINDS } from '@gelehka/shared';
 import type { InstanceId } from '@gelehka/shared';
 import { nanoid } from 'nanoid';
 import { BLOB_CONFIG, Blob } from '../entities/Blob.js';
 import { BossGelehk } from '../entities/BossGelehk.js';
 import { DragonLord } from '../entities/DragonLord.js';
+import { Hand } from '../entities/Hand.js';
+import { Phase3Boss } from '../entities/Phase3Boss.js';
 import { Slime } from '../entities/Slime.js';
 import { Player } from '../entities/Player.js';
 import type { InputMessage } from '../network/MessageTypes.js';
@@ -18,13 +20,37 @@ const PHASE2_NEARBY_RADIUS = 900;
 const PHASE2_MIN_NEARBY_SLIMES = 4;
 const PHASE2_STARTER_SLIMES = 8;
 const PHASE2_DRAGON_NEARBY_RADIUS = 1800;
+const PHASE3_RETURN_PORTAL_OFFSET_X = 240;
+const PHASE3_ENTRY_BOSS_SPAWN_DEFS = [
+  {
+    id: 'phase3_boss_silverback_entry',
+    kind: BOSS_KINDS.SILVERBACK_WAINER,
+    offsetX: 120,
+    offsetY: -90,
+  },
+  {
+    id: 'phase3_boss_slim_entry',
+    kind: BOSS_KINDS.SLIM_MAIOLI,
+    offsetX: 160,
+    offsetY: 120,
+  },
+  {
+    id: 'phase3_boss_frankly_entry',
+    kind: BOSS_KINDS.FRANKLY_STEIN,
+    offsetX: -120,
+    offsetY: 30,
+  },
+] as const;
 const DEV_START_PHASE_ENV = 'DEV_START_PHASE';
 
 export class InstanceManager {
   readonly phase1World: World;
   readonly phase2World: World;
+  readonly phase3World: World;
   private readonly phase2SpawnX: number;
   private readonly phase2SpawnY: number;
+  private readonly phase3SpawnX: number;
+  private readonly phase3SpawnY: number;
   private readonly initialInstanceId: InstanceId;
 
   private readonly playerInstances: Map<string, InstanceId>;
@@ -32,6 +58,8 @@ export class InstanceManager {
   constructor() {
     this.phase2SpawnX = WORLD_SPAWN_X + 180;
     this.phase2SpawnY = WORLD_SPAWN_Y;
+    this.phase3SpawnX = WORLD_SPAWN_X + 360;
+    this.phase3SpawnY = WORLD_SPAWN_Y;
 
     const phase1SpawnSystem = new SpawnSystem({
       enemyPrefix: 'blob',
@@ -42,6 +70,11 @@ export class InstanceManager {
     const phase2SpawnSystem = new SpawnSystem({
       enemyPrefix: 'slime',
       createEnemy: (id, x, y, chunkKey) => new Slime(id, x, y, chunkKey),
+    });
+
+    const phase3SpawnSystem = new SpawnSystem({
+      enemyPrefix: 'hand',
+      createEnemy: (id, x, y, chunkKey) => new Hand(id, x, y, chunkKey),
     });
 
     const phase1BossSystem = new BossRegionSystem<BossActorEntity>({
@@ -81,6 +114,23 @@ export class InstanceManager {
       },
     });
 
+    const phase3BossSystem = new BossRegionSystem<BossActorEntity>({
+      enableRegionSpawns: false,
+      regionSize: 2600,
+      activeRange: 2200,
+      despawnTimeMs: 60000,
+      keyPrefix: 'phase3_boss_region',
+      bossPrefix: 'phase3_boss',
+      createBoss: (id, x, y) => new Phase3Boss(id, x, y, BOSS_KINDS.SILVERBACK_WAINER),
+      updateBoss: (boss, ctx) => {
+        if (boss instanceof DragonLord) {
+          boss.update(ctx.dt, ctx.players, (x: number, y: number, dirX: number, dirY: number) => {
+            ctx.spawnFireLine(x, y, dirX, dirY);
+          });
+        }
+      },
+    });
+
     this.phase1World = new World({
       instanceId: INSTANCE_IDS.PHASE1,
       spawnX: WORLD_SPAWN_X,
@@ -90,6 +140,7 @@ export class InstanceManager {
       bossRegionSystem: phase1BossSystem,
       onBossDeathPortal: {
         kind: PORTAL_KINDS.PHASE1_TO_PHASE2,
+        sourceBossKinds: [BOSS_KINDS.GELEHK],
         toInstanceId: INSTANCE_IDS.PHASE2,
         targetX: this.phase2SpawnX,
         targetY: this.phase2SpawnY,
@@ -105,6 +156,15 @@ export class InstanceManager {
       enemyCollection: 'slimes',
       spawnSystem: phase2SpawnSystem,
       bossRegionSystem: phase2BossSystem,
+      onBossDeathPortal: {
+        kind: PORTAL_KINDS.PHASE2_TO_PHASE3,
+        sourceBossKinds: [BOSS_KINDS.DRAGON_LORD],
+        toInstanceId: INSTANCE_IDS.PHASE3,
+        targetX: this.phase3SpawnX,
+        targetY: this.phase3SpawnY,
+        activationDelayMs: 500,
+        durationMs: PHASE1_PORTAL_DURATION_MS,
+      },
       initialPortals: [
         {
           kind: PORTAL_KINDS.PHASE2_TO_PHASE1,
@@ -117,7 +177,27 @@ export class InstanceManager {
       ],
     });
 
+    this.phase3World = new World({
+      instanceId: INSTANCE_IDS.PHASE3,
+      spawnX: this.phase3SpawnX,
+      spawnY: this.phase3SpawnY,
+      enemyCollection: 'hands',
+      spawnSystem: phase3SpawnSystem,
+      bossRegionSystem: phase3BossSystem,
+      initialPortals: [
+        {
+          kind: PORTAL_KINDS.PHASE3_TO_PHASE2,
+          x: this.phase3SpawnX + PHASE3_RETURN_PORTAL_OFFSET_X,
+          y: this.phase3SpawnY,
+          toInstanceId: INSTANCE_IDS.PHASE2,
+          targetX: this.phase2SpawnX,
+          targetY: this.phase2SpawnY,
+        },
+      ],
+    });
+
     this.seedPhase2StarterContent();
+    this.ensurePhase3BossesNear(this.phase3SpawnX, this.phase3SpawnY);
 
     this.initialInstanceId = this.resolveInitialInstanceId();
 
@@ -127,6 +207,7 @@ export class InstanceManager {
   update(dt: number): void {
     this.phase1World.update(dt);
     this.phase2World.update(dt);
+    this.phase3World.update(dt);
     this.resolveTransfers();
   }
 
@@ -155,7 +236,7 @@ export class InstanceManager {
   }
 
   getAllWorlds(): World[] {
-    return [this.phase1World, this.phase2World];
+    return [this.phase1World, this.phase2World, this.phase3World];
   }
 
   getInstanceForPlayer(playerId: string): InstanceId | null {
@@ -163,7 +244,13 @@ export class InstanceManager {
   }
 
   getPlayersInInstance(instanceId: InstanceId): Map<string, Player> {
-    return instanceId === INSTANCE_IDS.PHASE1 ? this.phase1World.players : this.phase2World.players;
+    if (instanceId === INSTANCE_IDS.PHASE1) {
+      return this.phase1World.players;
+    }
+    if (instanceId === INSTANCE_IDS.PHASE2) {
+      return this.phase2World.players;
+    }
+    return this.phase3World.players;
   }
 
   getPlayersInAnyWorld(): Map<string, Player> {
@@ -179,7 +266,8 @@ export class InstanceManager {
   private resolveTransfers(): void {
     const phase1Transfers = this.phase1World.consumeTransferRequests();
     const phase2Transfers = this.phase2World.consumeTransferRequests();
-    for (const transfer of [...phase1Transfers, ...phase2Transfers]) {
+    const phase3Transfers = this.phase3World.consumeTransferRequests();
+    for (const transfer of [...phase1Transfers, ...phase2Transfers, ...phase3Transfers]) {
       this.transferPlayer(
         transfer.playerId,
         transfer.toInstanceId,
@@ -204,11 +292,19 @@ export class InstanceManager {
 
     if (toInstanceId === INSTANCE_IDS.PHASE2) {
       this.ensurePhase2PopulationNear(x, y);
+    } else if (toInstanceId === INSTANCE_IDS.PHASE3) {
+      this.ensurePhase3BossesNear(x, y);
     }
   }
 
   private getWorld(instanceId: InstanceId): World {
-    return instanceId === INSTANCE_IDS.PHASE1 ? this.phase1World : this.phase2World;
+    if (instanceId === INSTANCE_IDS.PHASE1) {
+      return this.phase1World;
+    }
+    if (instanceId === INSTANCE_IDS.PHASE2) {
+      return this.phase2World;
+    }
+    return this.phase3World;
   }
 
   private resolveInitialInstanceId(): InstanceId {
@@ -295,6 +391,36 @@ export class InstanceManager {
       const dragon = new DragonLord(bossId, x + 520, y + 160);
       this.phase2World.bosses.set(bossId, dragon);
       this.phase2World.add(dragon);
+    }
+  }
+
+  private ensurePhase3BossesNear(entryX: number, entryY: number): void {
+    const expectedBossIds = new Set<string>(PHASE3_ENTRY_BOSS_SPAWN_DEFS.map((def) => def.id));
+
+    for (const [bossId, boss] of this.phase3World.bosses) {
+      if (expectedBossIds.has(bossId)) continue;
+      this.phase3World.bosses.delete(bossId);
+      this.phase3World.remove(bossId);
+    }
+
+    for (const bossDef of PHASE3_ENTRY_BOSS_SPAWN_DEFS) {
+      const bossX = entryX + bossDef.offsetX;
+      const bossY = entryY + bossDef.offsetY;
+      const existing = this.phase3World.bosses.get(bossDef.id);
+      if (existing && existing instanceof Phase3Boss) {
+        existing.spawnX = bossX;
+        existing.spawnY = bossY;
+        continue;
+      }
+
+      if (existing) {
+        this.phase3World.bosses.delete(bossDef.id);
+        this.phase3World.remove(bossDef.id);
+      }
+
+      const boss = new Phase3Boss(bossDef.id, bossX, bossY, bossDef.kind);
+      this.phase3World.bosses.set(bossDef.id, boss);
+      this.phase3World.add(boss);
     }
   }
 }

@@ -6,7 +6,7 @@ import type { BossSnapshot, BossState } from '../network/MessageTypes.js';
 import { Player } from './Player.js';
 
 export const DRAGON_LORD_MAX_HP = 125;
-export const DRAGON_LORD_SPEED = 60;
+export const DRAGON_LORD_SPEED = 80;
 export const DRAGON_LORD_DAMAGE = 5;
 export const DRAGON_LORD_AGGRO_RADIUS = 700;
 export const DRAGON_LORD_WIDTH = 96;

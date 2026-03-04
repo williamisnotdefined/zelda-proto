@@ -33,6 +33,9 @@ export class SnapshotSystem {
     for (const slime of world.slimes.values()) {
       if (slime.state !== 'dead') enemies.push(slime.toSnapshot());
     }
+    for (const hand of world.hands.values()) {
+      if (hand.state !== 'dead') enemies.push(hand.toSnapshot());
+    }
 
     const bosses = [];
     for (const boss of world.bosses.values()) {

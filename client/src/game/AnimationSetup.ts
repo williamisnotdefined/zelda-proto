@@ -29,6 +29,33 @@ function createRowAnims(
   }
 }
 
+function createStripDirectionAnims(
+  scene: Phaser.Scene,
+  textureKey: string,
+  definitions: { key: string; start: number; end: number; frameRate: number }[]
+): void {
+  const texture = scene.textures.get(textureKey);
+  const frameIndexes = texture
+    .getFrameNames()
+    .map((name) => Number(name))
+    .filter((value) => Number.isInteger(value));
+  const lastFrameIndex = frameIndexes.length > 0 ? Math.max(...frameIndexes) : 0;
+
+  for (const def of definitions) {
+    const start = Math.min(def.start, lastFrameIndex);
+    const end = Math.min(def.end, lastFrameIndex);
+    if (end < start) continue;
+
+    scene.anims.remove(def.key);
+    scene.anims.create({
+      key: def.key,
+      frames: scene.anims.generateFrameNumbers(textureKey, { start, end }),
+      frameRate: def.frameRate,
+      repeat: -1,
+    });
+  }
+}
+
 export function setupAnimations(scene: Phaser.Scene): void {
   // --- Player (48x48, 6 cols x 10 rows) ---
   // Rows: 0=idle_down, 1=idle_right, 2=idle_up
@@ -149,4 +176,32 @@ export function setupAnimations(scene: Phaser.Scene): void {
       repeat: -1,
     });
   }
+
+  createStripDirectionAnims(scene, 'hand', [
+    { key: 'hand_down', start: 0, end: 1, frameRate: 2.5 },
+    { key: 'hand_right', start: 4, end: 5, frameRate: 2.5 },
+    { key: 'hand_left', start: 2, end: 3, frameRate: 2.5 },
+    { key: 'hand_up', start: 6, end: 7, frameRate: 2.5 },
+  ]);
+
+  createStripDirectionAnims(scene, 'silverback_wainer', [
+    { key: 'silverback_wainer_down', start: 0, end: 7, frameRate: 10 },
+    { key: 'silverback_wainer_right', start: 16, end: 23, frameRate: 10 },
+    { key: 'silverback_wainer_left', start: 8, end: 15, frameRate: 10 },
+    { key: 'silverback_wainer_up', start: 24, end: 31, frameRate: 10 },
+  ]);
+
+  createStripDirectionAnims(scene, 'slim_maioli', [
+    { key: 'slim_maioli_down', start: 0, end: 7, frameRate: 10 },
+    { key: 'slim_maioli_right', start: 16, end: 23, frameRate: 10 },
+    { key: 'slim_maioli_left', start: 8, end: 15, frameRate: 10 },
+    { key: 'slim_maioli_up', start: 24, end: 31, frameRate: 10 },
+  ]);
+
+  createStripDirectionAnims(scene, 'frankly_stein', [
+    { key: 'frankly_stein_down', start: 0, end: 1, frameRate: 2.5 },
+    { key: 'frankly_stein_right', start: 4, end: 5, frameRate: 2.5 },
+    { key: 'frankly_stein_left', start: 2, end: 3, frameRate: 2.5 },
+    { key: 'frankly_stein_up', start: 6, end: 7, frameRate: 2.5 },
+  ]);
 }

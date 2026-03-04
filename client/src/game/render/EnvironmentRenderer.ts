@@ -68,7 +68,9 @@ export class EnvironmentRenderer {
   }
 
   private getBackgroundTextureKey(instanceId: InstanceId | null): string {
-    return instanceId === INSTANCE_IDS.PHASE2 ? 'stone_floor_bege_tile' : 'grass_tile';
+    if (instanceId === INSTANCE_IDS.PHASE2) return 'stone_floor_bege_tile';
+    if (instanceId === INSTANCE_IDS.PHASE3) return 'ice_stone_floor_tile';
+    return 'grass_tile';
   }
 
   private resetChunkDecor(): void {
@@ -151,6 +153,11 @@ export class EnvironmentRenderer {
         sprites.push(sprite);
       }
 
+      this.activeChunks.set(key, sprites);
+      return;
+    }
+
+    if (instanceId === INSTANCE_IDS.PHASE3) {
       this.activeChunks.set(key, sprites);
       return;
     }
