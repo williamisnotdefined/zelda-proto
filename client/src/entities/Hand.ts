@@ -161,6 +161,13 @@ export class HandEntity {
   private updateAnimation(): void {
     const preferredKey = `hand_${this.facing}`;
     const animKey = this.sprite.scene.anims.exists(preferredKey) ? preferredKey : 'hand_down';
+    const anim = this.sprite.scene.anims.get(animKey);
+    if (!anim || !anim.frames || anim.frames.length === 0) {
+      this.sprite.anims.stop();
+      this.currentAnimKey = '';
+      return;
+    }
+
     if (this.currentAnimKey === animKey) {
       return;
     }

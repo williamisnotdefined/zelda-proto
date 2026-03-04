@@ -45,11 +45,13 @@ function createStripDirectionAnims(
     const start = Math.min(def.start, lastFrameIndex);
     const end = Math.min(def.end, lastFrameIndex);
     if (end < start) continue;
+    const frames = scene.anims.generateFrameNumbers(textureKey, { start, end });
+    if (frames.length === 0) continue;
 
     scene.anims.remove(def.key);
     scene.anims.create({
       key: def.key,
-      frames: scene.anims.generateFrameNumbers(textureKey, { start, end }),
+      frames,
       frameRate: def.frameRate,
       repeat: -1,
     });

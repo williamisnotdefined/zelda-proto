@@ -201,6 +201,14 @@ export class BossPhase3Entity {
         : '';
 
     if (!animKey) {
+      this.sprite.anims.stop();
+      this.currentAnimKey = '';
+      return;
+    }
+
+    const anim = this.sprite.scene.anims.get(animKey);
+    if (!anim || !anim.frames || anim.frames.length === 0) {
+      this.sprite.anims.stop();
       this.currentAnimKey = '';
       return;
     }

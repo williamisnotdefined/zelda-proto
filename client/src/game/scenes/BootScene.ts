@@ -42,17 +42,17 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
-    this.load.spritesheet('silverback_wainer', 'assets/sprites/monsters/Silverback Wainer.png', {
+    this.load.spritesheet('silverback_wainer', 'assets/sprites/monsters/silverback_wainer.png', {
       frameWidth: 64,
       frameHeight: 64,
     });
 
-    this.load.spritesheet('slim_maioli', 'assets/sprites/monsters/Slim Maioli.png', {
+    this.load.spritesheet('slim_maioli', 'assets/sprites/monsters/slim_maioli.png', {
       frameWidth: 64,
       frameHeight: 64,
     });
 
-    this.load.spritesheet('frankly_stein', 'assets/sprites/monsters/Frankly Stein.png', {
+    this.load.spritesheet('frankly_stein', 'assets/sprites/monsters/frankly_stein.png', {
       frameWidth: 64,
       frameHeight: 64,
     });
