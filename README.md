@@ -138,9 +138,6 @@ DEV_START_PHASE=2 npm run dev:server
 
 ## Next Steps
 
-- [ ] Portal no minimap
-- [ ] Portal cores diferentes
-- [ ] Nick em cima dos Players
 - [ ] Ataque especial do Gelehk
 - [ ] Distance weapon (e.g. bow)
 
