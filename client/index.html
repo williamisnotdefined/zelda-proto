@@ -1,14 +1,33 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Legends of Gelehk</title>
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #111; overflow: hidden; }
-      #root { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
-      #game-container { width: 100%; height: 100%; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #111;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      #root {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        touch-action: none;
+      }
+      #game-container {
+        width: 100%;
+        height: 100%;
+      }
     </style>
   </head>
   <body>
