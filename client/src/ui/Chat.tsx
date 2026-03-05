@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTouchInputStore } from '../game/input/touchInputStore';
 import { sendChat } from '../network/socket';
 import { useGameStore } from './store';
 
@@ -8,6 +9,7 @@ const FADE_TIMEOUT_MS = 8000;
 export function Chat() {
   const chatMessages = useGameStore((s) => s.chatMessages);
   const showNicknameModal = useGameStore((s) => s.showNicknameModal);
+  const touchEnabled = useTouchInputStore((s) => s.enabled);
   const [input, setInput] = useState('');
   const [faded, setFaded] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -78,7 +80,7 @@ export function Chat() {
     <div
       style={{
         position: 'absolute',
-        bottom: 52,
+        bottom: touchEnabled ? 170 : 52,
         left: 16,
         width: 300,
         display: 'flex',

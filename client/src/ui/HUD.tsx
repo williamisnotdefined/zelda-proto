@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
 import { connect } from '../network/socket';
 import { Chat } from './Chat';
@@ -12,6 +13,7 @@ export function HUD() {
   const playerCount = useGameStore((s) => s.playerCount);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
+  const touchEnabled = useTouchInputStore((s) => s.enabled);
   const [musicMuted, setMusicMuted] = useState(false);
 
   useEffect(() => {
@@ -163,17 +165,19 @@ export function HUD() {
       )}
 
       {/* Controls hint */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 8,
-          right: 8,
-          fontSize: '10px',
-          opacity: 0.4,
-        }}
-      >
-        Arrow keys / WASD: move | Space: attack | Tab: players
-      </div>
+      {!touchEnabled && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            right: 8,
+            fontSize: '10px',
+            opacity: 0.4,
+          }}
+        >
+          Arrow keys / WASD: move | Space: attack | Tab: players
+        </div>
+      )}
 
       {/* Chat */}
       <Chat />
