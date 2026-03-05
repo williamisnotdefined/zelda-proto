@@ -32,6 +32,7 @@ import { PlayerEntity } from '../../entities/Player';
 import { PortalEntity } from '../../entities/PortalEntity';
 import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
+import { useTouchInputStore } from '../input/touchInputStore';
 import { useGameStore } from '../../ui/store';
 import { PredictionController } from '../controllers/PredictionController';
 import type { InputState, PendingInput } from '../controllers/PredictionController';
@@ -73,7 +74,7 @@ export class WorldScene extends Phaser.Scene {
   private keyS!: Phaser.Input.Keyboard.Key;
   private keyD!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
-  private prevAttack = false;
+  private prevAttackDown = false;
 
   private removeMessageHandler: (() => void) | null = null;
   private removeErrorHandler: (() => void) | null = null;
@@ -125,6 +126,7 @@ export class WorldScene extends Phaser.Scene {
           this.pendingInputs = [];
           this.inputSendAccumulatorMs = 0;
           this.lastSentInputState = null;
+          this.prevAttackDown = false;
           this.fx.resetLocalToastyCounter();
           this.pendingSafeZoneForLocalPlayer = true;
           break;
@@ -250,6 +252,7 @@ export class WorldScene extends Phaser.Scene {
       this.pendingInputs = [];
       this.inputSendAccumulatorMs = 0;
       this.lastSentInputState = null;
+      this.prevAttackDown = false;
       this.pendingSafeZoneForLocalPlayer = false;
       this.fx.resetLocalToastyCounter();
       useGameStore.getState().setLocalPlayer(null);
@@ -424,13 +427,16 @@ export class WorldScene extends Phaser.Scene {
     const localDead = localEntity?.serverState === 'dead';
     const uiBlocked = useGameStore.getState().showNicknameModal || this.isTypingInInput();
 
-    const attack = this.attackKey.isDown && !this.prevAttack;
-    this.prevAttack = this.attackKey.isDown;
+    const touchInput = useTouchInputStore.getState();
 
-    const upPressed = this.cursors.up.isDown || this.keyW.isDown;
-    const downPressed = this.cursors.down.isDown || this.keyS.isDown;
-    const leftPressed = this.cursors.left.isDown || this.keyA.isDown;
-    const rightPressed = this.cursors.right.isDown || this.keyD.isDown;
+    const rawAttackDown = this.attackKey.isDown || touchInput.attackPressed;
+    const attack = rawAttackDown && !this.prevAttackDown;
+    this.prevAttackDown = rawAttackDown;
+
+    const upPressed = this.cursors.up.isDown || this.keyW.isDown || touchInput.move.up;
+    const downPressed = this.cursors.down.isDown || this.keyS.isDown || touchInput.move.down;
+    const leftPressed = this.cursors.left.isDown || this.keyA.isDown || touchInput.move.left;
+    const rightPressed = this.cursors.right.isDown || this.keyD.isDown || touchInput.move.right;
 
     const inputState: InputState = {
       up: !uiBlocked && !localDead && upPressed,
@@ -575,6 +581,7 @@ export class WorldScene extends Phaser.Scene {
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
+    this.prevAttackDown = false;
     this.currentInstanceId = null;
     this.pendingSafeZoneForLocalPlayer = false;
     this.minimapAccumulatorMs = 0;
