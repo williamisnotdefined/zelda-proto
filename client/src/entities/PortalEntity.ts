@@ -1,28 +1,36 @@
 import Phaser from 'phaser';
+import { PORTAL_KINDS, type PortalKind } from '@gelehka/shared';
 
-const PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
-const PORTAL_SIZE_PX = 36;
+const RETURN_PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
+const ADVANCE_PORTAL_GIF_PATH = '/assets/sprites/teleports/Energy_Portal.gif';
+const RETURN_PORTAL_SIZE_PX = 36;
+const ADVANCE_PORTAL_SIZE_PX = 80;
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 
 export class PortalEntity {
   element: Phaser.GameObjects.DOMElement;
+  kind: PortalKind;
   private targetX: number;
   private targetY: number;
+  private imageElement: HTMLImageElement;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, kind: PortalKind) {
     this.targetX = x;
     this.targetY = y;
+    this.kind = kind;
 
     const img = document.createElement('img');
-    img.src = PORTAL_GIF_PATH;
+    img.src = this.getPortalGifPath(kind);
     img.alt = 'Portal';
     img.draggable = false;
-    img.style.width = `${PORTAL_SIZE_PX}px`;
-    img.style.height = `${PORTAL_SIZE_PX}px`;
+    const sizePx = this.getPortalSizePx(kind);
+    img.style.width = `${sizePx}px`;
+    img.style.height = `${sizePx}px`;
     img.style.pointerEvents = 'none';
     img.style.userSelect = 'none';
+    this.imageElement = img;
 
     this.element = scene.add.dom(x, y, img);
     this.element.setDepth(6);
@@ -32,6 +40,15 @@ export class PortalEntity {
   updatePosition(x: number, y: number): void {
     this.targetX = x;
     this.targetY = y;
+  }
+
+  updateKind(kind: PortalKind): void {
+    if (this.kind === kind) return;
+    this.kind = kind;
+    this.imageElement.src = this.getPortalGifPath(kind);
+    const sizePx = this.getPortalSizePx(kind);
+    this.imageElement.style.width = `${sizePx}px`;
+    this.imageElement.style.height = `${sizePx}px`;
   }
 
   get x(): number {
@@ -64,5 +81,19 @@ export class PortalEntity {
 
   destroy(): void {
     this.element.destroy();
+  }
+
+  private getPortalGifPath(kind: PortalKind): string {
+    if (kind === PORTAL_KINDS.PHASE1_TO_PHASE2 || kind === PORTAL_KINDS.PHASE2_TO_PHASE3) {
+      return ADVANCE_PORTAL_GIF_PATH;
+    }
+    return RETURN_PORTAL_GIF_PATH;
+  }
+
+  private getPortalSizePx(kind: PortalKind): number {
+    if (kind === PORTAL_KINDS.PHASE1_TO_PHASE2 || kind === PORTAL_KINDS.PHASE2_TO_PHASE3) {
+      return ADVANCE_PORTAL_SIZE_PX;
+    }
+    return RETURN_PORTAL_SIZE_PX;
   }
 }

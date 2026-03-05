@@ -25,11 +25,13 @@ const ATTACK_RANGE_UP = 40;
 const ATTACK_RANGE_DOWN = 56;
 const ATTACK_RANGE_LEFT = 48;
 const ATTACK_RANGE_RIGHT = 48;
+const NICKNAME_OFFSET_Y = 36;
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
   hpBar: Phaser.GameObjects.Rectangle;
   hpBarBg: Phaser.GameObjects.Rectangle;
+  nicknameLabel: Phaser.GameObjects.Text;
   isLocal: boolean;
   targetX: number;
   targetY: number;
@@ -80,6 +82,16 @@ export class PlayerEntity {
 
     this.hpBar = scene.add.rectangle(x, y - 26, 32, 4, 0x44ff44);
     this.hpBar.setDepth(12);
+
+    this.nicknameLabel = scene.add.text(x, y - NICKNAME_OFFSET_Y, nickname, {
+      fontFamily: 'monospace',
+      fontSize: '11px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
+    });
+    this.nicknameLabel.setOrigin(0.5, 1);
+    this.nicknameLabel.setDepth(14);
 
     const burningImg = document.createElement('img');
     burningImg.src = FIRE_FIELD_GIF_PATH;
@@ -170,6 +182,8 @@ export class PlayerEntity {
     this.hpBar.x = this.sprite.x - (32 - this.hpBar.width) / 2;
     this.hpBar.y = this.sprite.y - 26;
     this.hpBar.fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff4444;
+    this.nicknameLabel.x = this.sprite.x;
+    this.nicknameLabel.y = this.sprite.y - NICKNAME_OFFSET_Y;
 
     this.burningOverlay.x = this.sprite.x;
     this.burningOverlay.y =
@@ -290,6 +304,12 @@ export class PlayerEntity {
     }
   }
 
+  setNickname(nickname: string): void {
+    if (this.nickname === nickname) return;
+    this.nickname = nickname;
+    this.nicknameLabel.setText(nickname);
+  }
+
   destroy(): void {
     this.sprite.destroy();
     this.contactShadow.destroy();
@@ -297,6 +317,7 @@ export class PlayerEntity {
     this.attackShadow.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();
+    this.nicknameLabel.destroy();
     this.burningOverlay.destroy();
   }
 }

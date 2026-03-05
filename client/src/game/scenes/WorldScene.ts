@@ -204,6 +204,7 @@ export class WorldScene extends Phaser.Scene {
         entity = new PlayerEntity(this, p.x, p.y, p.id === this.localPlayerId, p.nickname);
         this.playerEntities.set(p.id, entity);
       }
+      entity.setNickname(p.nickname);
 
       if (p.id === this.localPlayerId) {
         if (this.pendingSafeZoneForLocalPlayer) {
@@ -402,11 +403,24 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private syncPortals(portals: PortalSnapshot[]): void {
-    this.syncPositionEntities(
-      portals,
-      this.portalEntities,
-      (portal) => new PortalEntity(this, portal.x, portal.y)
-    );
+    const seenPortalIds = new Set<string>();
+    for (const portal of portals) {
+      seenPortalIds.add(portal.id);
+      let entity = this.portalEntities.get(portal.id);
+      if (!entity) {
+        entity = new PortalEntity(this, portal.x, portal.y, portal.kind);
+        this.portalEntities.set(portal.id, entity);
+      }
+
+      entity.updatePosition(portal.x, portal.y);
+      entity.updateKind(portal.kind);
+    }
+
+    for (const [id, entity] of this.portalEntities) {
+      if (seenPortalIds.has(id)) continue;
+      entity.destroy();
+      this.portalEntities.delete(id);
+    }
   }
 
   private syncHazards(hazards: HazardSnapshot[]): void {
@@ -567,6 +581,7 @@ export class WorldScene extends Phaser.Scene {
           this.slimeEntities,
           this.handEntities,
           this.bossEntities,
+          this.portalEntities,
           this.localPlayerId
         );
       }

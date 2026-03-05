@@ -1,3 +1,4 @@
+import { PORTAL_KINDS } from '@gelehka/shared';
 import Phaser from 'phaser';
 import { BlobEntity } from '../entities/Blob';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
@@ -5,6 +6,7 @@ import { BossGelehkEntity } from '../entities/BossGelehk';
 import { BossPhase3Entity } from '../entities/BossPhase3';
 import { HandEntity } from '../entities/Hand';
 import { PlayerEntity } from '../entities/Player';
+import { PortalEntity } from '../entities/PortalEntity';
 import { SlimeEntity } from '../entities/Slime';
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
@@ -39,6 +41,7 @@ export class Minimap {
     slimeEntities: Map<string, SlimeEntity>,
     handEntities: Map<string, HandEntity>,
     bossEntities: Map<string, BossEntity>,
+    portalEntities: Map<string, PortalEntity>,
     localPlayerId: string | null
   ): void {
     const g = this.graphics;
@@ -89,6 +92,15 @@ export class Minimap {
       if (id === localPlayerId) continue;
       if (player.serverState === 'dead') continue;
       this.drawDot(g, localX, localY, player.sprite.x, player.sprite.y, scale, 2);
+    }
+
+    // Draw portals (different colors by direction)
+    for (const portal of portalEntities.values()) {
+      const isAdvancePortal =
+        portal.kind === PORTAL_KINDS.PHASE1_TO_PHASE2 ||
+        portal.kind === PORTAL_KINDS.PHASE2_TO_PHASE3;
+      g.fillStyle(isAdvancePortal ? 0xc98a3a : 0x4aa3ff, 0.95);
+      this.drawDot(g, localX, localY, portal.x, portal.y, scale, 2.4);
     }
 
     // Draw local player (white dot, center)
