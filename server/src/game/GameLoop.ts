@@ -10,6 +10,7 @@ const SIM_TICK_MS = 1000 / SERVER_SIM_TICK_RATE;
 const NET_TICK_MS = 1000 / SERVER_NET_TICK_RATE;
 const METRICS_LOG_INTERVAL_MS = 5000;
 const MAX_SIM_STEPS_PER_TICK = 5;
+const DEBUG_METRICS = false;
 
 export class GameLoop {
   instances: InstanceManager;
@@ -133,9 +134,11 @@ export class GameLoop {
 
     if (updateDurationMs > SIM_TICK_MS) {
       this.slowTicks += 1;
-      console.warn(
-        `[GameLoop] Slow tick: update_duration_ms=${updateDurationMs.toFixed(2)} budget_ms=${SIM_TICK_MS.toFixed(2)} drift_ms=${driftMs.toFixed(2)}`
-      );
+      if (DEBUG_METRICS) {
+        console.warn(
+          `[GameLoop] Slow tick: update_duration_ms=${updateDurationMs.toFixed(2)} budget_ms=${SIM_TICK_MS.toFixed(2)} drift_ms=${driftMs.toFixed(2)}`
+        );
+      }
     }
 
     if (nowMs - this.lastMetricsLogMs < METRICS_LOG_INTERVAL_MS) {
@@ -146,9 +149,11 @@ export class GameLoop {
     const avgUpdateDurationMs =
       this.totalTicks > 0 ? this.totalUpdateDurationMs / this.totalTicks : 0;
 
-    console.log(
-      `[GameLoop] metrics tick_drift_ms=${avgDriftMs.toFixed(2)} max_drift_ms=${this.maxDriftMs.toFixed(2)} update_duration_ms=${avgUpdateDurationMs.toFixed(2)} slow_ticks=${this.slowTicks}/${this.totalTicks} dropped_sim_steps=${this.droppedSimSteps}`
-    );
+    if (DEBUG_METRICS) {
+      console.log(
+        `[GameLoop] metrics tick_drift_ms=${avgDriftMs.toFixed(2)} max_drift_ms=${this.maxDriftMs.toFixed(2)} update_duration_ms=${avgUpdateDurationMs.toFixed(2)} slow_ticks=${this.slowTicks}/${this.totalTicks} dropped_sim_steps=${this.droppedSimSteps}`
+      );
+    }
 
     this.lastMetricsLogMs = nowMs;
     this.totalTicks = 0;
