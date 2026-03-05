@@ -80,7 +80,7 @@ export function Chat() {
     <div
       style={{
         position: 'absolute',
-        bottom: touchEnabled ? 170 : 52,
+        bottom: touchEnabled ? 240 : 52,
         left: 16,
         width: 300,
         display: 'flex',

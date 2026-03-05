@@ -24,7 +24,8 @@ export function App() {
       style={{
         position: 'relative',
         width: '100vw',
-        height: '100vh',
+        height: '100dvh',
+        minHeight: '100vh',
         touchAction: 'none',
       }}
     >

@@ -3,6 +3,7 @@ import { useTouchInputStore } from '../game/input/touchInputStore';
 
 const JOYSTICK_RADIUS_PX = 46;
 const JOYSTICK_DEADZONE = 0.15;
+const CONTROLS_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 72px)';
 
 interface KnobPosition {
   x: number;
@@ -178,7 +179,7 @@ export function TouchControls() {
         style={{
           position: 'absolute',
           left: 22,
-          bottom: 20,
+          bottom: CONTROLS_BOTTOM_OFFSET,
           width: 132,
           height: 132,
           borderRadius: '50%',
@@ -219,7 +220,7 @@ export function TouchControls() {
         style={{
           position: 'absolute',
           right: 28,
-          bottom: 32,
+          bottom: CONTROLS_BOTTOM_OFFSET,
           width: 96,
           height: 96,
           borderRadius: '50%',
