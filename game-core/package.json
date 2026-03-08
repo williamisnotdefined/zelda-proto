@@ -1,0 +1,45 @@
+{
+  "name": "@gelehka/game-core",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./movement": {
+      "types": "./src/movement.ts",
+      "import": "./src/movement.ts",
+      "default": "./src/movement.ts"
+    },
+    "./prediction": {
+      "types": "./src/prediction.ts",
+      "import": "./src/prediction.ts",
+      "default": "./src/prediction.ts"
+    },
+    "./network": {
+      "types": "./src/network.ts",
+      "import": "./src/network.ts",
+      "default": "./src/network.ts"
+    },
+    "./snapshot": {
+      "types": "./src/snapshot.ts",
+      "import": "./src/snapshot.ts",
+      "default": "./src/snapshot.ts"
+    },
+    "./input": {
+      "types": "./src/input.ts",
+      "import": "./src/input.ts",
+      "default": "./src/input.ts"
+    },
+    "./interpolation": {
+      "types": "./src/interpolation.ts",
+      "import": "./src/interpolation.ts",
+      "default": "./src/interpolation.ts"
+    }
+  },
+  "dependencies": {
+    "@gelehka/shared": "*"
+  }
+}

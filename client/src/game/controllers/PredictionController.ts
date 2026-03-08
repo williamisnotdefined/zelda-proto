@@ -1,17 +1,13 @@
 import type { InputMessage, PlayerSnapshot } from '@gelehka/shared';
-import Phaser from 'phaser';
+import {
+  getDeltaForInput,
+  reconcilePredictedPosition,
+  trimPendingInputs,
+} from '@gelehka/game-core';
 import { PlayerEntity } from '../../entities/Player';
-import { getDeltaForInput } from '../utils/movement';
 
 const PLAYER_PREDICT_SPEED = 150;
 const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
-const MAX_PENDING_INPUTS = 128;
-const MAX_PENDING_INPUT_AGE_MS = 1500;
-const RECONCILE_SNAP_DISTANCE = 120;
-const RECONCILE_MIN_BLEND = 0.08;
-const RECONCILE_MAX_BLEND = 0.24;
-const RECONCILE_BLEND_RAMP_DISTANCE = 40;
-const RECONCILE_DEADZONE_DISTANCE = 0.75;
 
 export interface PendingInput {
   input: InputMessage;
@@ -29,9 +25,7 @@ export interface InputState {
 
 export class PredictionController {
   trimPendingInputs(pendingInputs: PendingInput[]): void {
-    if (pendingInputs.length > MAX_PENDING_INPUTS) {
-      pendingInputs.splice(0, pendingInputs.length - MAX_PENDING_INPUTS);
-    }
+    trimPendingInputs(pendingInputs);
   }
 
   applyLocalPrediction(input: InputState, dtMs: number, entity: PlayerEntity | null): void {
@@ -53,12 +47,6 @@ export class PredictionController {
     pendingInputs: PendingInput[],
     onResetAccumulator: () => void
   ): PendingInput[] {
-    const acknowledged = serverPlayer.lastProcessedInputSeq;
-    const filteredPending = pendingInputs.filter(
-      (entry) =>
-        entry.input.seq > acknowledged && timeNowMs - entry.sentAtMs <= MAX_PENDING_INPUT_AGE_MS
-    );
-
     if (serverPlayer.state === 'dead') {
       if (localEntity) {
         localEntity.updateFromServer(
@@ -75,47 +63,28 @@ export class PredictionController {
       return [];
     }
 
-    let predictedX = serverPlayer.x;
-    let predictedY = serverPlayer.y;
-
-    for (const pending of filteredPending) {
-      const delta = getDeltaForInput(pending.input, pending.dtMs, PLAYER_PREDICT_SPEED);
-      predictedX += delta.dx;
-      predictedY += delta.dy;
-    }
-
     if (localEntity) {
-      const errorX = predictedX - localEntity.targetX;
-      const errorY = predictedY - localEntity.targetY;
-      const errorDist = Math.sqrt(errorX * errorX + errorY * errorY);
-      const shouldSnap = errorDist > RECONCILE_SNAP_DISTANCE;
-      const shouldIgnoreTinyError = errorDist <= RECONCILE_DEADZONE_DISTANCE;
-
-      const blendProgress = Phaser.Math.Clamp(errorDist / RECONCILE_BLEND_RAMP_DISTANCE, 0, 1);
-      const blend = Phaser.Math.Linear(RECONCILE_MIN_BLEND, RECONCILE_MAX_BLEND, blendProgress);
-
-      const correctedX = shouldSnap
-        ? predictedX
-        : shouldIgnoreTinyError
-          ? localEntity.targetX
-          : localEntity.targetX + (predictedX - localEntity.targetX) * blend;
-      const correctedY = shouldSnap
-        ? predictedY
-        : shouldIgnoreTinyError
-          ? localEntity.targetY
-          : localEntity.targetY + (predictedY - localEntity.targetY) * blend;
+      const reconciled = reconcilePredictedPosition(
+        timeNowMs,
+        serverPlayer,
+        pendingInputs,
+        { x: localEntity.targetX, y: localEntity.targetY },
+        PLAYER_PREDICT_SPEED
+      );
 
       localEntity.updateFromServer(
-        correctedX,
-        correctedY,
+        reconciled.x,
+        reconciled.y,
         serverPlayer.hp,
         serverPlayer.maxHp,
         serverPlayer.state,
         serverPlayer.direction,
         serverPlayer.statusEffects
       );
+
+      return reconciled.filteredPending;
     }
 
-    return filteredPending;
+    return pendingInputs;
   }
 }

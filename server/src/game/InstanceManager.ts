@@ -400,7 +400,7 @@ export class InstanceManager {
   private ensurePhase3BossesNear(entryX: number, entryY: number): void {
     const expectedBossIds = new Set<string>(PHASE3_ENTRY_BOSS_SPAWN_DEFS.map((def) => def.id));
 
-    for (const [bossId, boss] of this.phase3World.bosses) {
+    for (const [bossId] of this.phase3World.bosses) {
       if (expectedBossIds.has(bossId)) continue;
       this.phase3World.bosses.delete(bossId);
       this.phase3World.remove(bossId);

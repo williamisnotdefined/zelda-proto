@@ -8,7 +8,7 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module',
     tsconfigRootDir: __dirname,
-    project: ['./client/tsconfig.json', './server/tsconfig.json', './shared/tsconfig.json'],
+    projectService: true,
   },
   plugins: ['@typescript-eslint'],
   extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'prettier'],
@@ -42,6 +42,18 @@ module.exports = {
     },
     {
       files: ['shared/src/**/*.ts'],
+      env: {
+        es2022: true,
+      },
+    },
+    {
+      files: ['game-core/src/**/*.ts'],
+      env: {
+        es2022: true,
+      },
+    },
+    {
+      files: ['mobile/**/*.{ts,tsx}'],
       env: {
         es2022: true,
       },

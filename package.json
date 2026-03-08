@@ -3,22 +3,27 @@
   "private": true,
   "workspaces": [
     "shared",
+    "game-core",
     "client",
+    "mobile",
     "server"
   ],
   "scripts": {
     "dev:client": "npm run dev --workspace=client",
+    "dev:mobile": "npm run dev --workspace=mobile",
     "dev:server": "npm run dev --workspace=server",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:native": "concurrently \"npm run dev:server\" \"npm run dev:mobile\"",
     "build:client": "npm run build --workspace=client",
+    "build:mobile": "npm run typecheck --workspace=mobile",
     "build:server": "npm run build --workspace=server",
-    "build": "npm run build:server && npm run build:client",
+    "build": "npm run build:server && npm run build:client && npm run build:mobile",
     "start:server": "npm run start --workspace=server",
     "start": "NODE_ENV=production PORT=3001 npm run start:server",
-    "lint": "eslint client/src server/src shared/src --ext .ts,.tsx",
-    "lint:fix": "eslint client/src server/src shared/src --ext .ts,.tsx --fix",
-    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\"",
-    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\"",
+    "lint": "eslint client/src server/src shared/src game-core/src mobile/src mobile/App.tsx mobile/index.ts --ext .ts,.tsx",
+    "lint:fix": "eslint client/src server/src shared/src game-core/src mobile/src mobile/App.tsx mobile/index.ts --ext .ts,.tsx --fix",
+    "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\" \"mobile/**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\" \"mobile/**/*.{ts,tsx,json}\"",
     "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\""
   },
   "devDependencies": {

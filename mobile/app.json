@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Legends of Gelehk",
+    "slug": "legends-of-gelehk",
+    "scheme": "gelehk",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "bundleIdentifier": "com.gelehk.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.gelehk.mobile",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#10221a"
+      }
+    },
+    "extra": {
+      "environment": "development",
+      "wsUrl": ""
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

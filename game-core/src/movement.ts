@@ -19,12 +19,14 @@ export function getNormalizedDirection(input: DirectionInput): MovementDelta | n
   if (input.left) dx -= 1;
   if (input.right) dx += 1;
 
-  if (dx === 0 && dy === 0) return null;
+  if (dx === 0 && dy === 0) {
+    return null;
+  }
 
-  const len = Math.sqrt(dx * dx + dy * dy);
+  const length = Math.sqrt(dx * dx + dy * dy);
   return {
-    dx: dx / len,
-    dy: dy / len,
+    dx: dx / length,
+    dy: dy / length,
   };
 }
 

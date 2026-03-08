@@ -12,14 +12,8 @@ import type {
   ServerChatMessage,
   ServerMessage,
 } from '@gelehka/shared';
-import {
-  BOSS_KINDS,
-  CLIENT_MESSAGE_TYPES,
-  ENEMY_KINDS,
-  HAZARD_KINDS,
-  PROTOCOL_VERSION,
-  SERVER_MESSAGE_TYPES,
-} from '@gelehka/shared';
+import { createInputMessage, hasDirectionalChange } from '@gelehka/game-core';
+import { BOSS_KINDS, ENEMY_KINDS, HAZARD_KINDS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import Phaser from 'phaser';
 import { BlobEntity } from '../../entities/Blob';
@@ -486,27 +480,13 @@ export class WorldScene extends Phaser.Scene {
 
     this.inputSendAccumulatorMs += delta;
     const intervalElapsed = this.inputSendAccumulatorMs >= INPUT_SEND_INTERVAL_MS;
-    const changedSinceLastSend =
-      !this.lastSentInputState ||
-      this.lastSentInputState.up !== inputState.up ||
-      this.lastSentInputState.down !== inputState.down ||
-      this.lastSentInputState.left !== inputState.left ||
-      this.lastSentInputState.right !== inputState.right;
+    const changedSinceLastSend = hasDirectionalChange(this.lastSentInputState, inputState);
 
     if (intervalElapsed || changedSinceLastSend || inputState.attack) {
       const dtWindowMs = Math.max(1, this.inputSendAccumulatorMs);
       this.inputSendAccumulatorMs = 0;
 
-      const input: InputMessage = {
-        protocolVersion: PROTOCOL_VERSION,
-        type: CLIENT_MESSAGE_TYPES.INPUT,
-        seq: this.nextInputSeq++,
-        up: inputState.up,
-        down: inputState.down,
-        left: inputState.left,
-        right: inputState.right,
-        attack: inputState.attack,
-      };
+      const input: InputMessage = createInputMessage(this.nextInputSeq++, inputState);
 
       this.pendingInputs.push({ input, dtMs: dtWindowMs, sentAtMs: this.time.now });
       if (this.pendingInputs.length > MAX_PENDING_INPUTS) {

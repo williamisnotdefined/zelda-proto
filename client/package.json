@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gelehka/game-core": "*",
     "@gelehka/shared": "*",
     "lucide-react": "^0.577.0",
     "msgpackr": "^1.11.5",

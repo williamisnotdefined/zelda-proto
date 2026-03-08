@@ -8,6 +8,7 @@ export interface BossActor extends Entity {
   kind: BossKind;
   state: string;
   active?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   update: (...args: any[]) => void;
   tryRespawn: (dt: number) => boolean;
 }
