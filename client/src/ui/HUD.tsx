@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
 import { connect } from '../network/socket';
+import {
+  confirmPwaUpdate,
+  dismissPwaUpdatePrompt,
+  subscribePwaUpdatePrompt,
+} from '../pwa/updatePrompt';
 import { Chat } from './Chat';
 import { Leaderboard } from './Leaderboard';
 import { NicknameModal } from './NicknameModal';
@@ -17,10 +22,15 @@ export function HUD() {
   const [musicMuted, setMusicMuted] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
 
   useEffect(() => {
     const muted = phaserGame?.sound.mute ?? false;
     setMusicMuted(muted);
+  }, []);
+
+  useEffect(() => {
+    return subscribePwaUpdatePrompt(setPwaUpdateAvailable);
   }, []);
 
   useEffect(() => {
@@ -93,6 +103,14 @@ export function HUD() {
     } catch {
       // User gesture restrictions can reject fullscreen attempts.
     }
+  };
+
+  const handleUpdateNow = async () => {
+    await confirmPwaUpdate();
+  };
+
+  const handleUpdateLater = () => {
+    dismissPwaUpdatePrompt();
   };
 
   return (
@@ -256,6 +274,64 @@ export function HUD() {
           }}
         >
           Arrow keys / WASD: move | Space: attack | Tab: players
+        </div>
+      )}
+
+      {pwaUpdateAvailable && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: touchEnabled ? 'calc(env(safe-area-inset-bottom, 0px) + 188px)' : 16,
+            transform: 'translateX(-50%)',
+            pointerEvents: 'auto',
+            background: 'rgba(10, 10, 10, 0.92)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: 8,
+            padding: '10px 12px',
+            minWidth: 260,
+            maxWidth: 'min(420px, calc(100vw - 24px))',
+            boxShadow: '0 8px 26px rgba(0, 0, 0, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+            zIndex: 60,
+          }}
+        >
+          <div style={{ fontSize: '12px', lineHeight: 1.2, opacity: 0.95 }}>
+            Nova versao do jogo disponivel.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={handleUpdateLater}
+              style={{
+                padding: '5px 8px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid #666',
+                color: '#fff',
+                borderRadius: 4,
+              }}
+            >
+              Depois
+            </button>
+            <button
+              onClick={handleUpdateNow}
+              style={{
+                padding: '5px 8px',
+                fontSize: '11px',
+                cursor: 'pointer',
+                background: 'rgba(74, 163, 255, 0.25)',
+                border: '1px solid rgba(95, 179, 255, 0.9)',
+                color: '#fff',
+                borderRadius: 4,
+              }}
+            >
+              Atualizar
+            </button>
+          </div>
         </div>
       )}
 
