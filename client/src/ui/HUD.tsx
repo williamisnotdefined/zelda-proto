@@ -15,10 +15,43 @@ export function HUD() {
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const touchEnabled = useTouchInputStore((s) => s.enabled);
   const [musicMuted, setMusicMuted] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const muted = phaserGame?.sound.mute ?? false;
     setMusicMuted(muted);
+  }, []);
+
+  useEffect(() => {
+    const element = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+
+    const canRequest =
+      typeof element.requestFullscreen === 'function' ||
+      typeof element.webkitRequestFullscreen === 'function';
+    const canExit =
+      typeof document.exitFullscreen === 'function' ||
+      typeof doc.webkitExitFullscreen === 'function';
+    setFullscreenSupported(canRequest && canExit);
+
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
+    };
+
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
+    };
   }, []);
 
   const handleRetry = () => {
@@ -31,6 +64,35 @@ export function HUD() {
     if (!soundManager) return;
     soundManager.mute = !soundManager.mute;
     setMusicMuted(soundManager.mute);
+  };
+
+  const toggleFullscreen = async () => {
+    const root = document.documentElement as HTMLElement & {
+      webkitRequestFullscreen?: () => Promise<void> | void;
+    };
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+
+    try {
+      if (document.fullscreenElement || doc.webkitFullscreenElement) {
+        if (typeof document.exitFullscreen === 'function') {
+          await document.exitFullscreen();
+        } else {
+          await doc.webkitExitFullscreen?.();
+        }
+        return;
+      }
+
+      if (typeof root.requestFullscreen === 'function') {
+        await root.requestFullscreen();
+      } else {
+        await root.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // User gesture restrictions can reject fullscreen attempts.
+    }
   };
 
   return (
@@ -76,6 +138,24 @@ export function HUD() {
         >
           {musicMuted ? 'Unmute Music' : 'Mute Music'}
         </button>
+
+        {touchEnabled && fullscreenSupported && (
+          <button
+            onClick={toggleFullscreen}
+            style={{
+              pointerEvents: 'auto',
+              padding: '4px 8px',
+              fontSize: '11px',
+              cursor: 'pointer',
+              background: 'rgba(0, 0, 0, 0.55)',
+              border: '1px solid #666',
+              color: '#fff',
+              borderRadius: 3,
+            }}
+          >
+            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          </button>
+        )}
 
         <div style={{ fontSize: '11px', opacity: 0.7, textAlign: 'right' }}>
           {connected ? (
@@ -180,7 +260,7 @@ export function HUD() {
       )}
 
       {/* Chat */}
-      <Chat />
+      {!touchEnabled && <Chat />}
 
       {/* Leaderboard */}
       <Leaderboard />

@@ -138,7 +138,6 @@ DEV_START_PHASE=2 npm run dev:server
 
 ## Next Steps
 
-- [ ] Ataque especial do Gelehk
 - [ ] Distance weapon (e.g. bow)
 
 

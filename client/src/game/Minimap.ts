@@ -20,13 +20,12 @@ const MINIMAP_PADDING = 14;
 
 export class Minimap {
   private graphics: Phaser.GameObjects.Graphics;
-  private screenX: number;
-  private screenY: number;
+  private screenX = 0;
+  private screenY = 0;
 
   constructor(scene: Phaser.Scene) {
     const cam = scene.cameras.main;
-    this.screenX = cam.width - MINIMAP_RADIUS - MINIMAP_PADDING;
-    this.screenY = cam.height - MINIMAP_RADIUS - MINIMAP_PADDING;
+    this.updateScreenPosition(cam);
 
     this.graphics = scene.add.graphics();
     this.graphics.setScrollFactor(0);
@@ -46,6 +45,7 @@ export class Minimap {
   ): void {
     const g = this.graphics;
     const camera = this.graphics.scene.cameras.main;
+    this.updateScreenPosition(camera);
     g.clear();
 
     // Background circle
@@ -126,6 +126,11 @@ export class Minimap {
     if (distSq > maxDistSq) return;
 
     g.fillCircle(this.screenX + dx, this.screenY + dy, radius);
+  }
+
+  private updateScreenPosition(camera: Phaser.Cameras.Scene2D.Camera): void {
+    this.screenX = camera.width - MINIMAP_RADIUS - MINIMAP_PADDING;
+    this.screenY = camera.height - MINIMAP_RADIUS - MINIMAP_PADDING;
   }
 
   destroy(): void {

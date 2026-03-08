@@ -19,13 +19,35 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+
+    const updateViewportHeight = () => {
+      const visualHeight = window.visualViewport?.height;
+      const height = visualHeight ?? window.innerHeight;
+      root.style.setProperty('--app-height', `${Math.round(height)}px`);
+    };
+
+    updateViewportHeight();
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    window.visualViewport?.addEventListener('resize', updateViewportHeight);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      window.visualViewport?.removeEventListener('resize', updateViewportHeight);
+      root.style.removeProperty('--app-height');
+    };
+  }, []);
+
   return (
     <div
       style={{
         position: 'relative',
         width: '100vw',
-        height: '100dvh',
-        minHeight: '100vh',
+        height: 'var(--app-height, 100dvh)',
+        minHeight: '100svh',
         touchAction: 'none',
       }}
     >
