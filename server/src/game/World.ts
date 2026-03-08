@@ -270,8 +270,9 @@ export class World extends EntityWorld<Entity> {
           this.config.spawnSystem.spawnMinions(x, y, this.getSpawnTargetEnemies(), (entity) =>
             this.add(entity)
           ),
-        spawnFireLine: (x, y, dirX, dirY) =>
-          this.hazardSystem.spawnFireFieldLine(x, y, dirX, dirY, this.now),
+        spawnFireLine: (x, y, dirX, dirY, kind) =>
+          this.hazardSystem.spawnFireFieldLine(x, y, dirX, dirY, this.now, kind),
+        spawnPurpleField: (x, y) => this.hazardSystem.spawnPurpleField(this.hazards, x, y),
         safeZone: spawnSafeZone,
       }
     );

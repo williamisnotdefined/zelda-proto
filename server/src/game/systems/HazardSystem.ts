@@ -1,4 +1,5 @@
 import { HAZARD_KINDS } from '@gelehka/shared';
+import type { HazardKind } from '@gelehka/shared';
 import { nanoid } from 'nanoid';
 import { BLOB_DAMAGE } from '../../entities/Blob.js';
 import { Player } from '../../entities/Player.js';
@@ -10,12 +11,17 @@ const FIRE_FIELD_SEGMENTS = 7;
 const FIRE_FIELD_SPACING = 36;
 const FIRE_FIELD_SEGMENT_INTERVAL_MS = 40;
 const FIRE_FIELD_HIT_RADIUS = 18;
+const PURPLE_FIELD_DURATION_MS = 3000;
+const PURPLE_FIELD_HIT_RADIUS = 18;
+const PURPLE_FIELD_BLAST_RADIUS = 80;
+const PURPLE_FIELD_TILE_STEP = 34;
 
 interface PendingFireFieldLine {
   x: number;
   y: number;
   dirX: number;
   dirY: number;
+  kind: HazardKind;
   nextSegment: number;
   nextSpawnAtMs: number;
 }
@@ -23,7 +29,42 @@ interface PendingFireFieldLine {
 export class HazardSystem {
   private pendingFireFieldLines: PendingFireFieldLine[] = [];
 
-  spawnFireFieldLine(x: number, y: number, dirX: number, dirY: number, now: number): void {
+  spawnPurpleField(hazards: Map<string, Hazard>, x: number, y: number): void {
+    for (
+      let offsetY = -PURPLE_FIELD_BLAST_RADIUS;
+      offsetY <= PURPLE_FIELD_BLAST_RADIUS;
+      offsetY += PURPLE_FIELD_TILE_STEP
+    ) {
+      for (
+        let offsetX = -PURPLE_FIELD_BLAST_RADIUS;
+        offsetX <= PURPLE_FIELD_BLAST_RADIUS;
+        offsetX += PURPLE_FIELD_TILE_STEP
+      ) {
+        const distSq = offsetX * offsetX + offsetY * offsetY;
+        if (distSq > PURPLE_FIELD_BLAST_RADIUS * PURPLE_FIELD_BLAST_RADIUS) continue;
+        const id = `hazard_purple_${nanoid(8)}`;
+        hazards.set(id, {
+          id,
+          x: x + offsetX,
+          y: y + offsetY,
+          kind: HAZARD_KINDS.PURPLE_FIELD,
+          ttlMs: PURPLE_FIELD_DURATION_MS,
+          damage: BLOB_DAMAGE,
+          burningTicks: 3,
+          hitPlayerIds: new Set<string>(),
+        });
+      }
+    }
+  }
+
+  spawnFireFieldLine(
+    x: number,
+    y: number,
+    dirX: number,
+    dirY: number,
+    now: number,
+    kind: HazardKind = HAZARD_KINDS.FIRE_FIELD
+  ): void {
     const normalizedDirX = Math.sign(dirX);
     const normalizedDirY = Math.sign(dirY);
     if (normalizedDirX === 0 && normalizedDirY === 0) {
@@ -35,6 +76,7 @@ export class HazardSystem {
       y,
       dirX: normalizedDirX,
       dirY: normalizedDirY,
+      kind,
       nextSegment: 1,
       nextSpawnAtMs: now,
     });
@@ -58,16 +100,23 @@ export class HazardSystem {
     y: number,
     dirX: number,
     dirY: number,
+    kind: HazardKind,
     segmentIndex: number
   ): void {
     const hx = x + dirX * FIRE_FIELD_SPACING * segmentIndex;
     const hy = y + dirY * FIRE_FIELD_SPACING * segmentIndex;
-    const id = `hazard_fire_${nanoid(8)}`;
+    const idPrefix =
+      kind === HAZARD_KINDS.PURPLE_FIELD
+        ? 'hazard_purple'
+        : kind === HAZARD_KINDS.BLUE_FLAME
+          ? 'hazard_blue'
+          : 'hazard_fire';
+    const id = `${idPrefix}_${nanoid(8)}`;
     hazards.set(id, {
       id,
       x: hx,
       y: hy,
-      kind: HAZARD_KINDS.FIRE_FIELD,
+      kind,
       ttlMs: FIRE_FIELD_DURATION_MS,
       damage: BLOB_DAMAGE,
       burningTicks: 3,
@@ -84,7 +133,15 @@ export class HazardSystem {
       const line = this.pendingFireFieldLines[i];
 
       while (line.nextSegment <= FIRE_FIELD_SEGMENTS && line.nextSpawnAtMs <= now) {
-        this.spawnFireFieldSegment(hazards, line.x, line.y, line.dirX, line.dirY, line.nextSegment);
+        this.spawnFireFieldSegment(
+          hazards,
+          line.x,
+          line.y,
+          line.dirX,
+          line.dirY,
+          line.kind,
+          line.nextSegment
+        );
         line.nextSegment += 1;
         line.nextSpawnAtMs += FIRE_FIELD_SEGMENT_INTERVAL_MS;
       }
@@ -109,11 +166,16 @@ export class HazardSystem {
     hazards: Map<string, Hazard>,
     safeZone: SafeZoneArea
   ): void {
-    const hitRadiusSq = FIRE_FIELD_HIT_RADIUS * FIRE_FIELD_HIT_RADIUS;
+    const purpleHitThisTick = new Set<string>();
+
     for (const hazard of hazards.values()) {
+      const hitRadius =
+        hazard.kind === HAZARD_KINDS.PURPLE_FIELD ? PURPLE_FIELD_HIT_RADIUS : FIRE_FIELD_HIT_RADIUS;
+      const hitRadiusSq = hitRadius * hitRadius;
       for (const player of players.values()) {
         if (player.state === 'dead') continue;
         if (hazard.hitPlayerIds.has(player.id)) continue;
+        if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD && purpleHitThisTick.has(player.id)) continue;
         if (player.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
           continue;
         }
@@ -122,7 +184,14 @@ export class HazardSystem {
         const dy = player.y - hazard.y;
         if (dx * dx + dy * dy <= hitRadiusSq) {
           player.takeDamage(hazard.damage);
-          player.applyBurning(hazard.burningTicks);
+          if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD) {
+            player.applyPurpleBurning(hazard.burningTicks);
+            purpleHitThisTick.add(player.id);
+          } else if (hazard.kind === HAZARD_KINDS.BLUE_FLAME) {
+            player.applyBlueBurning(hazard.burningTicks);
+          } else {
+            player.applyBurning(hazard.burningTicks);
+          }
           hazard.hitPlayerIds.add(player.id);
         }
       }

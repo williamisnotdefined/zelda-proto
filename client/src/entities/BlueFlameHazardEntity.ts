@@ -3,15 +3,15 @@ import Phaser from 'phaser';
 const FIRE_FIELD_HIT_RADIUS = 18;
 const FIRE_FIELD_SPRITE_OFFSET_X = -6;
 const FIRE_FIELD_SPRITE_OFFSET_Y = -6;
-const HIT_ZONE_COLOR = 0xff3b30;
+const HIT_ZONE_COLOR = 0x58a6ff;
 const HIT_ZONE_ALPHA = 0.14;
 const HIT_ZONE_STROKE_ALPHA = 0.45;
 const LERP_BASE = 0.28;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 140;
-const FIRE_FIELD_ALPHA = 0.62;
+const BLUE_FLAME_ALPHA = 0.62;
 
-export class FireFieldHazardEntity {
+export class BlueFlameHazardEntity {
   sprite: Phaser.GameObjects.Image;
   hitZone: Phaser.GameObjects.Arc;
   private targetX: number;
@@ -24,10 +24,10 @@ export class FireFieldHazardEntity {
     this.sprite = scene.add.image(
       x + FIRE_FIELD_SPRITE_OFFSET_X,
       y + FIRE_FIELD_SPRITE_OFFSET_Y,
-      'fire_field'
+      'blue_flame'
     );
     this.sprite.setDepth(4);
-    this.sprite.setAlpha(FIRE_FIELD_ALPHA);
+    this.sprite.setAlpha(BLUE_FLAME_ALPHA);
 
     this.hitZone = scene.add.circle(x, y, FIRE_FIELD_HIT_RADIUS, HIT_ZONE_COLOR, HIT_ZONE_ALPHA);
     this.hitZone.setStrokeStyle(2, HIT_ZONE_COLOR, HIT_ZONE_STROKE_ALPHA);

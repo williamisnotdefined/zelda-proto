@@ -1,17 +1,18 @@
 import Phaser from 'phaser';
 
-const FIRE_FIELD_HIT_RADIUS = 18;
-const FIRE_FIELD_SPRITE_OFFSET_X = -6;
-const FIRE_FIELD_SPRITE_OFFSET_Y = -6;
-const HIT_ZONE_COLOR = 0xff3b30;
+const PURPLE_FIELD_SPRITE_OFFSET_X = -6;
+const PURPLE_FIELD_SPRITE_OFFSET_Y = -6;
+const PURPLE_FIELD_SIZE_PX = 58;
+const PURPLE_FIELD_HIT_RADIUS = 18;
+const HIT_ZONE_COLOR = 0xc06bff;
 const HIT_ZONE_ALPHA = 0.14;
 const HIT_ZONE_STROKE_ALPHA = 0.45;
 const LERP_BASE = 0.28;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 140;
-const FIRE_FIELD_ALPHA = 0.62;
+const PURPLE_FIELD_ALPHA = 0.52;
 
-export class FireFieldHazardEntity {
+export class PurpleFieldHazardEntity {
   sprite: Phaser.GameObjects.Image;
   hitZone: Phaser.GameObjects.Arc;
   private targetX: number;
@@ -22,14 +23,15 @@ export class FireFieldHazardEntity {
     this.targetY = y;
 
     this.sprite = scene.add.image(
-      x + FIRE_FIELD_SPRITE_OFFSET_X,
-      y + FIRE_FIELD_SPRITE_OFFSET_Y,
-      'fire_field'
+      x + PURPLE_FIELD_SPRITE_OFFSET_X,
+      y + PURPLE_FIELD_SPRITE_OFFSET_Y,
+      'purple_field'
     );
+    this.sprite.setDisplaySize(PURPLE_FIELD_SIZE_PX, PURPLE_FIELD_SIZE_PX);
     this.sprite.setDepth(4);
-    this.sprite.setAlpha(FIRE_FIELD_ALPHA);
+    this.sprite.setAlpha(PURPLE_FIELD_ALPHA);
 
-    this.hitZone = scene.add.circle(x, y, FIRE_FIELD_HIT_RADIUS, HIT_ZONE_COLOR, HIT_ZONE_ALPHA);
+    this.hitZone = scene.add.circle(x, y, PURPLE_FIELD_HIT_RADIUS, HIT_ZONE_COLOR, HIT_ZONE_ALPHA);
     this.hitZone.setStrokeStyle(2, HIT_ZONE_COLOR, HIT_ZONE_STROKE_ALPHA);
     this.hitZone.setDepth(3.9);
   }
@@ -40,11 +42,11 @@ export class FireFieldHazardEntity {
   }
 
   get x(): number {
-    return this.sprite.x - FIRE_FIELD_SPRITE_OFFSET_X;
+    return this.sprite.x - PURPLE_FIELD_SPRITE_OFFSET_X;
   }
 
   get y(): number {
-    return this.sprite.y - FIRE_FIELD_SPRITE_OFFSET_Y;
+    return this.sprite.y - PURPLE_FIELD_SPRITE_OFFSET_Y;
   }
 
   update(dt: number, inView: boolean): void {
@@ -54,11 +56,10 @@ export class FireFieldHazardEntity {
       return;
     }
 
-    const targetX = this.targetX + FIRE_FIELD_SPRITE_OFFSET_X;
-    const targetY = this.targetY + FIRE_FIELD_SPRITE_OFFSET_Y;
+    const targetX = this.targetX + PURPLE_FIELD_SPRITE_OFFSET_X;
+    const targetY = this.targetY + PURPLE_FIELD_SPRITE_OFFSET_Y;
     const dx = targetX - this.sprite.x;
     const dy = targetY - this.sprite.y;
-
     if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
       this.sprite.x = targetX;
       this.sprite.y = targetY;
@@ -69,8 +70,8 @@ export class FireFieldHazardEntity {
       this.sprite.y += dy * factor;
     }
 
-    this.hitZone.x = this.sprite.x - FIRE_FIELD_SPRITE_OFFSET_X;
-    this.hitZone.y = this.sprite.y - FIRE_FIELD_SPRITE_OFFSET_Y;
+    this.hitZone.x = this.sprite.x - PURPLE_FIELD_SPRITE_OFFSET_X;
+    this.hitZone.y = this.sprite.y - PURPLE_FIELD_SPRITE_OFFSET_Y;
   }
 
   destroy(): void {

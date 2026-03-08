@@ -16,6 +16,7 @@ import {
   BOSS_KINDS,
   CLIENT_MESSAGE_TYPES,
   ENEMY_KINDS,
+  HAZARD_KINDS,
   PROTOCOL_VERSION,
   SERVER_MESSAGE_TYPES,
 } from '@gelehka/shared';
@@ -25,11 +26,13 @@ import { BlobEntity } from '../../entities/Blob';
 import { BossDragonLordEntity } from '../../entities/BossDragonLord';
 import { BossGelehkEntity } from '../../entities/BossGelehk';
 import { BossPhase3Entity } from '../../entities/BossPhase3';
+import { BlueFlameHazardEntity } from '../../entities/BlueFlameHazardEntity';
 import { DropEntity } from '../../entities/DropEntity';
 import { FireFieldHazardEntity } from '../../entities/FireFieldHazardEntity';
 import { HandEntity } from '../../entities/Hand';
 import { PlayerEntity } from '../../entities/Player';
 import { PortalEntity } from '../../entities/PortalEntity';
+import { PurpleFieldHazardEntity } from '../../entities/PurpleFieldHazardEntity';
 import { SlimeEntity } from '../../entities/Slime';
 import { onError, onMessage, send } from '../../network/socket';
 import { useTouchInputStore } from '../input/touchInputStore';
@@ -53,6 +56,7 @@ const ANIM_LOD_MID_TIME_SCALE = 0.75;
 const ANIM_LOD_FAR_TIME_SCALE = 0.5;
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
+type HazardEntity = FireFieldHazardEntity | PurpleFieldHazardEntity | BlueFlameHazardEntity;
 type Destroyable = { destroy: () => void };
 type PositionSyncEntity = Destroyable & { updatePosition: (x: number, y: number) => void };
 
@@ -66,7 +70,7 @@ export class WorldScene extends Phaser.Scene {
   private bossEntities: Map<string, BossEntity> = new Map();
   private dropEntities: Map<string, DropEntity> = new Map();
   private portalEntities: Map<string, PortalEntity> = new Map();
-  private hazardEntities: Map<string, FireFieldHazardEntity> = new Map();
+  private hazardEntities: Map<string, HazardEntity> = new Map();
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyW!: Phaser.Input.Keyboard.Key;
@@ -424,11 +428,29 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private syncHazards(hazards: HazardSnapshot[]): void {
-    this.syncPositionEntities(
-      hazards,
-      this.hazardEntities,
-      (hazard) => new FireFieldHazardEntity(this, hazard.x, hazard.y)
-    );
+    const seenHazardIds = new Set<string>();
+
+    for (const hazard of hazards) {
+      seenHazardIds.add(hazard.id);
+      let entity = this.hazardEntities.get(hazard.id);
+      if (!entity) {
+        if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD) {
+          entity = new PurpleFieldHazardEntity(this, hazard.x, hazard.y);
+        } else if (hazard.kind === HAZARD_KINDS.BLUE_FLAME) {
+          entity = new BlueFlameHazardEntity(this, hazard.x, hazard.y);
+        } else {
+          entity = new FireFieldHazardEntity(this, hazard.x, hazard.y);
+        }
+        this.hazardEntities.set(hazard.id, entity);
+      }
+      entity.updatePosition(hazard.x, hazard.y);
+    }
+
+    for (const [id, entity] of this.hazardEntities) {
+      if (seenHazardIds.has(id)) continue;
+      entity.destroy();
+      this.hazardEntities.delete(id);
+    }
   }
 
   update(_time: number, delta: number): void {

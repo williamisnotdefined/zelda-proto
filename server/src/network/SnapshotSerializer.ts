@@ -83,7 +83,13 @@ function statusEffectsEqual(
 ): boolean {
   const aBurning = a.burning?.ticksRemaining;
   const bBurning = b.burning?.ticksRemaining;
-  return aBurning === bBurning;
+  const aPurpleBurning = a.purpleBurning?.ticksRemaining;
+  const bPurpleBurning = b.purpleBurning?.ticksRemaining;
+  const aBlueBurning = a.blueBurning?.ticksRemaining;
+  const bBlueBurning = b.blueBurning?.ticksRemaining;
+  return (
+    aBurning === bBurning && aPurpleBurning === bPurpleBurning && aBlueBurning === bBlueBurning
+  );
 }
 
 function playerSnapshotEqual(a: PlayerSnapshot, b: PlayerSnapshot): boolean {

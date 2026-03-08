@@ -51,6 +51,8 @@ export type PortalKind = (typeof PORTAL_KINDS)[keyof typeof PORTAL_KINDS];
 
 export const HAZARD_KINDS = {
   FIRE_FIELD: 'fire_field',
+  PURPLE_FIELD: 'purple_field',
+  BLUE_FLAME: 'blue_flame',
 } as const;
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
@@ -96,6 +98,8 @@ export interface BurningStatus {
 
 export interface PlayerStatusSnapshot {
   burning?: BurningStatus;
+  purpleBurning?: BurningStatus;
+  blueBurning?: BurningStatus;
 }
 
 export interface PlayerSnapshot {

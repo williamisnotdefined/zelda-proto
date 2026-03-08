@@ -8,8 +8,11 @@ const MAX_LERP_DT_MS = 50;
 // Offset the sprite DOWN so the character body visually centers on the server hitbox
 const SPRITE_Y_OFFSET = -16;
 const BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER = 4;
-const BURNING_OVERLAY_ALPHA = 0.6;
+const BURNING_OVERLAY_STACK_STEP = 14;
+const BURNING_OVERLAY_ALPHA = 0.52;
 const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
+const PURPLE_FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Purple_Field.gif';
+const BLUE_BURNING_GIF_PATH = '/assets/sprites/fields/Blue_Flame.gif';
 const CONTACT_SHADOW_RADIUS = 24;
 const CONTACT_SHADOW_COLOR = 0x000000;
 const CONTACT_SHADOW_ALPHA = 0.3;
@@ -46,6 +49,8 @@ export class PlayerEntity {
   private deathPlayed: boolean;
   private contactShadow: Phaser.GameObjects.Arc;
   private burningOverlay: Phaser.GameObjects.DOMElement;
+  private purpleBurningOverlay: Phaser.GameObjects.DOMElement;
+  private blueBurningOverlay: Phaser.GameObjects.DOMElement;
   private attackShadow: Phaser.GameObjects.Arc;
   private attackShadowTween: Phaser.Tweens.Tween | null;
   private wasAttacking: boolean;
@@ -108,6 +113,46 @@ export class PlayerEntity {
     this.burningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
     this.burningOverlay.setOrigin(0.5, 0.5);
     this.burningOverlay.setVisible(false);
+
+    const purpleBurningImg = document.createElement('img');
+    purpleBurningImg.src = PURPLE_FIRE_FIELD_GIF_PATH;
+    purpleBurningImg.alt = 'Purple burning effect';
+    purpleBurningImg.draggable = false;
+    purpleBurningImg.style.width = '58px';
+    purpleBurningImg.style.height = '58px';
+    purpleBurningImg.style.pointerEvents = 'none';
+    purpleBurningImg.style.userSelect = 'none';
+    purpleBurningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
+
+    this.purpleBurningOverlay = scene.add.dom(
+      x,
+      y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER,
+      purpleBurningImg
+    );
+    this.purpleBurningOverlay.setDepth(13.2);
+    this.purpleBurningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
+    this.purpleBurningOverlay.setOrigin(0.5, 0.5);
+    this.purpleBurningOverlay.setVisible(false);
+
+    const blueBurningImg = document.createElement('img');
+    blueBurningImg.src = BLUE_BURNING_GIF_PATH;
+    blueBurningImg.alt = 'Blue burning effect';
+    blueBurningImg.draggable = false;
+    blueBurningImg.style.width = '58px';
+    blueBurningImg.style.height = '58px';
+    blueBurningImg.style.pointerEvents = 'none';
+    blueBurningImg.style.userSelect = 'none';
+    blueBurningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
+
+    this.blueBurningOverlay = scene.add.dom(
+      x,
+      y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER,
+      blueBurningImg
+    );
+    this.blueBurningOverlay.setDepth(13.1);
+    this.blueBurningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
+    this.blueBurningOverlay.setOrigin(0.5, 0.5);
+    this.blueBurningOverlay.setVisible(false);
 
     this.attackShadow = scene.add.arc(
       x,
@@ -185,10 +230,28 @@ export class PlayerEntity {
     this.nicknameLabel.x = this.sprite.x;
     this.nicknameLabel.y = this.sprite.y - NICKNAME_OFFSET_Y;
 
-    this.burningOverlay.x = this.sprite.x;
-    this.burningOverlay.y =
-      this.sprite.y - SPRITE_Y_OFFSET + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER;
-    this.burningOverlay.setVisible(Boolean(this.statusEffects.burning));
+    const baseBurnY = this.sprite.y - SPRITE_Y_OFFSET + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER;
+    const burnStack: Phaser.GameObjects.DOMElement[] = [];
+    if (this.statusEffects.burning) burnStack.push(this.burningOverlay);
+    if (this.statusEffects.purpleBurning) burnStack.push(this.purpleBurningOverlay);
+    if (this.statusEffects.blueBurning) burnStack.push(this.blueBurningOverlay);
+
+    for (let i = 0; i < burnStack.length; i++) {
+      const overlay = burnStack[i];
+      overlay.x = this.sprite.x;
+      overlay.y = baseBurnY - i * BURNING_OVERLAY_STACK_STEP;
+      overlay.setVisible(true);
+    }
+
+    if (!this.statusEffects.burning) {
+      this.burningOverlay.setVisible(false);
+    }
+    if (!this.statusEffects.purpleBurning) {
+      this.purpleBurningOverlay.setVisible(false);
+    }
+    if (!this.statusEffects.blueBurning) {
+      this.blueBurningOverlay.setVisible(false);
+    }
     this.contactShadow.setVisible(this.serverState !== 'dead');
 
     this.updateAttackShadow();
@@ -319,5 +382,7 @@ export class PlayerEntity {
     this.hpBarBg.destroy();
     this.nicknameLabel.destroy();
     this.burningOverlay.destroy();
+    this.purpleBurningOverlay.destroy();
+    this.blueBurningOverlay.destroy();
   }
 }

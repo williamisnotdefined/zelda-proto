@@ -5,8 +5,12 @@ const LERP_BASE = 0.25;
 const BOSS_SCALE = 2.5;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 260;
-const AOE_TELEGRAPH_COLOR = 0xffdd33;
-const AOE_HIT_COLOR = 0xff0000;
+const AOE_TELEGRAPH_COLOR = 0x808080;
+const AOE_TELEGRAPH_ALPHA = 0.28;
+const PURPLE_FIELD_TILE_KEY = 'purple_field';
+const PURPLE_FIELD_TILE_SIZE = 58;
+const PURPLE_FIELD_TILE_STEP = 34;
+const PURPLE_FIELD_TILE_ALPHA = 0.48;
 const CONTACT_SHADOW_RADIUS = 36;
 const CONTACT_SHADOW_COLOR = 0x000000;
 const CONTACT_SHADOW_ALPHA = 0.3;
@@ -30,6 +34,11 @@ interface AoeData {
   hit: boolean;
 }
 
+interface AoeTileOverlay {
+  offsets: Array<{ x: number; y: number }>;
+  sprites: Phaser.GameObjects.Image[];
+}
+
 export class BossGelehkEntity {
   sprite: Phaser.GameObjects.Sprite;
   collisionShadow: Phaser.GameObjects.Arc;
@@ -50,6 +59,7 @@ export class BossGelehkEntity {
   private deathPlayed: boolean;
   private iceZoneGraphics: Phaser.GameObjects.Rectangle[];
   private aoeGraphics: Phaser.GameObjects.Arc[];
+  private aoeTileOverlays: AoeTileOverlay[];
   private scene: Phaser.Scene;
   private lastIceZoneCount: number;
   private lastAoeCount: number;
@@ -70,6 +80,7 @@ export class BossGelehkEntity {
     this.deathPlayed = false;
     this.iceZoneGraphics = [];
     this.aoeGraphics = [];
+    this.aoeTileOverlays = [];
     this.lastIceZoneCount = 0;
     this.lastAoeCount = 0;
     this.shadowPulseTween = null;
@@ -89,7 +100,7 @@ export class BossGelehkEntity {
 
     this.label = scene.add.text(x, y - 56, 'GELEHK', {
       fontSize: '12px',
-      color: '#aaaaff',
+      color: '#ffdf8d',
       fontStyle: 'bold',
       align: 'center',
     });
@@ -196,14 +207,23 @@ export class BossGelehkEntity {
       for (let i = 0; i < aoes.length; i++) {
         const aoe = aoes[i];
         const circle = this.aoeGraphics[i];
+        const overlay = this.aoeTileOverlays[i];
         circle.setPosition(aoe.x, aoe.y);
         circle.setRadius(aoe.radius);
-        circle.setFillStyle(aoe.hit ? AOE_HIT_COLOR : AOE_TELEGRAPH_COLOR, 0.25);
+        circle.setFillStyle(AOE_TELEGRAPH_COLOR, AOE_TELEGRAPH_ALPHA);
+        circle.setVisible(!aoe.hit);
+        for (let t = 0; t < overlay.sprites.length; t++) {
+          const sprite = overlay.sprites[t];
+          const offset = overlay.offsets[t];
+          sprite.setPosition(aoe.x + offset.x, aoe.y + offset.y);
+          sprite.setVisible(aoe.hit);
+        }
       }
       return;
     }
 
     for (const g of this.aoeGraphics) g.destroy();
+    this.destroyAoeTileOverlays();
     this.aoeGraphics = [];
 
     for (const aoe of aoes) {
@@ -211,13 +231,50 @@ export class BossGelehkEntity {
         aoe.x,
         aoe.y,
         aoe.radius,
-        aoe.hit ? AOE_HIT_COLOR : AOE_TELEGRAPH_COLOR,
-        0.25
+        AOE_TELEGRAPH_COLOR,
+        AOE_TELEGRAPH_ALPHA
       );
       circle.setDepth(3);
+      circle.setVisible(!aoe.hit);
       this.aoeGraphics.push(circle);
+
+      const overlay = this.createAoeTileOverlay(aoe.x, aoe.y, aoe.radius);
+      for (const sprite of overlay.sprites) {
+        sprite.setVisible(aoe.hit);
+      }
+      this.aoeTileOverlays.push(overlay);
     }
     this.lastAoeCount = aoes.length;
+  }
+
+  private createAoeTileOverlay(x: number, y: number, radius: number): AoeTileOverlay {
+    const offsets: Array<{ x: number; y: number }> = [];
+    const sprites: Phaser.GameObjects.Image[] = [];
+
+    for (let dy = -radius; dy <= radius; dy += PURPLE_FIELD_TILE_STEP) {
+      for (let dx = -radius; dx <= radius; dx += PURPLE_FIELD_TILE_STEP) {
+        const distSq = dx * dx + dy * dy;
+        if (distSq > radius * radius) continue;
+        const offset = { x: dx, y: dy };
+        offsets.push(offset);
+        const sprite = this.scene.add.image(x + dx, y + dy, PURPLE_FIELD_TILE_KEY);
+        sprite.setDisplaySize(PURPLE_FIELD_TILE_SIZE, PURPLE_FIELD_TILE_SIZE);
+        sprite.setDepth(2.8);
+        sprite.setAlpha(PURPLE_FIELD_TILE_ALPHA);
+        sprites.push(sprite);
+      }
+    }
+
+    return { offsets, sprites };
+  }
+
+  private destroyAoeTileOverlays(): void {
+    for (const overlay of this.aoeTileOverlays) {
+      for (const sprite of overlay.sprites) {
+        sprite.destroy();
+      }
+    }
+    this.aoeTileOverlays = [];
   }
 
   update(dt: number): void {
@@ -249,8 +306,11 @@ export class BossGelehkEntity {
     this.updateAnimation();
     this.updateTint();
 
-    const visible = this.serverState !== 'dead';
-    this.collisionShadow.setVisible(visible);
+    const alive = this.serverState !== 'dead';
+    this.collisionShadow.setVisible(alive);
+    this.label.setVisible(alive);
+    this.hpBar.setVisible(alive);
+    this.hpBarBg.setVisible(alive);
   }
 
   private updateAnimation(): void {
@@ -340,5 +400,6 @@ export class BossGelehkEntity {
     this.hpBarBg.destroy();
     for (const g of this.iceZoneGraphics) g.destroy();
     for (const g of this.aoeGraphics) g.destroy();
+    this.destroyAoeTileOverlays();
   }
 }

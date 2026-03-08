@@ -92,6 +92,9 @@ export class InstanceManager {
             (x: number, y: number, _count: number) => {
               ctx.spawnMinions(x, y);
             },
+            (x: number, y: number) => {
+              ctx.spawnPurpleField(x, y);
+            },
             ctx.safeZone
           );
         }
@@ -123,9 +126,9 @@ export class InstanceManager {
       bossPrefix: 'phase3_boss',
       createBoss: (id, x, y) => new Phase3Boss(id, x, y, BOSS_KINDS.SILVERBACK_WAINER),
       updateBoss: (boss, ctx) => {
-        if (boss instanceof DragonLord) {
+        if (boss instanceof Phase3Boss) {
           boss.update(ctx.dt, ctx.players, (x: number, y: number, dirX: number, dirY: number) => {
-            ctx.spawnFireLine(x, y, dirX, dirY);
+            ctx.spawnFireLine(x, y, dirX, dirY, boss.flameKind);
           });
         }
       },

@@ -62,7 +62,7 @@ export class BossDragonLordEntity {
 
     this.label = scene.add.text(x, y - LABEL_OFFSET_Y, 'DRAGON LORD', {
       fontSize: '12px',
-      color: '#ffb07a',
+      color: '#ffdf8d',
       fontStyle: 'bold',
       align: 'center',
     });

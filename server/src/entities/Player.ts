@@ -58,9 +58,15 @@ export class Player extends Entity {
   private lastReceivedInputSeq: number;
   burningTicksRemaining: number;
   burningTickTimer: number;
+  purpleBurningTicksRemaining: number;
+  purpleBurningTickTimer: number;
+  blueBurningTicksRemaining: number;
+  blueBurningTickTimer: number;
   phaseTransferCooldownMs: number;
   private cachedStatusEffects: PlayerSnapshot['statusEffects'];
   private cachedBurningTicks: number;
+  private cachedPurpleBurningTicks: number;
+  private cachedBlueBurningTicks: number;
 
   readonly stateMachine: StateMachine;
   private readonly fsmStates: Record<PlayerState, State>;
@@ -90,9 +96,15 @@ export class Player extends Entity {
     this.lastReceivedInputSeq = -1;
     this.burningTicksRemaining = 0;
     this.burningTickTimer = 0;
+    this.purpleBurningTicksRemaining = 0;
+    this.purpleBurningTickTimer = 0;
+    this.blueBurningTicksRemaining = 0;
+    this.blueBurningTickTimer = 0;
     this.phaseTransferCooldownMs = 0;
     this.cachedStatusEffects = EMPTY_STATUS_EFFECTS;
     this.cachedBurningTicks = 0;
+    this.cachedPurpleBurningTicks = 0;
+    this.cachedBlueBurningTicks = 0;
 
     this.stateMachine = new StateMachine();
     this.fsmStates = {
@@ -235,6 +247,10 @@ export class Player extends Entity {
     this.safeZoneTimer = SAFE_ZONE_DURATION;
     this.burningTicksRemaining = 0;
     this.burningTickTimer = 0;
+    this.purpleBurningTicksRemaining = 0;
+    this.purpleBurningTickTimer = 0;
+    this.blueBurningTicksRemaining = 0;
+    this.blueBurningTickTimer = 0;
     this.resetAttackTracking();
   }
 
@@ -242,6 +258,18 @@ export class Player extends Entity {
     if (this.state === 'dead') return;
     this.burningTicksRemaining = Math.max(this.burningTicksRemaining, ticks);
     this.burningTickTimer = BURNING_TICK_MS;
+  }
+
+  applyPurpleBurning(ticks: number = BURNING_TICKS): void {
+    if (this.state === 'dead') return;
+    this.purpleBurningTicksRemaining = Math.max(this.purpleBurningTicksRemaining, ticks);
+    this.purpleBurningTickTimer = BURNING_TICK_MS;
+  }
+
+  applyBlueBurning(ticks: number = BURNING_TICKS): void {
+    if (this.state === 'dead') return;
+    this.blueBurningTicksRemaining = Math.max(this.blueBurningTicksRemaining, ticks);
+    this.blueBurningTickTimer = BURNING_TICK_MS;
   }
 
   markPhaseTransferCooldown(ms: number): void {
@@ -261,11 +289,29 @@ export class Player extends Entity {
   }
 
   toSnapshot(): PlayerSnapshot {
-    if (this.burningTicksRemaining !== this.cachedBurningTicks) {
+    if (
+      this.burningTicksRemaining !== this.cachedBurningTicks ||
+      this.purpleBurningTicksRemaining !== this.cachedPurpleBurningTicks ||
+      this.blueBurningTicksRemaining !== this.cachedBlueBurningTicks
+    ) {
       this.cachedBurningTicks = this.burningTicksRemaining;
+      this.cachedPurpleBurningTicks = this.purpleBurningTicksRemaining;
+      this.cachedBlueBurningTicks = this.blueBurningTicksRemaining;
       this.cachedStatusEffects =
-        this.burningTicksRemaining > 0
-          ? { burning: { ticksRemaining: this.burningTicksRemaining } }
+        this.burningTicksRemaining > 0 ||
+        this.purpleBurningTicksRemaining > 0 ||
+        this.blueBurningTicksRemaining > 0
+          ? {
+              ...(this.burningTicksRemaining > 0
+                ? { burning: { ticksRemaining: this.burningTicksRemaining } }
+                : {}),
+              ...(this.purpleBurningTicksRemaining > 0
+                ? { purpleBurning: { ticksRemaining: this.purpleBurningTicksRemaining } }
+                : {}),
+              ...(this.blueBurningTicksRemaining > 0
+                ? { blueBurning: { ticksRemaining: this.blueBurningTicksRemaining } }
+                : {}),
+            }
           : EMPTY_STATUS_EFFECTS;
     }
 
@@ -288,16 +334,57 @@ export class Player extends Entity {
   }
 
   private updateBurning(dt: number): void {
-    if (this.burningTicksRemaining <= 0) return;
-    this.burningTickTimer -= dt;
-    while (this.burningTicksRemaining > 0 && this.burningTickTimer <= 0) {
-      this.takeDamage(BURNING_TICK_DAMAGE);
-      this.burningTicksRemaining -= 1;
-      this.burningTickTimer += BURNING_TICK_MS;
-      if (this.state === 'dead') {
-        this.burningTicksRemaining = 0;
-        this.burningTickTimer = 0;
-        break;
+    if (this.burningTicksRemaining > 0) {
+      this.burningTickTimer -= dt;
+      while (this.burningTicksRemaining > 0 && this.burningTickTimer <= 0) {
+        this.takeDamage(BURNING_TICK_DAMAGE);
+        this.burningTicksRemaining -= 1;
+        this.burningTickTimer += BURNING_TICK_MS;
+        if (this.state === 'dead') {
+          this.burningTicksRemaining = 0;
+          this.burningTickTimer = 0;
+          this.purpleBurningTicksRemaining = 0;
+          this.purpleBurningTickTimer = 0;
+          this.blueBurningTicksRemaining = 0;
+          this.blueBurningTickTimer = 0;
+          return;
+        }
+      }
+    }
+
+    if (this.purpleBurningTicksRemaining > 0) {
+      this.purpleBurningTickTimer -= dt;
+      while (this.purpleBurningTicksRemaining > 0 && this.purpleBurningTickTimer <= 0) {
+        this.takeDamage(BURNING_TICK_DAMAGE);
+        this.purpleBurningTicksRemaining -= 1;
+        this.purpleBurningTickTimer += BURNING_TICK_MS;
+        if (this.state === 'dead') {
+          this.burningTicksRemaining = 0;
+          this.burningTickTimer = 0;
+          this.purpleBurningTicksRemaining = 0;
+          this.purpleBurningTickTimer = 0;
+          this.blueBurningTicksRemaining = 0;
+          this.blueBurningTickTimer = 0;
+          return;
+        }
+      }
+    }
+
+    if (this.blueBurningTicksRemaining > 0) {
+      this.blueBurningTickTimer -= dt;
+      while (this.blueBurningTicksRemaining > 0 && this.blueBurningTickTimer <= 0) {
+        this.takeDamage(BURNING_TICK_DAMAGE);
+        this.blueBurningTicksRemaining -= 1;
+        this.blueBurningTickTimer += BURNING_TICK_MS;
+        if (this.state === 'dead') {
+          this.burningTicksRemaining = 0;
+          this.burningTickTimer = 0;
+          this.purpleBurningTicksRemaining = 0;
+          this.purpleBurningTickTimer = 0;
+          this.blueBurningTicksRemaining = 0;
+          this.blueBurningTickTimer = 0;
+          return;
+        }
       }
     }
   }

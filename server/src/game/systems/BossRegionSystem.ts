@@ -2,16 +2,13 @@ import { distanceSquared } from '../Physics.js';
 import { Entity } from '../../core/Entity.js';
 import { Player } from '../../entities/Player.js';
 import type { BossKind } from '@gelehka/shared';
+import type { HazardKind } from '@gelehka/shared';
 
 export interface BossActor extends Entity {
   kind: BossKind;
   state: string;
   active?: boolean;
-  update: (
-    dt: number,
-    players: Map<string, Player>,
-    callback: (...args: unknown[]) => void
-  ) => void;
+  update: (...args: any[]) => void;
   tryRespawn: (dt: number) => boolean;
 }
 
@@ -19,7 +16,8 @@ export interface BossRegionContext {
   dt: number;
   players: Map<string, Player>;
   spawnMinions: (x: number, y: number) => void;
-  spawnFireLine: (x: number, y: number, dirX: number, dirY: number) => void;
+  spawnFireLine: (x: number, y: number, dirX: number, dirY: number, kind?: HazardKind) => void;
+  spawnPurpleField: (x: number, y: number) => void;
   safeZone: { x: number; y: number; radius: number };
 }
 

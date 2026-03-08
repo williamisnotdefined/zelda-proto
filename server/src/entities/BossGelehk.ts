@@ -32,7 +32,6 @@ export const BOSS_RESPAWN_TIME = 15000;
 
 const AOE_TELEGRAPH_TIME = 1000;
 const AOE_HIT_FLASH_TIME = 120;
-const AOE_DAMAGE = 30;
 const AOE_RADIUS = 80;
 const AOE_ATTACK_RANGE = 400;
 const CHARGE_SPEED = 300;
@@ -164,6 +163,7 @@ export class BossGelehk extends Entity {
     dt: number,
     players: Map<string, Player>,
     spawnMinions: (x: number, y: number, count: number) => void,
+    spawnPurpleField: (x: number, y: number) => void,
     safeZone?: { x: number; y: number; radius: number }
   ): void {
     if (this.state === 'dead') return;
@@ -187,7 +187,7 @@ export class BossGelehk extends Entity {
     }
 
     this.updatePhase();
-    this.updateAoeIndicators(dt, players);
+    this.updateAoeIndicators(dt, spawnPurpleField);
     this.updateWave(dt, players);
 
     if (this.attackTimer > 0) {
@@ -351,19 +351,13 @@ export class BossGelehk extends Entity {
     }
   }
 
-  private updateAoeIndicators(dt: number, players: Map<string, Player>): void {
+  private updateAoeIndicators(dt: number, spawnPurpleField: (x: number, y: number) => void): void {
     for (let i = this.aoeIndicators.length - 1; i >= 0; i--) {
       const aoe = this.aoeIndicators[i];
       aoe.timer -= dt;
 
       if (!aoe.hit && aoe.timer <= 0) {
-        for (const player of players.values()) {
-          if (player.state === 'dead') continue;
-          if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
-          if (distanceSquared(player.x, player.y, aoe.x, aoe.y) < aoe.radius * aoe.radius) {
-            player.takeDamage(AOE_DAMAGE);
-          }
-        }
+        spawnPurpleField(aoe.x, aoe.y);
         aoe.hit = true;
         aoe.timer = AOE_HIT_FLASH_TIME;
       } else if (aoe.hit && aoe.timer <= 0) {
