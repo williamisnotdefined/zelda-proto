@@ -11,6 +11,7 @@ const MIME_TYPES: Record<string, string> = {
   '.js': 'application/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
+  '.webmanifest': 'application/manifest+json',
   '.gif': 'image/gif',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
@@ -24,6 +25,18 @@ const MIME_TYPES: Record<string, string> = {
   '.ogg': 'audio/ogg',
   '.wav': 'audio/wav',
 };
+
+function getCacheControl(urlPath: string, ext: string): string {
+  if (urlPath === '/sw.js' || urlPath === '/manifest.webmanifest' || ext === '.html') {
+    return 'no-cache, no-store, must-revalidate';
+  }
+
+  if (urlPath.startsWith('/assets/')) {
+    return 'public, max-age=31536000, immutable';
+  }
+
+  return 'public, max-age=3600';
+}
 
 export function createHttpServer(): Server {
   return createServer((req, res) => {
@@ -40,8 +53,12 @@ export function createHttpServer(): Server {
 
     const ext = extname(filePath);
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const cacheControl = getCacheControl(urlPath, ext);
 
-    res.writeHead(200, { 'Content-Type': contentType });
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Cache-Control': cacheControl,
+    });
     createReadStream(filePath).pipe(res);
   });
 }
