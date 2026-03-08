@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
 import { connect } from '../network/socket';
@@ -143,10 +144,15 @@ export function HUD() {
       >
         <button
           onClick={toggleMusicMute}
+          aria-label={musicMuted ? 'Ativar musica' : 'Mutar musica'}
+          title={musicMuted ? 'Ativar musica' : 'Mutar musica'}
           style={{
             pointerEvents: 'auto',
-            padding: '4px 8px',
-            fontSize: '11px',
+            width: 30,
+            height: 30,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
             background: 'rgba(0, 0, 0, 0.55)',
             border: '1px solid #666',
@@ -154,16 +160,25 @@ export function HUD() {
             borderRadius: 3,
           }}
         >
-          {musicMuted ? 'Unmute Music' : 'Mute Music'}
+          {musicMuted ? (
+            <VolumeX size={16} strokeWidth={2} />
+          ) : (
+            <Volume2 size={16} strokeWidth={2} />
+          )}
         </button>
 
         {touchEnabled && fullscreenSupported && (
           <button
             onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
+            title={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
             style={{
               pointerEvents: 'auto',
-              padding: '4px 8px',
-              fontSize: '11px',
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: 'pointer',
               background: 'rgba(0, 0, 0, 0.55)',
               border: '1px solid #666',
@@ -171,7 +186,11 @@ export function HUD() {
               borderRadius: 3,
             }}
           >
-            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            {isFullscreen ? (
+              <Minimize2 size={16} strokeWidth={2} />
+            ) : (
+              <Maximize2 size={16} strokeWidth={2} />
+            )}
           </button>
         )}
 
