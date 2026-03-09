@@ -1,12 +1,44 @@
 import { CLIENT_MESSAGE_TYPES, PROTOCOL_VERSION } from '@gelehka/shared';
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
 import { ConnectionState, NetworkManager } from './NetworkManager';
+import { useGameStore } from '../ui/store';
 
 type MessageHandler = (msg: ServerMessage) => void;
 type ErrorHandler = (error: string) => void;
 type ConnectionStateHandler = (state: ConnectionState) => void;
 
 const networkManager = new NetworkManager();
+let desiredNickname: string | null = null;
+
+networkManager.onConnectionState((state) => {
+  useGameStore.getState().setConnected(state === 'CONNECTED');
+  if (state === 'CONNECTING') {
+    useGameStore.getState().setLastConnectionAttempt(Date.now());
+  }
+
+  if (state !== 'CONNECTED' || !desiredNickname) {
+    return;
+  }
+
+  networkManager.send({
+    protocolVersion: PROTOCOL_VERSION,
+    type: CLIENT_MESSAGE_TYPES.JOIN,
+    nickname: desiredNickname,
+  });
+});
+
+networkManager.onError((error) => {
+  useGameStore.getState().setConnectionError(error);
+});
+
+networkManager.onMessage((msg) => {
+  if (msg.type !== 'welcome') {
+    return;
+  }
+
+  useGameStore.getState().setLocalPlayerId(msg.id);
+  useGameStore.getState().setConnectionError(null);
+});
 
 export function connect(): void {
   networkManager.connect();
@@ -17,7 +49,11 @@ export function send(msg: ClientMessage): void {
 }
 
 export function sendJoin(nickname: string): void {
-  send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.JOIN, nickname });
+  desiredNickname = nickname;
+
+  if (getConnectionState() === 'CONNECTED') {
+    send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.JOIN, nickname });
+  }
 }
 
 export function sendChat(text: string): void {
@@ -45,5 +81,6 @@ export function getConnectionState(): ConnectionState {
 }
 
 export function disconnect(): void {
+  desiredNickname = null;
   networkManager.disconnect();
 }

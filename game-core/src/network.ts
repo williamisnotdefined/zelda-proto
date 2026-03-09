@@ -14,15 +14,16 @@ export function resolveWebSocketUrl({
   path = '/ws',
   location,
 }: WebSocketUrlOptions = {}): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const trimmedUrl = explicitUrl?.trim();
   if (trimmedUrl) {
     return trimmedUrl;
   }
 
   if (!location) {
-    return path;
+    return `ws://localhost${normalizedPath}`;
   }
 
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}${path}`;
+  return `${protocol}//${location.host}${normalizedPath}`;
 }

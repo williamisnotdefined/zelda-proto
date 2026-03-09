@@ -84,6 +84,31 @@ export class SpawnSystem {
         this.spawnChunks.delete(key);
       }
     }
+
+    for (const [enemyId, blob] of blobs) {
+      if (blob.respawnEnabled || blob.chunkKey !== 'minion') {
+        continue;
+      }
+
+      let playerNearby = false;
+      for (const player of players.values()) {
+        if (player.state === 'dead') {
+          continue;
+        }
+
+        const dx = player.x - blob.x;
+        const dy = player.y - blob.y;
+        if (dx * dx + dy * dy <= this.config.activeRange * this.config.activeRange) {
+          playerNearby = true;
+          break;
+        }
+      }
+
+      if (blob.state === 'dead' || !playerNearby) {
+        blobs.delete(enemyId);
+        removeEntity(enemyId);
+      }
+    }
   }
 
   spawnMinions(
@@ -94,13 +119,27 @@ export class SpawnSystem {
   ): void {
     const MINION_COUNT = 3;
     const MINION_SPAWN_RADIUS = 60;
+    let activeMinions = 0;
 
-    for (let i = 0; i < MINION_COUNT; i++) {
+    for (const blob of blobs.values()) {
+      if (blob.chunkKey !== 'minion' || blob.state === 'dead') {
+        continue;
+      }
+
+      const dx = blob.x - x;
+      const dy = blob.y - y;
+      if (dx * dx + dy * dy <= MINION_SPAWN_RADIUS * 4 * (MINION_SPAWN_RADIUS * 4)) {
+        activeMinions += 1;
+      }
+    }
+
+    for (let i = activeMinions; i < MINION_COUNT; i++) {
       const id = `${this.config.enemyPrefix}_minion_${nanoid(8)}`;
       const angle = (Math.PI * 2 * i) / MINION_COUNT;
       const sx = x + Math.cos(angle) * MINION_SPAWN_RADIUS;
       const sy = y + Math.sin(angle) * MINION_SPAWN_RADIUS;
       const minion = this.config.createEnemy(id, sx, sy, 'minion');
+      minion.respawnEnabled = false;
       blobs.set(id, minion);
       addEntity(minion);
     }

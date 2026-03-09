@@ -118,7 +118,7 @@ export class BossRegionSystem<TBoss extends BossActor> {
         }
 
         const boss = bosses.get(region.bossId);
-        const bossInactive = boss && boss.state === 'idle' && !boss.active;
+        const bossInactive = boss && boss.state === 'idle';
         const bossDead = boss && boss.state === 'dead';
         if (boss && (bossInactive || bossDead)) {
           bosses.delete(region.bossId);

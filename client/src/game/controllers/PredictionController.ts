@@ -13,6 +13,7 @@ export interface PendingInput {
   input: InputMessage;
   dtMs: number;
   sentAtMs: number;
+  speedMultiplier?: number;
 }
 
 export interface InputState {

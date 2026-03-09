@@ -8,7 +8,19 @@ export function getExponentialInterpolationFactor(
   dtMs: number,
   referenceFrameMs = 16.667
 ): number {
-  return 1 - Math.pow(1 - baseFactor, dtMs / referenceFrameMs);
+  if (
+    !Number.isFinite(baseFactor) ||
+    !Number.isFinite(dtMs) ||
+    !Number.isFinite(referenceFrameMs)
+  ) {
+    return 0;
+  }
+
+  const normalizedBaseFactor = Math.max(0, Math.min(baseFactor, 1));
+  const normalizedDtMs = Math.max(0, dtMs);
+  const normalizedReferenceFrameMs = Math.max(Number.EPSILON, referenceFrameMs);
+
+  return 1 - Math.pow(1 - normalizedBaseFactor, normalizedDtMs / normalizedReferenceFrameMs);
 }
 
 export function interpolateToward(

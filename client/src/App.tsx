@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createGame } from './game/Game';
 import { setPhaserGame } from './game/instance';
+import { disconnect } from './network/socket';
 import { HUD } from './ui/HUD';
 import { TouchControls } from './ui/TouchControls';
 
@@ -14,6 +15,7 @@ export function App() {
     }
 
     return () => {
+      disconnect();
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };

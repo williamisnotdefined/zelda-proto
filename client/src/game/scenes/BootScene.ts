@@ -1,6 +1,4 @@
 import Phaser from 'phaser';
-import { onConnectionState, onError, onMessage } from '../../network/socket';
-import { useGameStore } from '../../ui/store';
 import { setupAnimations } from '../AnimationSetup';
 
 export class BootScene extends Phaser.Scene {
@@ -102,40 +100,6 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     setupAnimations(this);
-
-    // Set up WebSocket message handlers globally before WorldScene starts
-    // This ensures handlers are ready when user connects
-    const messageHandler = onMessage((msg) => {
-      switch (msg.type) {
-        case 'welcome':
-          useGameStore.getState().setLocalPlayerId(msg.id as string);
-          useGameStore.getState().setConnected(true);
-          useGameStore.getState().setConnectionError(null);
-          break;
-        case 'snapshot':
-          // Snapshot will be handled by WorldScene's own handler
-          // We just need to ensure welcome message is caught
-          break;
-        default:
-          break;
-      }
-    });
-
-    const errorHandler = onError((error) => {
-      useGameStore.getState().setConnectionError(error);
-    });
-
-    const connectionStateHandler = onConnectionState((state) => {
-      useGameStore.getState().setConnected(state === 'CONNECTED');
-      if (state === 'CONNECTING') {
-        useGameStore.getState().setLastConnectionAttempt(Date.now());
-      }
-    });
-
-    // Store handlers for cleanup if needed
-    this.registry.set('globalMessageHandler', messageHandler);
-    this.registry.set('globalErrorHandler', errorHandler);
-    this.registry.set('globalConnectionStateHandler', connectionStateHandler);
 
     this.scene.start('WorldScene');
   }

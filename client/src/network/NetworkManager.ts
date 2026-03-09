@@ -30,6 +30,7 @@ export class NetworkManager {
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectionState: ConnectionState = 'DISCONNECTED';
   private normalizationState = createSnapshotNormalizationState();
+  private shouldReconnect = true;
 
   connect(): void {
     if (
@@ -37,6 +38,13 @@ export class NetworkManager {
       (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
     ) {
       return;
+    }
+
+    this.shouldReconnect = true;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
     try {
@@ -111,7 +119,7 @@ export class NetworkManager {
 
       this.ws = null;
       this.setConnectionState('DISCONNECTED');
-      if (!this.reconnectTimer) {
+      if (this.shouldReconnect && !this.reconnectTimer) {
         this.reconnectTimer = setTimeout(() => {
           this.reconnectTimer = null;
           this.connect();
@@ -166,6 +174,7 @@ export class NetworkManager {
   }
 
   disconnect(): void {
+    this.shouldReconnect = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

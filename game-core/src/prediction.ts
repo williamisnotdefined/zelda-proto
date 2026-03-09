@@ -5,6 +5,7 @@ export interface PendingInput {
   input: InputMessage;
   dtMs: number;
   sentAtMs: number;
+  speedMultiplier?: number;
 }
 
 export interface InputState {
@@ -77,7 +78,12 @@ export function getPredictedPosition(
   let y = serverPlayer.y;
 
   for (const pending of filteredPending) {
-    const delta = getDeltaForInput(pending.input, pending.dtMs, moveSpeed);
+    const delta = getDeltaForInput(
+      pending.input,
+      pending.dtMs,
+      moveSpeed,
+      pending.speedMultiplier ?? 1
+    );
     x += delta.dx;
     y += delta.dy;
   }

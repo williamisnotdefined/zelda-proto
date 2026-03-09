@@ -1,5 +1,4 @@
-// Shared types between client and server.
-// Do not add runtime logic here — this file contains type declarations only.
+// Shared runtime constants and types between client and server.
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -59,16 +58,16 @@ export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
 export const PROTOCOL_VERSION = 1 as const;
 
+export type ProtocolVersion = typeof PROTOCOL_VERSION;
+
 interface ProtocolEnvelope {
-  protocolVersion: number;
+  protocolVersion: ProtocolVersion;
 }
 
 export const SERVER_MESSAGE_TYPES = {
   SNAPSHOT: 'snapshot',
   SNAPSHOT_DELTA: 'snapshot_delta',
   WELCOME: 'welcome',
-  PLAYER_JOIN: 'player_join',
-  PLAYER_LEAVE: 'player_leave',
   CHAT: 'chat',
   LEADERBOARD: 'leaderboard',
 } as const;
@@ -96,10 +95,22 @@ export interface BurningStatus {
   ticksRemaining: number;
 }
 
-export interface PlayerStatusSnapshot {
-  burning?: BurningStatus;
-  purpleBurning?: BurningStatus;
-  blueBurning?: BurningStatus;
+export const PLAYER_STATUS_EFFECTS = {
+  BURNING: 'burning',
+  PURPLE_BURNING: 'purpleBurning',
+  BLUE_BURNING: 'blueBurning',
+} as const;
+
+export type PlayerStatusEffect = (typeof PLAYER_STATUS_EFFECTS)[keyof typeof PLAYER_STATUS_EFFECTS];
+
+export type PlayerStatusSnapshot = Partial<Record<PlayerStatusEffect, BurningStatus>>;
+
+export interface PlayerLeaderboardEntry {
+  id: string;
+  nickname: string;
+  playerKills: number;
+  monsterKills: number;
+  deaths: number;
 }
 
 export interface PlayerSnapshot {
@@ -126,8 +137,10 @@ export interface EnemySnapshot {
   y: number;
   hp: number;
   maxHp: number;
-  state: BlobState;
+  state: EnemyState;
 }
+
+export type EnemyState = BlobState;
 
 export interface BossSnapshot {
   id: string;
@@ -199,16 +212,6 @@ export interface WelcomeMessage extends ProtocolEnvelope {
   mapHeight: number;
 }
 
-export interface PlayerJoinMessage extends ProtocolEnvelope {
-  type: typeof SERVER_MESSAGE_TYPES.PLAYER_JOIN;
-  id: string;
-}
-
-export interface PlayerLeaveMessage extends ProtocolEnvelope {
-  type: typeof SERVER_MESSAGE_TYPES.PLAYER_LEAVE;
-  id: string;
-}
-
 export interface ServerChatMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.CHAT;
   id: string;
@@ -219,7 +222,7 @@ export interface ServerChatMessage extends ProtocolEnvelope {
 
 export interface LeaderboardMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.LEADERBOARD;
-  players: PlayerSnapshot[];
+  players: PlayerLeaderboardEntry[];
 }
 
 export interface SnapshotDeltaMessage extends ProtocolEnvelope {
@@ -250,12 +253,10 @@ export type ServerMessage =
   | SnapshotDeltaMessage
   | LeaderboardMessage
   | WelcomeMessage
-  | PlayerJoinMessage
-  | PlayerLeaveMessage
   | ServerChatMessage;
 
 export interface InputMessage {
-  protocolVersion: number;
+  protocolVersion: ProtocolVersion;
   type: typeof CLIENT_MESSAGE_TYPES.INPUT;
   seq: number;
   up: boolean;
@@ -266,13 +267,13 @@ export interface InputMessage {
 }
 
 export interface JoinMessage {
-  protocolVersion: number;
+  protocolVersion: ProtocolVersion;
   type: typeof CLIENT_MESSAGE_TYPES.JOIN;
   nickname: string;
 }
 
 export interface ClientChatMessage {
-  protocolVersion: number;
+  protocolVersion: ProtocolVersion;
   type: typeof CLIENT_MESSAGE_TYPES.CHAT;
   text: string;
 }

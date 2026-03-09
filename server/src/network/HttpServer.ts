@@ -1,5 +1,6 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
-import { createServer, Server } from 'node:http';
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { createServer, Server, ServerResponse } from 'node:http';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,14 +41,17 @@ function getCacheControl(urlPath: string, ext: string): string {
 
 export function createHttpServer(): Server {
   return createServer((req, res) => {
-    const urlPath = req.url ?? '/';
+    void handleRequest(req.url ?? '/', res);
+  });
+}
+
+async function handleRequest(urlPath: string, res: ServerResponse): Promise<void> {
+  try {
     let filePath = resolve(CLIENT_DIST, urlPath === '/' ? 'index.html' : '.' + urlPath);
 
-    if (
-      !filePath.startsWith(CLIENT_DIST) ||
-      !existsSync(filePath) ||
-      !statSync(filePath).isFile()
-    ) {
+    const requestedPathAllowed = filePath.startsWith(CLIENT_DIST);
+    const requestedStat = requestedPathAllowed ? await safeStat(filePath) : null;
+    if (!requestedStat?.isFile()) {
       filePath = join(CLIENT_DIST, 'index.html');
     }
 
@@ -59,6 +63,24 @@ export function createHttpServer(): Server {
       'Content-Type': contentType,
       'Cache-Control': cacheControl,
     });
-    createReadStream(filePath).pipe(res);
-  });
+    const stream = createReadStream(filePath);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.writeHead(404);
+      }
+      res.end();
+    });
+    stream.pipe(res);
+  } catch {
+    res.writeHead(500);
+    res.end('Internal Server Error');
+  }
+}
+
+async function safeStat(filePath: string) {
+  try {
+    return await stat(filePath);
+  } catch {
+    return null;
+  }
 }

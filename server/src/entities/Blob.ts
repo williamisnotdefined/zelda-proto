@@ -30,6 +30,7 @@ export interface EnemyConfig {
   damage: number;
   aggroRadius: number;
   respawnTimeMs: number;
+  respawnEnabled?: boolean;
 }
 
 export const BLOB_CONFIG: EnemyConfig = {
@@ -61,6 +62,7 @@ export class Blob extends Entity {
   targetPlayerId: string | null;
   hasDropped: boolean;
   dropKind: 'heart_small' | 'heart_large';
+  respawnEnabled: boolean;
   private readonly respawnTimeMs: number;
 
   constructor(
@@ -88,6 +90,7 @@ export class Blob extends Entity {
     this.hasDropped = false;
     this.dropKind = dropKind;
     this.respawnTimeMs = config.respawnTimeMs;
+    this.respawnEnabled = config.respawnEnabled ?? true;
   }
 
   update(dt: number, players: Map<string, Player>, spawnSafeZoneActive: boolean = false): void {
@@ -223,7 +226,7 @@ export class Blob extends Entity {
   }
 
   tryRespawn(dt: number): boolean {
-    if (this.state !== 'dead') return false;
+    if (this.state !== 'dead' || !this.respawnEnabled) return false;
     this.respawnTimer -= dt;
     if (this.respawnTimer <= 0) {
       this.x = this.spawnX;

@@ -35,6 +35,7 @@ interface AoeData {
 }
 
 interface AoeTileOverlay {
+  radius: number;
   offsets: Array<{ x: number; y: number }>;
   sprites: Phaser.GameObjects.Image[];
 }
@@ -208,6 +209,10 @@ export class BossGelehkEntity {
         const aoe = aoes[i];
         const circle = this.aoeGraphics[i];
         const overlay = this.aoeTileOverlays[i];
+        if (!overlay || overlay.radius !== aoe.radius) {
+          this.rebuildAoeIndicator(i, aoe);
+          continue;
+        }
         circle.setPosition(aoe.x, aoe.y);
         circle.setRadius(aoe.radius);
         circle.setFillStyle(AOE_TELEGRAPH_COLOR, AOE_TELEGRAPH_ALPHA);
@@ -265,7 +270,31 @@ export class BossGelehkEntity {
       }
     }
 
-    return { offsets, sprites };
+    return { radius, offsets, sprites };
+  }
+
+  private rebuildAoeIndicator(index: number, aoe: AoeData): void {
+    this.aoeGraphics[index]?.destroy();
+    for (const sprite of this.aoeTileOverlays[index]?.sprites ?? []) {
+      sprite.destroy();
+    }
+
+    const circle = this.scene.add.circle(
+      aoe.x,
+      aoe.y,
+      aoe.radius,
+      AOE_TELEGRAPH_COLOR,
+      AOE_TELEGRAPH_ALPHA
+    );
+    circle.setDepth(3);
+    circle.setVisible(!aoe.hit);
+    this.aoeGraphics[index] = circle;
+
+    const overlay = this.createAoeTileOverlay(aoe.x, aoe.y, aoe.radius);
+    for (const sprite of overlay.sprites) {
+      sprite.setVisible(aoe.hit);
+    }
+    this.aoeTileOverlays[index] = overlay;
   }
 
   private destroyAoeTileOverlays(): void {

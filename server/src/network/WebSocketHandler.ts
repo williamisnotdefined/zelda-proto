@@ -24,6 +24,7 @@ import {
 import { NetworkManager } from './NetworkManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
 
+const HEARTBEAT_INTERVAL_MS = 15000;
 const MAX_CONNECTIONS = 200;
 const INPUT_RATE_LIMIT = 65;
 const CHAT_RATE_LIMIT = 5;
@@ -47,6 +48,22 @@ function formatDateTime(): string {
   });
 }
 
+function stripControlCharacters(text: string): string {
+  let result = '';
+
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if ((code >= 0 && code <= 31) || code === 127) {
+      result += ' ';
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 export class WebSocketHandler {
   private wss: WebSocketServer;
   readonly clients: Map<string, WebSocket> = new Map();
@@ -56,6 +73,7 @@ export class WebSocketHandler {
   private readonly forceFullSnapshotFor: Set<string> = new Set();
   private readonly lastInstanceByPlayer: Map<string, string> = new Map();
   private snapshotTick = 0;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(httpServer: Server) {
     this.wss = new WebSocketServer({
@@ -68,6 +86,32 @@ export class WebSocketHandler {
   }
 
   start(instances: InstanceManager): void {
+    if (!this.heartbeatTimer) {
+      this.heartbeatTimer = setInterval(() => {
+        for (const ws of this.clients.values()) {
+          const heartbeatSocket = ws as WebSocket & { isAlive?: boolean };
+          if (heartbeatSocket.readyState !== WebSocket.OPEN) {
+            continue;
+          }
+
+          if (heartbeatSocket.isAlive === false) {
+            heartbeatSocket.terminate();
+            continue;
+          }
+
+          heartbeatSocket.isAlive = false;
+          heartbeatSocket.ping();
+        }
+      }, HEARTBEAT_INTERVAL_MS);
+
+      this.wss.once('close', () => {
+        if (this.heartbeatTimer) {
+          clearInterval(this.heartbeatTimer);
+          this.heartbeatTimer = null;
+        }
+      });
+    }
+
     this.wss.on('connection', (ws) => {
       if (this.clients.size >= MAX_CONNECTIONS) {
         ws.close(1013, 'Server full');
@@ -114,6 +158,10 @@ export class WebSocketHandler {
       };
 
       this.clients.set(playerId, ws);
+      (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+      ws.on('pong', () => {
+        (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+      });
 
       ws.on('message', (data) => {
         try {
@@ -211,7 +259,7 @@ export class WebSocketHandler {
     const player = instances.getPlayersInAnyWorld().get(playerId);
     if (!player) return;
 
-    const text = String(rawText ?? '')
+    const text = stripControlCharacters(String(rawText ?? ''))
       .trim()
       .slice(0, MAX_CHAT_LENGTH);
     if (text.length === 0) return;
@@ -286,9 +334,13 @@ export class WebSocketHandler {
     return {
       protocolVersion: PROTOCOL_VERSION,
       type: SERVER_MESSAGE_TYPES.LEADERBOARD,
-      players: Array.from(instances.getPlayersInInstance(instanceId).values()).map((player) =>
-        player.toSnapshot()
-      ),
+      players: Array.from(instances.getPlayersInInstance(instanceId).values()).map((player) => ({
+        id: player.id,
+        nickname: player.nickname,
+        playerKills: player.playerKills,
+        monsterKills: player.monsterKills,
+        deaths: player.deaths,
+      })),
     };
   }
 }

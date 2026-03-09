@@ -92,7 +92,7 @@ export class Player extends Entity {
     this.toastyTriggeredThisAttack = false;
     this.toastyCount = 0;
     this.safeZoneTimer = SAFE_ZONE_DURATION;
-    this.lastProcessedInputSeq = 0;
+    this.lastProcessedInputSeq = -1;
     this.lastReceivedInputSeq = -1;
     this.burningTicksRemaining = 0;
     this.burningTickTimer = 0;
@@ -251,6 +251,9 @@ export class Player extends Entity {
     this.purpleBurningTickTimer = 0;
     this.blueBurningTicksRemaining = 0;
     this.blueBurningTickTimer = 0;
+    this.lastInput = null;
+    this.attackCooldownTimer = 0;
+    this.attackStateTimer = 0;
     this.resetAttackTracking();
   }
 

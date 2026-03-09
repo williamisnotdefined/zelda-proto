@@ -49,6 +49,13 @@ export class EnvironmentRenderer {
 
   update(instanceId: InstanceId | null): void {
     const cam = this.scene.cameras.main;
+    const targetWidth = cam.width + 256;
+    const targetHeight = cam.height + 256;
+
+    if (this.bgTileSprite.width !== targetWidth || this.bgTileSprite.height !== targetHeight) {
+      this.bgTileSprite.setSize(targetWidth, targetHeight);
+    }
+
     this.bgTileSprite.x = cam.width / 2;
     this.bgTileSprite.y = cam.height / 2;
     this.bgTileSprite.tilePositionX = cam.scrollX;

@@ -96,6 +96,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.shutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.shutdown, this);
+
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.keyW = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W, false);
     this.keyA = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A, false);
@@ -248,6 +251,7 @@ export class WorldScene extends Phaser.Scene {
     }
 
     if (this.localPlayerId && !seenPlayerIds.has(this.localPlayerId)) {
+      this.localPlayerId = null;
       this.pendingInputs = [];
       this.inputSendAccumulatorMs = 0;
       this.lastSentInputState = null;
@@ -487,8 +491,15 @@ export class WorldScene extends Phaser.Scene {
       this.inputSendAccumulatorMs = 0;
 
       const input: InputMessage = createInputMessage(this.nextInputSeq++, inputState);
+      const speedMultiplier =
+        localEntity?.serverState === 'attacking' || inputState.attack ? 0.5 : 1;
 
-      this.pendingInputs.push({ input, dtMs: dtWindowMs, sentAtMs: this.time.now });
+      this.pendingInputs.push({
+        input,
+        dtMs: dtWindowMs,
+        sentAtMs: this.time.now,
+        speedMultiplier,
+      });
       if (this.pendingInputs.length > MAX_PENDING_INPUTS) {
         this.pendingInputs.splice(0, this.pendingInputs.length - MAX_PENDING_INPUTS);
       }
@@ -592,9 +603,13 @@ export class WorldScene extends Phaser.Scene {
 
   shutdown(): void {
     this.removeMessageHandler?.();
+    this.removeMessageHandler = null;
     this.removeErrorHandler?.();
+    this.removeErrorHandler = null;
     this.minimap?.destroy();
 
+    this.localPlayerId = null;
+    this.previousLocalState = null;
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;

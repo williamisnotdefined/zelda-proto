@@ -28,6 +28,14 @@ export interface SnapshotNormalizationState {
   lastSnapshotTick: number;
 }
 
+function cloneItem<T extends object>(item: T): T {
+  return { ...item };
+}
+
+function cloneArrayItems<T extends object>(items: T[]): T[] {
+  return items.map((item) => cloneItem(item));
+}
+
 export function createSnapshotNormalizationState(): SnapshotNormalizationState {
   return {
     snapshotCache: null,
@@ -38,7 +46,7 @@ export function createSnapshotNormalizationState(): SnapshotNormalizationState {
 export function toEntityMap<T extends { id: string }>(items: T[]): Map<string, T> {
   const map = new Map<string, T>();
   for (const item of items) {
-    map.set(item.id, item);
+    map.set(item.id, cloneItem(item));
   }
   return map;
 }
@@ -52,8 +60,8 @@ export function toSnapshotCache(snapshot: SnapshotMessage): SnapshotCache {
     drops: toEntityMap(snapshot.drops),
     portals: toEntityMap(snapshot.portals),
     hazards: toEntityMap(snapshot.hazards),
-    iceZones: snapshot.iceZones,
-    aoeIndicators: snapshot.aoeIndicators,
+    iceZones: cloneArrayItems(snapshot.iceZones),
+    aoeIndicators: cloneArrayItems(snapshot.aoeIndicators),
   };
 }
 
@@ -62,14 +70,14 @@ export function toSnapshotMessage(cache: SnapshotCache): SnapshotMessage {
     protocolVersion: PROTOCOL_VERSION,
     type: SERVER_MESSAGE_TYPES.SNAPSHOT,
     instanceId: cache.instanceId,
-    players: Array.from(cache.players.values()),
-    enemies: Array.from(cache.enemies.values()),
-    bosses: Array.from(cache.bosses.values()),
-    drops: Array.from(cache.drops.values()),
-    portals: Array.from(cache.portals.values()),
-    hazards: Array.from(cache.hazards.values()),
-    iceZones: cache.iceZones,
-    aoeIndicators: cache.aoeIndicators,
+    players: Array.from(cache.players.values(), (item) => cloneItem(item)),
+    enemies: Array.from(cache.enemies.values(), (item) => cloneItem(item)),
+    bosses: Array.from(cache.bosses.values(), (item) => cloneItem(item)),
+    drops: Array.from(cache.drops.values(), (item) => cloneItem(item)),
+    portals: Array.from(cache.portals.values(), (item) => cloneItem(item)),
+    hazards: Array.from(cache.hazards.values(), (item) => cloneItem(item)),
+    iceZones: cloneArrayItems(cache.iceZones),
+    aoeIndicators: cloneArrayItems(cache.aoeIndicators),
   };
 }
 
@@ -77,7 +85,7 @@ export function applySnapshotDelta(
   delta: SnapshotDeltaMessage,
   snapshotCache: SnapshotCache | null
 ): SnapshotCache {
-  if (delta.full || !snapshotCache || snapshotCache.instanceId !== delta.instanceId) {
+  if (delta.full || !snapshotCache) {
     return {
       instanceId: delta.instanceId,
       players: toEntityMap(delta.players),
@@ -86,17 +94,17 @@ export function applySnapshotDelta(
       drops: toEntityMap(delta.drops),
       portals: toEntityMap(delta.portals),
       hazards: toEntityMap(delta.hazards),
-      iceZones: delta.iceZones,
-      aoeIndicators: delta.aoeIndicators,
+      iceZones: cloneArrayItems(delta.iceZones),
+      aoeIndicators: cloneArrayItems(delta.aoeIndicators),
     };
   }
 
-  for (const player of delta.players) snapshotCache.players.set(player.id, player);
-  for (const enemy of delta.enemies) snapshotCache.enemies.set(enemy.id, enemy);
-  for (const boss of delta.bosses) snapshotCache.bosses.set(boss.id, boss);
-  for (const drop of delta.drops) snapshotCache.drops.set(drop.id, drop);
-  for (const portal of delta.portals) snapshotCache.portals.set(portal.id, portal);
-  for (const hazard of delta.hazards) snapshotCache.hazards.set(hazard.id, hazard);
+  for (const player of delta.players) snapshotCache.players.set(player.id, cloneItem(player));
+  for (const enemy of delta.enemies) snapshotCache.enemies.set(enemy.id, cloneItem(enemy));
+  for (const boss of delta.bosses) snapshotCache.bosses.set(boss.id, cloneItem(boss));
+  for (const drop of delta.drops) snapshotCache.drops.set(drop.id, cloneItem(drop));
+  for (const portal of delta.portals) snapshotCache.portals.set(portal.id, cloneItem(portal));
+  for (const hazard of delta.hazards) snapshotCache.hazards.set(hazard.id, cloneItem(hazard));
 
   for (const id of delta.removedPlayerIds) snapshotCache.players.delete(id);
   for (const id of delta.removedEnemyIds) snapshotCache.enemies.delete(id);
@@ -106,8 +114,8 @@ export function applySnapshotDelta(
   for (const id of delta.removedHazardIds) snapshotCache.hazards.delete(id);
 
   snapshotCache.instanceId = delta.instanceId;
-  snapshotCache.iceZones = delta.iceZones;
-  snapshotCache.aoeIndicators = delta.aoeIndicators;
+  snapshotCache.iceZones = cloneArrayItems(delta.iceZones);
+  snapshotCache.aoeIndicators = cloneArrayItems(delta.aoeIndicators);
 
   return snapshotCache;
 }
@@ -118,10 +126,18 @@ export function normalizeServerMessage(
 ): ServerMessage | null {
   if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
     state.snapshotCache = toSnapshotCache(message);
+    state.lastSnapshotTick = -1;
     return toSnapshotMessage(state.snapshotCache);
   }
 
   if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
+    if (
+      state.snapshotCache &&
+      state.snapshotCache.instanceId !== message.instanceId &&
+      !message.full
+    ) {
+      return null;
+    }
     if (message.tick <= state.lastSnapshotTick) {
       return null;
     }

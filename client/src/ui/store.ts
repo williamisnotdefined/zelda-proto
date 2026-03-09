@@ -1,8 +1,10 @@
 import type {
   BossKind,
+  BossPhase,
   BossState,
   Direction,
-  PlayerSnapshot,
+  EnemyState,
+  PlayerLeaderboardEntry,
   PlayerState,
   ServerChatMessage,
 } from '@gelehka/shared';
@@ -25,7 +27,7 @@ export interface BlobData {
   y: number;
   hp: number;
   maxHp: number;
-  state: string;
+  state: EnemyState;
 }
 
 export interface BossData {
@@ -36,7 +38,7 @@ export interface BossData {
   hp: number;
   maxHp: number;
   state: BossState;
-  phase: number;
+  phase: BossPhase;
 }
 
 export interface DropData {
@@ -57,7 +59,7 @@ export interface GameStore {
   connectionError: string | null;
   lastConnectionAttempt: number | null;
   chatMessages: ServerChatMessage[];
-  allPlayers: PlayerSnapshot[];
+  allPlayers: PlayerLeaderboardEntry[];
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
   setBoss: (b: BossData | null) => void;
@@ -68,7 +70,7 @@ export interface GameStore {
   setConnectionError: (error: string | null) => void;
   setLastConnectionAttempt: (time: number) => void;
   addChatMessage: (msg: ServerChatMessage) => void;
-  setAllPlayers: (players: PlayerSnapshot[]) => void;
+  setAllPlayers: (players: PlayerLeaderboardEntry[]) => void;
 }
 
 export const useGameStore = create<GameStore>((set) => ({
