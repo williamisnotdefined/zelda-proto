@@ -1,12 +1,20 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { mobileGameController } from '../../runtime/MobileGameController';
 import { useMobileGameStore } from '../../store/gameStore';
 
-export function ChatPanel() {
+interface Props {
+  compact?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+}
+
+export function ChatPanel({ compact = false, open: controlledOpen, onToggle }: Props) {
   const chatMessages = useMobileGameStore((state) => state.chatMessages);
   const [draft, setDraft] = useState('');
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const boxNoneProps = Platform.OS === 'web' ? undefined : { pointerEvents: 'box-none' as const };
 
   const visibleMessages = useMemo(() => chatMessages.slice(-8), [chatMessages]);
 
@@ -18,18 +26,29 @@ export function ChatPanel() {
     setDraft('');
   };
 
+  const handleToggle = () => {
+    if (onToggle) {
+      onToggle();
+      return;
+    }
+    setInternalOpen((value) => !value);
+  };
+
   return (
-    <View style={styles.container}>
-      <Pressable onPress={() => setOpen((value) => !value)} style={styles.toggle}>
+    <View style={styles.container} {...boxNoneProps}>
+      <Pressable
+        onPress={handleToggle}
+        style={[styles.toggle, compact ? styles.toggleCompact : null]}
+      >
         <Text style={styles.toggleText}>{open ? 'Close chat' : 'Open chat'}</Text>
       </Pressable>
 
       {open ? (
-        <View style={styles.panel}>
+        <View style={[styles.panel, compact ? styles.panelCompact : null]}>
           <ScrollView style={styles.messages} contentContainerStyle={styles.messagesContent}>
             {visibleMessages.map((message) => (
               <View key={`${message.id}-${message.timestamp}`} style={styles.messageBubble}>
-                <Text style={styles.messageName}>{message.nickname}</Text>
+                <Text style={styles.messageName}>{message.nickname}: </Text>
                 <Text style={styles.messageText}>{message.text}</Text>
               </View>
             ))}
@@ -39,7 +58,7 @@ export function ChatPanel() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder="Say something"
+              placeholder="Press Enter to chat..."
               placeholderTextColor="#799183"
               maxLength={100}
               style={styles.input}
@@ -56,49 +75,59 @@ export function ChatPanel() {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 8,
+    gap: 6,
   },
   toggle: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: '#13241c',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.55)',
     borderWidth: 1,
-    borderColor: '#2b4637',
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  toggleCompact: {
+    minWidth: 74,
   },
   toggleText: {
-    color: '#dbe7d7',
-    fontSize: 12,
+    color: '#fff',
+    fontSize: 11,
     fontWeight: '700',
   },
   panel: {
-    borderRadius: 16,
-    backgroundColor: '#10221a',
+    width: 300,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderWidth: 1,
-    borderColor: '#294434',
-    padding: 12,
-    gap: 10,
-  },
-  messages: {
-    maxHeight: 140,
-  },
-  messagesContent: {
+    borderColor: 'rgba(255,255,255,0.25)',
+    padding: 8,
     gap: 8,
   },
+  panelCompact: {
+    maxHeight: 220,
+  },
+  messages: {
+    maxHeight: 160,
+  },
+  messagesContent: {
+    gap: 4,
+  },
   messageBubble: {
-    padding: 8,
-    borderRadius: 12,
-    backgroundColor: '#0b1712',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
   },
   messageName: {
-    color: '#9fd0ff',
+    color: '#aaddff',
     fontSize: 11,
     fontWeight: '700',
   },
   messageText: {
-    color: '#e6efea',
-    fontSize: 13,
+    color: '#fff',
+    fontSize: 11,
   },
   composer: {
     flexDirection: 'row',
@@ -106,24 +135,26 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    borderRadius: 12,
-    backgroundColor: '#0b1712',
+    borderRadius: 3,
+    backgroundColor: 'rgba(0,0,0,0.6)',
     borderWidth: 1,
-    borderColor: '#2e4a38',
-    color: '#f4f8f2',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
+    borderColor: 'rgba(255,255,255,0.25)',
+    color: '#fff',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 11,
   },
   sendButton: {
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#d8b44d',
-    paddingHorizontal: 14,
+    borderRadius: 3,
+    backgroundColor: '#444',
+    borderWidth: 1,
+    borderColor: '#666',
+    paddingHorizontal: 12,
   },
   sendText: {
-    color: '#2d2406',
-    fontSize: 13,
-    fontWeight: '800',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

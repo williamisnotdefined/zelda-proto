@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { TouchControls } from '../components/controls/TouchControls';
 import { ChatPanel } from '../components/ui/ChatPanel';
 import { FxOverlay } from '../components/ui/FxOverlay';
@@ -24,10 +24,10 @@ export function HomeScreen() {
   const connectionError = useMobileGameStore((state) => state.connectionError);
   const playerCount = useMobileGameStore((state) => state.playerCount);
   const localPlayerId = useMobileGameStore((state) => state.localPlayerId);
-  const currentInstanceId = useMobileGameStore((state) => state.currentInstanceId);
   const storedNickname = useMobileGameStore((state) => state.nickname);
   const [nicknameInput, setNicknameInput] = useState(storedNickname || 'Hero');
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     mobileGameController.start();
@@ -37,186 +37,189 @@ export function HomeScreen() {
   const nicknameError = validateNickname(nicknameInput);
 
   const statusLabel = useMemo(() => {
-    if (connectionError) {
-      return connectionError;
-    }
-
-    switch (connectionState) {
-      case 'CONNECTED':
-        return localPlayerId
-          ? `Connected with ${playerCount} players in ${currentInstanceId ?? 'world'}.`
-          : 'Connected. Waiting for welcome...';
-      case 'CONNECTING':
-        return 'Connecting to the game server...';
-      case 'ERROR':
-        return 'Connection failed.';
-      default:
-        return 'Ready to start the mobile session.';
-    }
-  }, [connectionError, connectionState, currentInstanceId, localPlayerId, playerCount]);
+    if (connectionError) return connectionError;
+    if (connectionState === 'CONNECTED' && localPlayerId) return `Online (${playerCount} players)`;
+    if (connectionState === 'CONNECTING') return 'Connecting...';
+    if (connectionState === 'ERROR') return 'Connection failed.';
+    return 'Enter your nickname to begin';
+  }, [connectionError, connectionState, localPlayerId, playerCount]);
 
   const canConnect = !nicknameError && connectionState !== 'CONNECTING';
+  const connected = connectionState === 'CONNECTED' && Boolean(localPlayerId);
+  const boxNoneProps = Platform.OS === 'web' ? undefined : { pointerEvents: 'box-none' as const };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.heroCard}>
-        <Text style={styles.kicker}>Expo + Skia runtime</Text>
-        <Text style={styles.title}>Legends of Gelehk mobile</Text>
-        <Text style={styles.copy}>
-          Cliente nativo com rede, input touch, snapshots e renderizacao 2D no mesmo protocolo do
-          web.
-        </Text>
-      </View>
+    <View style={styles.screen}>
+      <View style={styles.gameLayer}>
+        <GameViewport fullscreen />
+        <Hud />
+        <FxOverlay />
 
-      <Hud />
-      <FxOverlay />
-
-      <View style={styles.card}>
-        <Text style={styles.label}>Nickname</Text>
-        <TextInput
-          value={nicknameInput}
-          onChangeText={setNicknameInput}
-          placeholder="Your name"
-          placeholderTextColor="#7f9485"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        <Text style={[styles.helperText, nicknameError ? styles.errorText : null]}>
-          {nicknameError ?? statusLabel}
-        </Text>
-
-        <View style={styles.metaRow}>
-          <Text style={styles.metaText}>Env: {runtimeConfig.environment}</Text>
-          <Text style={styles.metaText}>WS: {runtimeConfig.wsUrl || 'set EXPO_PUBLIC_WS_URL'}</Text>
-          <Text style={styles.metaText}>Instance: {currentInstanceId ?? '-'}</Text>
+        <View style={styles.minimapOverlay} {...boxNoneProps}>
+          <Minimap />
         </View>
 
-        <Pressable
-          disabled={!canConnect}
-          onPress={() => mobileGameController.connectWithNickname(nicknameInput)}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            !canConnect ? styles.primaryButtonDisabled : null,
-            pressed && canConnect ? styles.primaryButtonPressed : null,
-          ]}
-        >
-          <Text style={styles.primaryButtonText}>Connect to server</Text>
-        </Pressable>
+        <View style={styles.bottomLeft} {...boxNoneProps}>
+          <ChatPanel compact open={chatOpen} onToggle={() => setChatOpen((value) => !value)} />
+        </View>
+
+        <View style={styles.bottomRight} {...boxNoneProps}>
+          <LeaderboardPanel
+            open={leaderboardOpen}
+            onToggle={() => setLeaderboardOpen((value) => !value)}
+            compact
+          />
+        </View>
+
+        <View style={styles.controlsOverlay} {...boxNoneProps}>
+          <TouchControls />
+        </View>
       </View>
 
-      <GameViewport />
+      {!connected ? (
+        <View style={styles.modalBackdrop} {...boxNoneProps}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Legends of Gelehk</Text>
+            <Text style={styles.modalSubtitle}>Enter your nickname to begin</Text>
 
-      <Minimap />
+            <TextInput
+              value={nicknameInput}
+              onChangeText={setNicknameInput}
+              placeholder="Nickname"
+              placeholderTextColor="#8e96b5"
+              autoCapitalize="none"
+              style={styles.input}
+            />
 
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Touch controls</Text>
-        <Text style={styles.copySmall}>
-          Joystick and attack already feed the same input message format used by the server.
-        </Text>
-        <TouchControls />
-      </View>
+            <Text style={[styles.helperText, nicknameError ? styles.errorText : null]}>
+              {nicknameError ?? statusLabel}
+            </Text>
 
-      <LeaderboardPanel
-        open={leaderboardOpen}
-        onToggle={() => setLeaderboardOpen((value) => !value)}
-      />
-      <ChatPanel />
-    </ScrollView>
+            <Text style={styles.metaLine}>Env: {runtimeConfig.environment}</Text>
+            <Text style={styles.metaLine}>
+              WS: {runtimeConfig.wsUrl || 'set EXPO_PUBLIC_WS_URL'}
+            </Text>
+
+            <Pressable
+              disabled={!canConnect}
+              onPress={() => mobileGameController.connectWithNickname(nicknameInput)}
+              style={({ pressed }) => [
+                styles.playButton,
+                !canConnect ? styles.playButtonDisabled : null,
+                pressed && canConnect ? styles.playButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.playButtonText}>Play</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#08110d',
+    backgroundColor: '#000',
   },
-  content: {
-    padding: 18,
+  gameLayer: {
+    flex: 1,
+    position: 'relative',
+  },
+  bottomLeft: {
+    position: 'absolute',
+    left: 16,
+    bottom: 182,
+    width: 300,
+    zIndex: 40,
+  },
+  bottomRight: {
+    position: 'absolute',
+    right: 16,
+    bottom: 182,
+    zIndex: 40,
+  },
+  minimapOverlay: {
+    position: 'absolute',
+    right: 18,
+    bottom: 152,
+    zIndex: 36,
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 20,
+    zIndex: 35,
+    paddingHorizontal: 20,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    zIndex: 100,
+  },
+  modalCard: {
+    width: 290,
+    padding: 28,
+    borderRadius: 12,
+    backgroundColor: '#1a1a2e',
+    borderWidth: 2,
+    borderColor: '#4a4a6a',
+    alignItems: 'center',
     gap: 14,
   },
-  heroCard: {
-    gap: 8,
+  modalTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
   },
-  kicker: {
-    color: '#97b39d',
-    fontSize: 12,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: '#f4f8f2',
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  copy: {
-    color: '#bed0c0',
+  modalSubtitle: {
+    color: '#aaa',
     fontSize: 14,
-    lineHeight: 20,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 18,
-    backgroundColor: '#10221a',
-    borderWidth: 1,
-    borderColor: '#294434',
-    gap: 10,
-  },
-  cardTitle: {
-    color: '#f4f8f2',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  copySmall: {
-    color: '#bed0c0',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  label: {
-    color: '#dbe8da',
-    fontSize: 13,
-    fontWeight: '700',
   },
   input: {
-    borderRadius: 12,
-    backgroundColor: '#0b1712',
-    borderWidth: 1,
-    borderColor: '#2e4a38',
-    color: '#f4f8f2',
+    width: '100%',
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 16,
+    borderWidth: 2,
+    borderColor: '#4a4a6a',
+    borderRadius: 6,
+    backgroundColor: '#0d0d1a',
+    color: '#fff',
   },
   helperText: {
-    color: '#d6e2d4',
+    color: '#ddd',
     fontSize: 12,
-    lineHeight: 17,
+    textAlign: 'center',
   },
   errorText: {
-    color: '#f07d7d',
+    color: '#ff6666',
   },
-  metaRow: {
-    gap: 4,
+  metaLine: {
+    color: '#8d8d9d',
+    fontSize: 11,
+    textAlign: 'center',
   },
-  metaText: {
-    color: '#95a89a',
-    fontSize: 12,
-  },
-  primaryButton: {
+  playButton: {
+    width: '100%',
     paddingVertical: 12,
-    borderRadius: 999,
+    borderRadius: 6,
     alignItems: 'center',
-    backgroundColor: '#d8b44d',
+    backgroundColor: '#44aa44',
   },
-  primaryButtonDisabled: {
+  playButtonDisabled: {
     opacity: 0.45,
   },
-  primaryButtonPressed: {
+  playButtonPressed: {
     opacity: 0.92,
-    transform: [{ scale: 0.99 }],
   },
-  primaryButtonText: {
-    color: '#2d2406',
-    fontSize: 14,
+  playButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '800',
   },
 });

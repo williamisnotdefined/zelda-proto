@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useMobileInputStore } from '../../store/inputStore';
 
 const JOYSTICK_RADIUS = 42;
@@ -23,26 +23,6 @@ export function TouchControls() {
   const setAttackPressed = useMobileInputStore((state) => state.setAttackPressed);
   const [knob, setKnob] = useState({ x: 0, y: 0 });
   const centerRef = useRef({ x: JOYSTICK_RADIUS, y: JOYSTICK_RADIUS });
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => {
-          const { locationX, locationY } = event.nativeEvent;
-          centerRef.current = { x: JOYSTICK_RADIUS, y: JOYSTICK_RADIUS };
-          updateMove(locationX - centerRef.current.x, locationY - centerRef.current.y);
-        },
-        onPanResponderMove: (event) => {
-          const { locationX, locationY } = event.nativeEvent;
-          updateMove(locationX - centerRef.current.x, locationY - centerRef.current.y);
-        },
-        onPanResponderRelease: resetMove,
-        onPanResponderTerminate: resetMove,
-      }),
-    [setMove]
-  );
 
   const updateMove = (rawX: number, rawY: number) => {
     const next = clampVector(rawX, rawY);
@@ -70,6 +50,28 @@ export function TouchControls() {
     setMove({ up: false, down: false, left: false, right: false });
   };
 
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          const { locationX, locationY } = event.nativeEvent;
+          centerRef.current = { x: JOYSTICK_RADIUS, y: JOYSTICK_RADIUS };
+          updateMove(locationX - centerRef.current.x, locationY - centerRef.current.y);
+        },
+        onPanResponderMove: (event) => {
+          const { locationX, locationY } = event.nativeEvent;
+          updateMove(locationX - centerRef.current.x, locationY - centerRef.current.y);
+        },
+        onPanResponderRelease: resetMove,
+        onPanResponderTerminate: resetMove,
+      }),
+    [setMove]
+  );
+  const attackButtonPlatformStyle =
+    Platform.OS === 'web' ? styles.attackButtonWebShadow : styles.attackButtonNativeShadow;
+
   return (
     <View style={styles.container}>
       <View style={styles.joystickBase} {...panResponder.panHandlers}>
@@ -86,7 +88,11 @@ export function TouchControls() {
       <Pressable
         onPressIn={() => setAttackPressed(true)}
         onPressOut={() => setAttackPressed(false)}
-        style={({ pressed }) => [styles.attackButton, pressed ? styles.attackButtonPressed : null]}
+        style={({ pressed }) => [
+          styles.attackButton,
+          attackButtonPlatformStyle,
+          pressed ? styles.attackButtonPressed : null,
+        ]}
       >
         <Text style={styles.attackLabel}>ATK</Text>
       </Pressable>
@@ -100,12 +106,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
+    gap: 16,
   },
   joystickBase: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
     borderWidth: 2,
     borderColor: 'rgba(232, 245, 236, 0.24)',
     backgroundColor: 'rgba(12, 27, 20, 0.72)',
@@ -113,26 +120,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   joystickKnob: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'rgba(234, 243, 229, 0.3)',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.55)',
   },
   attackButton: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
+    width: 108,
+    height: 108,
+    borderRadius: 54,
     backgroundColor: '#bb7b21',
     borderWidth: 2,
     borderColor: '#f8d48c',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.24,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+  },
+  attackButtonNativeShadow: {
+    elevation: 6,
+  },
+  attackButtonWebShadow: {
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.24)',
   },
   attackButtonPressed: {
     transform: [{ scale: 0.97 }],
@@ -140,6 +149,7 @@ const styles = StyleSheet.create({
   },
   attackLabel: {
     color: '#fff5df',
+    fontSize: 18,
     fontWeight: '800',
     letterSpacing: 1,
   },

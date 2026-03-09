@@ -8,8 +8,8 @@ import {
   Rect,
   useImage,
 } from '@shopify/react-native-skia';
-import { useEffect, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { useMobileGameStore } from '../../store/gameStore';
 import {
   getBossAnimationFrame,
@@ -41,10 +41,18 @@ import { getChunkDecor } from '../render/worldDecor';
 
 const TILE_WORLD_SIZE = 32;
 const TILE_SPRITE_SIZE = 16;
-const VIEWPORT_WIDTH = 352;
-const VIEWPORT_HEIGHT = 264;
+const DEFAULT_VIEWPORT_WIDTH = 352;
+const DEFAULT_VIEWPORT_HEIGHT = 264;
 
-export function GameViewport() {
+interface Props {
+  fullscreen?: boolean;
+}
+
+export function GameViewport({ fullscreen = false }: Props) {
+  const [viewportSize, setViewportSize] = useState({
+    width: DEFAULT_VIEWPORT_WIDTH,
+    height: DEFAULT_VIEWPORT_HEIGHT,
+  });
   const renderPlayers = useMobileGameStore((state) => state.renderPlayers);
   const enemies = useMobileGameStore((state) => state.enemies);
   const bosses = useMobileGameStore((state) => state.bosses);
@@ -74,24 +82,37 @@ export function GameViewport() {
   const franklyImage = useImage(franklySpriteSheet);
 
   const theme = getInstanceTheme(currentInstanceId);
+  const viewportWidth = Math.max(1, viewportSize.width);
+  const viewportHeight = Math.max(1, viewportSize.height);
   const camera = predictedLocalPlayer
     ? { x: predictedLocalPlayer.x, y: predictedLocalPlayer.y }
     : { x: mapWidth / 2, y: mapHeight / 2 };
 
   const worldToScreen = (x: number, y: number) => ({
-    x: x - camera.x + VIEWPORT_WIDTH / 2,
-    y: y - camera.y + VIEWPORT_HEIGHT / 2,
+    x: x - camera.x + viewportWidth / 2,
+    y: y - camera.y + viewportHeight / 2,
   });
 
   const isVisible = (x: number, y: number, margin = 48) =>
-    x >= -margin && y >= -margin && x <= VIEWPORT_WIDTH + margin && y <= VIEWPORT_HEIGHT + margin;
+    x >= -margin && y >= -margin && x <= viewportWidth + margin && y <= viewportHeight + margin;
+
+  const handleLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+
+    setViewportSize((current) =>
+      current.width === width && current.height === height ? current : { width, height }
+    );
+  };
 
   const grid = useMemo(() => {
     const cells: Array<{ x: number; y: number }> = [];
-    const startX = Math.floor((camera.x - VIEWPORT_WIDTH / 2) / TILE_WORLD_SIZE) - 1;
-    const endX = Math.floor((camera.x + VIEWPORT_WIDTH / 2) / TILE_WORLD_SIZE) + 1;
-    const startY = Math.floor((camera.y - VIEWPORT_HEIGHT / 2) / TILE_WORLD_SIZE) - 1;
-    const endY = Math.floor((camera.y + VIEWPORT_HEIGHT / 2) / TILE_WORLD_SIZE) + 1;
+    const startX = Math.floor((camera.x - viewportWidth / 2) / TILE_WORLD_SIZE) - 1;
+    const endX = Math.floor((camera.x + viewportWidth / 2) / TILE_WORLD_SIZE) + 1;
+    const startY = Math.floor((camera.y - viewportHeight / 2) / TILE_WORLD_SIZE) - 1;
+    const endY = Math.floor((camera.y + viewportHeight / 2) / TILE_WORLD_SIZE) + 1;
 
     for (let y = startY; y <= endY; y += 1) {
       for (let x = startX; x <= endX; x += 1) {
@@ -103,7 +124,7 @@ export function GameViewport() {
     }
 
     return cells;
-  }, [camera.x, camera.y]);
+  }, [camera.x, camera.y, viewportHeight, viewportWidth]);
 
   const decor = useMemo(
     () =>
@@ -231,9 +252,10 @@ export function GameViewport() {
     visiblePlayers.length,
     visiblePortals.length,
   ]);
+  const frameStyle = fullscreen ? styles.frameFullscreen : styles.frameWindowed;
 
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frameBase, frameStyle]} onLayout={handleLayout}>
       <Canvas style={styles.canvas}>
         <Fill color={theme.fallback} />
         <Group>
@@ -630,13 +652,23 @@ export function GameViewport() {
 }
 
 const styles = StyleSheet.create({
-  frame: {
+  frameBase: {
+    overflow: 'hidden',
+  },
+  frameWindowed: {
     width: '100%',
     aspectRatio: 4 / 3,
     borderRadius: 20,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#365241',
+    backgroundColor: '#10221a',
+  },
+  frameFullscreen: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    borderRadius: 0,
+    borderWidth: 0,
     backgroundColor: '#10221a',
   },
   canvas: {

@@ -1,16 +1,17 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, StyleSheet, Text, View } from 'react-native';
 import toastyImage from '../../../../client/public/assets/sprites/eastereggs/toasty.png';
 import { useMobileGameStore } from '../../store/gameStore';
 
 export function FxOverlay() {
   const toastyFx = useMobileGameStore((state) => state.toastyFx);
+  const noneProps = Platform.OS === 'web' ? undefined : { pointerEvents: 'none' as const };
 
   if (!toastyFx) {
     return null;
   }
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={styles.container} {...noneProps}>
       <View style={styles.banner}>
         <Image source={toastyImage} style={styles.image} resizeMode="contain" />
         <Text style={styles.text}>{toastyFx.text}</Text>

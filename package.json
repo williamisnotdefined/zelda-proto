@@ -11,12 +11,17 @@
   "scripts": {
     "dev:client": "npm run dev --workspace=client",
     "dev:mobile": "npm run dev --workspace=mobile",
+    "dev:mobile:client": "npm run android:dev-client --workspace=mobile",
     "dev:server": "npm run dev --workspace=server",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:native": "concurrently \"npm run dev:server\" \"npm run dev:mobile\"",
     "build:client": "npm run build --workspace=client",
     "build:mobile": "npm run typecheck --workspace=mobile",
     "build:server": "npm run build --workspace=server",
+    "android:run": "npm run android:run --workspace=mobile",
+    "android:prebuild": "npm run android:prebuild --workspace=mobile",
+    "android:eas:dev": "npm run android:eas:dev --workspace=mobile",
+    "android:eas:preview": "npm run android:eas:preview --workspace=mobile",
     "build": "npm run build:server && npm run build:client && npm run build:mobile",
     "start:server": "npm run start --workspace=server",
     "start": "NODE_ENV=production PORT=3001 npm run start:server",
@@ -25,6 +30,10 @@
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\" \"mobile/**/*.{ts,tsx,json}\"",
     "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\" \"mobile/**/*.{ts,tsx,json}\"",
     "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\""
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.32.0",
