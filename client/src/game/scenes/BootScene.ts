@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { setupAnimations } from '../AnimationSetup';
+import { logError } from '../../monitoring/errorLogger';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -7,6 +8,20 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload(): void {
+    this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
+      logError({
+        category: 'game',
+        type: 'phaser.asset-load-error',
+        message: `Failed to load asset: ${file.key}`,
+        handled: true,
+        context: {
+          key: file.key,
+          src: file.src,
+          type: file.type,
+        },
+      });
+    });
+
     this.load.spritesheet('player', 'assets/sprites/characters/player.png', {
       frameWidth: 48,
       frameHeight: 48,
@@ -99,8 +114,17 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    setupAnimations(this);
-
-    this.scene.start('WorldScene');
+    try {
+      setupAnimations(this);
+      this.scene.start('WorldScene');
+    } catch (error) {
+      logError({
+        category: 'game',
+        type: 'phaser.boot-scene-create-failed',
+        message: 'BootScene failed during create()',
+        error,
+      });
+      throw error;
+    }
   }
 }

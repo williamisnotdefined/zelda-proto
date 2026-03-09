@@ -7,6 +7,7 @@ import {
 import { PROTOCOL_VERSION } from '@gelehka/shared';
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+import { logError } from '../monitoring/errorLogger';
 
 type MessageHandler = (msg: ServerMessage) => void;
 type ErrorHandler = (error: string) => void;
@@ -52,6 +53,15 @@ export class NetworkManager {
       this.normalizationState = createSnapshotNormalizationState();
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      logError({
+        category: 'network',
+        type: 'websocket.create-failed',
+        message: errorMsg,
+        error,
+        context: {
+          url: WS_URL,
+        },
+      });
       this.notifyError(errorMsg);
       this.setConnectionState('ERROR');
       return;
@@ -64,6 +74,16 @@ export class NetworkManager {
     }
     this.connectionTimeout = setTimeout(() => {
       if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+        logError({
+          category: 'network',
+          type: 'websocket.connection-timeout',
+          message: 'WebSocket connection timed out',
+          handled: true,
+          context: {
+            url: WS_URL,
+            timeoutMs: MAX_CONNECTION_TIMEOUT,
+          },
+        });
         this.notifyError('Connection timeout - server may be unreachable');
         this.setConnectionState('ERROR');
         this.ws.close();
@@ -88,6 +108,16 @@ export class NetworkManager {
       if (!message) return;
 
       if (message.protocolVersion !== PROTOCOL_VERSION) {
+        logError({
+          category: 'network',
+          type: 'websocket.protocol-version-mismatch',
+          message: 'Protocol version mismatch with server',
+          handled: true,
+          context: {
+            clientProtocolVersion: PROTOCOL_VERSION,
+            serverProtocolVersion: message.protocolVersion,
+          },
+        });
         this.notifyError('Protocol version mismatch with server');
         this.disconnect();
         return;
@@ -110,10 +140,43 @@ export class NetworkManager {
       this.openCallbacks = [];
 
       if (event.code === 1006) {
+        logError({
+          category: 'network',
+          type: 'websocket.closed-abnormally',
+          message: 'WebSocket closed abnormally',
+          handled: true,
+          context: {
+            code: event.code,
+            wasClean: event.wasClean,
+            reason: event.reason,
+          },
+        });
         this.notifyError('Connection closed abnormally - check your internet connection');
       } else if (event.code >= 1002 && event.code <= 1003) {
+        logError({
+          category: 'network',
+          type: 'websocket.protocol-close',
+          message: 'WebSocket closed due to protocol error',
+          handled: true,
+          context: {
+            code: event.code,
+            wasClean: event.wasClean,
+            reason: event.reason,
+          },
+        });
         this.notifyError('Connection closed due to protocol error');
       } else if (!event.wasClean && event.code !== 1000) {
+        logError({
+          category: 'network',
+          type: 'websocket.unexpected-close',
+          message: `WebSocket connection lost unexpectedly (code: ${event.code})`,
+          handled: true,
+          context: {
+            code: event.code,
+            wasClean: event.wasClean,
+            reason: event.reason,
+          },
+        });
         this.notifyError(`Connection lost unexpectedly (code: ${event.code})`);
       }
 
@@ -128,6 +191,16 @@ export class NetworkManager {
     };
 
     this.ws.onerror = () => {
+      logError({
+        category: 'network',
+        type: 'websocket.error',
+        message: 'WebSocket error occurred',
+        handled: true,
+        context: {
+          url: WS_URL,
+          readyState: this.ws?.readyState,
+        },
+      });
       this.notifyError('WebSocket error occurred - connection may have failed');
       this.setConnectionState('ERROR');
     };
@@ -135,9 +208,32 @@ export class NetworkManager {
 
   send(msg: ClientMessage): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      logError({
+        category: 'network',
+        type: 'websocket.send-skipped-not-open',
+        level: 'warn',
+        message: 'Skipped WebSocket send because the socket is not open',
+        handled: true,
+        context: {
+          readyState: this.ws?.readyState ?? null,
+          messageType: msg.type,
+        },
+      });
       return;
     }
     if (this.ws.bufferedAmount > WS_MAX_BUFFERED_BYTES) {
+      logError({
+        category: 'network',
+        type: 'websocket.send-skipped-buffer-limit',
+        level: 'warn',
+        message: 'Skipped WebSocket send because bufferedAmount exceeded the safety limit',
+        handled: true,
+        context: {
+          bufferedAmount: this.ws.bufferedAmount,
+          maxBufferedBytes: WS_MAX_BUFFERED_BYTES,
+          messageType: msg.type,
+        },
+      });
       return;
     }
     this.ws.send(pack(msg));
@@ -218,7 +314,13 @@ export class NetworkManager {
         return null;
       }
       return null;
-    } catch {
+    } catch (error) {
+      logError({
+        category: 'network',
+        type: 'websocket.decode-failed',
+        message: 'Failed to decode server message payload',
+        error,
+      });
       return null;
     }
   }

@@ -11,6 +11,7 @@ const networkManager = new NetworkManager();
 let desiredNickname: string | null = null;
 
 networkManager.onConnectionState((state) => {
+  useGameStore.getState().setConnectionState(state);
   useGameStore.getState().setConnected(state === 'CONNECTED');
   if (state === 'CONNECTING') {
     useGameStore.getState().setLastConnectionAttempt(Date.now());

@@ -10,6 +10,7 @@ import type {
   HazardSnapshot,
   IceZone,
   InstanceId,
+  PlayerLeaderboardEntry,
   PlayerSnapshot,
   PortalSnapshot,
   ServerChatMessage,
@@ -77,7 +78,7 @@ interface MobileGameStore {
   performance: PerformanceStats;
   lastConnectionAttempt: number | null;
   playerCount: number;
-  allPlayers: PlayerSnapshot[];
+  allPlayers: PlayerLeaderboardEntry[];
   enemies: RenderEnemy[];
   bosses: RenderBoss[];
   drops: RenderDrop[];
@@ -103,7 +104,7 @@ interface MobileGameStore {
   handleWelcome: (message: WelcomeMessage) => void;
   handleSnapshot: (message: SnapshotMessage, timeNowMs: number) => void;
   addChatMessage: (message: ServerChatMessage) => void;
-  setLeaderboardPlayers: (players: PlayerSnapshot[]) => void;
+  setLeaderboardPlayers: (players: PlayerLeaderboardEntry[]) => void;
   setPredictedLocalPlayer: (player: PlayerSnapshot | null) => void;
   setPendingInputs: (pendingInputs: PendingInput[]) => void;
   pushPendingInput: (entry: PendingInput) => void;
@@ -156,6 +157,16 @@ function syncRenderPlayers(
       isLocal: player.id === localPlayerId,
     };
   });
+}
+
+function toLeaderboardEntries(players: PlayerSnapshot[]): PlayerLeaderboardEntry[] {
+  return players.map((player) => ({
+    id: player.id,
+    nickname: player.nickname,
+    playerKills: player.playerKills,
+    monsterKills: player.monsterKills,
+    deaths: player.deaths,
+  }));
 }
 
 function shouldAnimate(
@@ -294,7 +305,7 @@ export const useMobileGameStore = create<MobileGameStore>((set, get) => ({
 
     set({
       currentInstanceId: message.instanceId,
-      allPlayers: message.players,
+      allPlayers: toLeaderboardEntries(message.players),
       playerCount: message.players.length,
       enemies: syncRenderEntities(message.enemies, state.enemies),
       bosses: syncRenderEntities(message.bosses, state.bosses),

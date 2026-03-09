@@ -53,6 +53,7 @@ export interface GameStore {
   localPlayer: PlayerData | null;
   boss: BossData | null;
   connected: boolean;
+  connectionState: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
   playerCount: number;
   nickname: string | null;
   showNicknameModal: boolean;
@@ -64,6 +65,7 @@ export interface GameStore {
   setLocalPlayer: (p: PlayerData | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
+  setConnectionState: (state: GameStore['connectionState']) => void;
   setPlayerCount: (n: number) => void;
   setNickname: (name: string) => void;
   hideNicknameModal: () => void;
@@ -78,6 +80,7 @@ export const useGameStore = create<GameStore>((set) => ({
   localPlayer: null,
   boss: null,
   connected: false,
+  connectionState: 'DISCONNECTED',
   playerCount: 0,
   nickname: null,
   showNicknameModal: true,
@@ -89,6 +92,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setLocalPlayer: (p) => set({ localPlayer: p }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),
+  setConnectionState: (state) => set({ connectionState: state }),
   setPlayerCount: (n) => set({ playerCount: n }),
   setNickname: (name) => set({ nickname: name }),
   hideNicknameModal: () => set({ showNicknameModal: false }),

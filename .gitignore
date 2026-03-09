@@ -4,3 +4,4 @@ dist/
 mobile/.env
 .expo/
 *.log
+logs/

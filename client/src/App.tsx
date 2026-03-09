@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { createGame } from './game/Game';
+import type Phaser from 'phaser';
 import { setPhaserGame } from './game/instance';
+import { logError } from './monitoring/errorLogger';
 import { disconnect } from './network/socket';
 import { HUD } from './ui/HUD';
 import { TouchControls } from './ui/TouchControls';
@@ -9,14 +10,40 @@ export function App() {
   const gameRef = useRef<Phaser.Game | null>(null);
 
   useEffect(() => {
-    if (!gameRef.current) {
-      gameRef.current = createGame('game-container');
-      setPhaserGame(gameRef.current);
-    }
+    let cancelled = false;
+
+    void (async () => {
+      if (gameRef.current) {
+        return;
+      }
+
+      try {
+        const { createGame } = await import('./game/Game');
+        if (cancelled || gameRef.current) {
+          return;
+        }
+
+        gameRef.current = createGame('game-container');
+        setPhaserGame(gameRef.current);
+      } catch (error) {
+        logError({
+          category: 'game',
+          type: 'app.game-bootstrap-failed',
+          message: 'Failed to bootstrap Phaser game',
+          error,
+          context: {
+            cancelled,
+          },
+        });
+        throw error;
+      }
+    })();
 
     return () => {
+      cancelled = true;
       disconnect();
       gameRef.current?.destroy(true);
+      setPhaserGame(null);
       gameRef.current = null;
     };
   }, []);
