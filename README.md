@@ -140,11 +140,6 @@ DEV_START_PHASE=2 npm run dev:server
 
 - [ ] Distance weapon (e.g. bow)
 
-O que falta para fechar o build remoto:
-1. colocar a URL real do backend no ambiente preview/prod
-2. fazer login no Expo (eas login) ou definir EXPO_TOKEN
-3. rodar npx eas-cli build --platform android --profile preview
-
 ## Sprite Sheet Generator
 
 https://codeshack.io/images-sprite-sheet-generator/

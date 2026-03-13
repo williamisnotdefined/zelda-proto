@@ -4,14 +4,7 @@
     { "path": "./client/tsconfig.json" },
     { "path": "./server/tsconfig.json" },
     { "path": "./shared/tsconfig.json" },
-    { "path": "./game-core/tsconfig.json" },
-    { "path": "./mobile/tsconfig.json" }
+    { "path": "./game-core/tsconfig.json" }
   ],
-  "include": [
-    "client/src/**/*",
-    "server/src/**/*",
-    "shared/src/**/*",
-    "game-core/src/**/*",
-    "mobile/**/*"
-  ]
+  "include": ["client/src/**/*", "server/src/**/*", "shared/src/**/*", "game-core/src/**/*"]
 }
