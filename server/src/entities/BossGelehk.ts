@@ -249,6 +249,7 @@ export class BossGelehk extends Entity {
         this.targetPlayerId = nearest.id;
         this.stateTimer = AOE_TELEGRAPH_TIME;
         this.aoeIndicators.push({
+          ownerId: this.id,
           x: nearest.x,
           y: nearest.y,
           radius: AOE_RADIUS,

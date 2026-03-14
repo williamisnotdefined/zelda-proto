@@ -9,6 +9,7 @@ const PICKUP_RADIUS = 24;
 const PICKUP_RADIUS_SQ = PICKUP_RADIUS * PICKUP_RADIUS;
 const SMALL_HEAL_AMOUNT = 5;
 const LARGE_HEAL_AMOUNT = 10;
+const PACMAN_HEAL_AMOUNT = 20;
 
 export class DropSystem {
   update(players: Map<string, Player>, blobs: Iterable<Blob>, drops: Map<string, Drop>): void {
@@ -41,7 +42,11 @@ export class DropSystem {
         const dy = player.y - drop.y;
         if (dx * dx + dy * dy < PICKUP_RADIUS_SQ) {
           const healAmount =
-            drop.kind === DROP_KINDS.HEART_LARGE ? LARGE_HEAL_AMOUNT : SMALL_HEAL_AMOUNT;
+            drop.kind === DROP_KINDS.HEART_PACMAN
+              ? PACMAN_HEAL_AMOUNT
+              : drop.kind === DROP_KINDS.HEART_LARGE
+                ? LARGE_HEAL_AMOUNT
+                : SMALL_HEAL_AMOUNT;
           player.hp = Math.min(player.hp + healAmount, player.maxHp);
           drops.delete(dropId);
           break;

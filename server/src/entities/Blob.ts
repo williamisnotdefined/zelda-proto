@@ -4,7 +4,7 @@ import {
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import type { EnemyKind } from '@gelehka/shared';
+import type { DropKind, EnemyKind, PacmanGhostVariant } from '@gelehka/shared';
 import type { BlobState, EnemySnapshot } from '../network/MessageTypes.js';
 import { aabbOverlap, distanceSquared, entityAABB, isInSafeZone } from '../game/Physics.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
@@ -29,6 +29,7 @@ export interface EnemyConfig {
   speed: number;
   damage: number;
   aggroRadius: number;
+  contactRadius: number;
   respawnTimeMs: number;
   respawnEnabled?: boolean;
 }
@@ -39,6 +40,7 @@ export const BLOB_CONFIG: EnemyConfig = {
   speed: BLOB_SPEED,
   damage: BLOB_DAMAGE,
   aggroRadius: BLOB_AGGRO_RADIUS,
+  contactRadius: BLOB_CONTACT_RADIUS,
   respawnTimeMs: BLOB_RESPAWN_TIME,
 };
 
@@ -53,6 +55,7 @@ export class Blob extends Entity {
   speed: number;
   damage: number;
   aggroRadius: number;
+  contactRadius: number;
   state: BlobState;
   damageCooldown: number;
   spawnX: number;
@@ -61,8 +64,9 @@ export class Blob extends Entity {
   chunkKey: string;
   targetPlayerId: string | null;
   hasDropped: boolean;
-  dropKind: 'heart_small' | 'heart_large';
+  dropKind: DropKind;
   respawnEnabled: boolean;
+  variant?: PacmanGhostVariant;
   private readonly respawnTimeMs: number;
 
   constructor(
@@ -71,7 +75,7 @@ export class Blob extends Entity {
     y: number,
     chunkKey: string = '',
     config: EnemyConfig = BLOB_CONFIG,
-    dropKind: 'heart_small' | 'heart_large' = 'heart_small'
+    dropKind: DropKind = 'heart_small'
   ) {
     super(id, x, y);
     this.kind = config.kind;
@@ -82,6 +86,7 @@ export class Blob extends Entity {
     this.speed = config.speed;
     this.damage = config.damage;
     this.aggroRadius = config.aggroRadius;
+    this.contactRadius = config.contactRadius;
     this.state = 'idle';
     this.damageCooldown = 0;
     this.respawnTimer = 0;
@@ -242,7 +247,7 @@ export class Blob extends Entity {
   }
 
   toSnapshot(): EnemySnapshot {
-    return {
+    const snapshot: EnemySnapshot = {
       id: this.id,
       kind: this.kind,
       x: quantizePosition(this.x),
@@ -251,5 +256,11 @@ export class Blob extends Entity {
       maxHp: this.maxHp,
       state: this.state,
     };
+
+    if (this.variant) {
+      snapshot.variant = this.variant;
+    }
+
+    return snapshot;
   }
 }

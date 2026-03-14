@@ -3,7 +3,6 @@ import {
   WORLD_SPAWN_X,
   WORLD_SPAWN_Y,
 } from '@gelehka/shared/constants';
-import { ENEMY_KINDS } from '@gelehka/shared';
 import { BOSS_HEIGHT, BOSS_WIDTH, BossGelehk } from '../entities/BossGelehk.js';
 import { aabbOverlap, circleAabbOverlap, entityAABB, entityCircle } from './Physics.js';
 import {
@@ -27,7 +26,6 @@ import {
   DRAGON_LORD_WIDTH,
 } from '../entities/DragonLord.js';
 import { Phase3Boss } from '../entities/Phase3Boss.js';
-import { SLIME_CONTACT_RADIUS } from '../entities/Slime.js';
 
 type BossLike = BossGelehk | DragonLord | Phase3Boss;
 
@@ -133,10 +131,7 @@ export function resolveEnemyContactDamageWithSafeZone(
     if (blob.state === 'dead') continue;
     if (blob.damageCooldown > 0) continue;
 
-    const usesSlimeContactRadius =
-      blob.kind === ENEMY_KINDS.SLIME || blob.kind === ENEMY_KINDS.HAND;
-    const contactRadius = usesSlimeContactRadius ? SLIME_CONTACT_RADIUS : BLOB_CONTACT_RADIUS;
-    const blobCircle = entityCircle(blob.x, blob.y, contactRadius);
+    const blobCircle = entityCircle(blob.x, blob.y, blob.contactRadius ?? BLOB_CONTACT_RADIUS);
 
     for (const player of players.values()) {
       if (player.state === 'dead') continue;

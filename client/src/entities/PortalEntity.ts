@@ -3,6 +3,7 @@ import { PORTAL_KINDS, type PortalKind } from '@gelehka/shared';
 
 const RETURN_PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
 const ADVANCE_PORTAL_GIF_PATH = '/assets/sprites/teleports/Energy_Portal.gif';
+const EARTH_PORTAL_GIF_PATH = '/assets/sprites/teleports/Earth_Portal.gif';
 const RETURN_PORTAL_SIZE_PX = 36;
 const ADVANCE_PORTAL_SIZE_PX = 80;
 const LERP_BASE = 0.3;
@@ -84,6 +85,9 @@ export class PortalEntity {
   }
 
   private getPortalGifPath(kind: PortalKind): string {
+    if (kind === PORTAL_KINDS.PHASE3_TO_PHASE4) {
+      return EARTH_PORTAL_GIF_PATH;
+    }
     if (kind === PORTAL_KINDS.PHASE1_TO_PHASE2 || kind === PORTAL_KINDS.PHASE2_TO_PHASE3) {
       return ADVANCE_PORTAL_GIF_PATH;
     }
@@ -91,7 +95,11 @@ export class PortalEntity {
   }
 
   private getPortalSizePx(kind: PortalKind): number {
-    if (kind === PORTAL_KINDS.PHASE1_TO_PHASE2 || kind === PORTAL_KINDS.PHASE2_TO_PHASE3) {
+    if (
+      kind === PORTAL_KINDS.PHASE1_TO_PHASE2 ||
+      kind === PORTAL_KINDS.PHASE2_TO_PHASE3 ||
+      kind === PORTAL_KINDS.PHASE3_TO_PHASE4
+    ) {
       return ADVANCE_PORTAL_SIZE_PX;
     }
     return RETURN_PORTAL_SIZE_PX;

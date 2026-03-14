@@ -1,3 +1,4 @@
+import { PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
 import Phaser from 'phaser';
 
 function createRowAnims(
@@ -185,6 +186,15 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'hand_left', start: 2, end: 3, frameRate: 2.5 },
     { key: 'hand_up', start: 6, end: 7, frameRate: 2.5 },
   ]);
+
+  for (const variant of Object.values(PACMAN_GHOST_VARIANTS)) {
+    createStripDirectionAnims(scene, `pacman_ghost_${variant}`, [
+      { key: `pacman_ghost_${variant}_down`, start: 6, end: 7, frameRate: 8 },
+      { key: `pacman_ghost_${variant}_right`, start: 0, end: 1, frameRate: 8 },
+      { key: `pacman_ghost_${variant}_left`, start: 2, end: 3, frameRate: 8 },
+      { key: `pacman_ghost_${variant}_up`, start: 4, end: 5, frameRate: 8 },
+    ]);
+  }
 
   createStripDirectionAnims(scene, 'silverback_wainer', [
     { key: 'silverback_wainer_down', start: 0, end: 7, frameRate: 10 },

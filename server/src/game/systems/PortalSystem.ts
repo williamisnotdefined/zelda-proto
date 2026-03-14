@@ -83,7 +83,6 @@ export class PortalSystem {
     for (const [portalId, portal] of portals) {
       if (portal.kind !== onBossDeathPortal.kind) continue;
       if (!portal.sourceBossId) {
-        portals.delete(portalId);
         continue;
       }
       const sourceBoss = bosses.get(portal.sourceBossId);

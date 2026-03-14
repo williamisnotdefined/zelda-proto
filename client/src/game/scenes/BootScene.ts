@@ -55,6 +55,30 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet('pacman_ghost_red', 'assets/sprites/monsters/pacman_ghost_red.png', {
+      frameWidth: 86,
+      frameHeight: 86,
+    });
+
+    this.load.spritesheet('pacman_ghost_blue', 'assets/sprites/monsters/pacman_ghost_blue.png', {
+      frameWidth: 86,
+      frameHeight: 86,
+    });
+
+    this.load.spritesheet(
+      'pacman_ghost_orange',
+      'assets/sprites/monsters/pacman_ghost_orange.png',
+      {
+        frameWidth: 86,
+        frameHeight: 86,
+      }
+    );
+
+    this.load.spritesheet('pacman_ghost_pink', 'assets/sprites/monsters/pacman_ghost_pink.png', {
+      frameWidth: 86,
+      frameHeight: 86,
+    });
+
     this.load.spritesheet('silverback_wainer', 'assets/sprites/monsters/silverback_wainer.png', {
       frameWidth: 64,
       frameHeight: 64,
@@ -77,6 +101,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
     this.load.image('ice_stone_floor_tile', 'assets/sprites/tilesets/Ice_Stone_Floor.gif');
+    this.load.image('void_tile', 'assets/sprites/tilesets/Void.gif');
     this.load.image('cut_grass_tile', 'assets/sprites/tilesets/Cut_Grass.gif');
     this.load.image('humanoid_remains', 'assets/sprites/objects/Humanoid_Remains.gif');
     this.load.image('pile_of_bones_animal', 'assets/sprites/objects/Pile_of_Bones_(Animal).gif');

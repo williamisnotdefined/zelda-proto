@@ -139,6 +139,7 @@ DEV_START_PHASE=2 npm run dev:server
 ## Next Steps
 
 - [ ] Distance weapon (e.g. bow)
+- [ ] Select class Warrior Or Mage
 
 ## Sprite Sheet Generator
 

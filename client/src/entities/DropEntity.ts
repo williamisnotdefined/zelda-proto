@@ -15,13 +15,13 @@ export class DropEntity {
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: DropKind) {
     this.kind = kind;
-    this.sprite = scene.add.sprite(
-      x,
-      y,
-      this.kind === DROP_KINDS.HEART_LARGE ? 'heart_large' : 'heart'
-    );
+    const usesLargeHeartSprite =
+      this.kind === DROP_KINDS.HEART_LARGE || this.kind === DROP_KINDS.HEART_PACMAN;
+    this.sprite = scene.add.sprite(x, y, usesLargeHeartSprite ? 'heart_large' : 'heart');
     this.sprite.setDepth(5);
-    this.sprite.setScale(this.kind === DROP_KINDS.HEART_LARGE ? 0.8 : 1);
+    this.sprite.setScale(
+      this.kind === DROP_KINDS.HEART_PACMAN ? 1 : usesLargeHeartSprite ? 0.8 : 1
+    );
     this.targetX = x;
     this.targetY = y;
   }

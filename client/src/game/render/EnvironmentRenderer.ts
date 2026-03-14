@@ -77,6 +77,7 @@ export class EnvironmentRenderer {
   private getBackgroundTextureKey(instanceId: InstanceId | null): string {
     if (instanceId === INSTANCE_IDS.PHASE2) return 'stone_floor_bege_tile';
     if (instanceId === INSTANCE_IDS.PHASE3) return 'ice_stone_floor_tile';
+    if (instanceId === INSTANCE_IDS.PHASE4) return 'void_tile';
     return 'grass_tile';
   }
 
@@ -165,6 +166,11 @@ export class EnvironmentRenderer {
     }
 
     if (instanceId === INSTANCE_IDS.PHASE3) {
+      this.activeChunks.set(key, sprites);
+      return;
+    }
+
+    if (instanceId === INSTANCE_IDS.PHASE4) {
       this.activeChunks.set(key, sprites);
       return;
     }

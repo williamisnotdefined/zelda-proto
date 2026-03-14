@@ -3,6 +3,7 @@ import { DROP_KINDS, ENEMY_KINDS } from '@gelehka/shared';
 import { BLOB_AGGRO_RADIUS, BLOB_RESPAWN_TIME, Blob, type EnemyConfig } from './Blob.js';
 export const HAND_HP = 10;
 export const HAND_SPEED = 90;
+export const HAND_CONTACT_RADIUS = 24;
 
 export const HAND_CONFIG: EnemyConfig = {
   kind: ENEMY_KINDS.HAND,
@@ -10,6 +11,7 @@ export const HAND_CONFIG: EnemyConfig = {
   speed: HAND_SPEED,
   damage: 8,
   aggroRadius: BLOB_AGGRO_RADIUS,
+  contactRadius: HAND_CONTACT_RADIUS,
   respawnTimeMs: BLOB_RESPAWN_TIME,
 };
 

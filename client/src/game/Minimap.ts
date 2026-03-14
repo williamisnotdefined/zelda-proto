@@ -5,6 +5,7 @@ import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';
 import { BossPhase3Entity } from '../entities/BossPhase3';
 import { HandEntity } from '../entities/Hand';
+import { PacmanGhostEntity } from '../entities/PacmanGhost';
 import { PlayerEntity } from '../entities/Player';
 import { PortalEntity } from '../entities/PortalEntity';
 import { SlimeEntity } from '../entities/Slime';
@@ -39,6 +40,7 @@ export class Minimap {
     blobEntities: Map<string, BlobEntity>,
     slimeEntities: Map<string, SlimeEntity>,
     handEntities: Map<string, HandEntity>,
+    pacmanGhostEntities: Map<string, PacmanGhostEntity>,
     bossEntities: Map<string, BossEntity>,
     portalEntities: Map<string, PortalEntity>,
     localPlayerId: string | null
@@ -78,6 +80,10 @@ export class Minimap {
       if (hand.serverState === 'dead') continue;
       this.drawDot(g, localX, localY, hand.x, hand.y, scale, 1.5);
     }
+    for (const pacmanGhost of pacmanGhostEntities.values()) {
+      if (pacmanGhost.serverState === 'dead') continue;
+      this.drawDot(g, localX, localY, pacmanGhost.x, pacmanGhost.y, scale, 1.5);
+    }
 
     // Draw bosses (purple dots, larger)
     g.fillStyle(0xaa66ff, 1);
@@ -98,7 +104,8 @@ export class Minimap {
     for (const portal of portalEntities.values()) {
       const isAdvancePortal =
         portal.kind === PORTAL_KINDS.PHASE1_TO_PHASE2 ||
-        portal.kind === PORTAL_KINDS.PHASE2_TO_PHASE3;
+        portal.kind === PORTAL_KINDS.PHASE2_TO_PHASE3 ||
+        portal.kind === PORTAL_KINDS.PHASE3_TO_PHASE4;
       g.fillStyle(isAdvancePortal ? 0xc98a3a : 0x4aa3ff, 0.95);
       this.drawDot(g, localX, localY, portal.x, portal.y, scale, 2.4);
     }

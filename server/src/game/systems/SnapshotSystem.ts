@@ -36,6 +36,9 @@ export class SnapshotSystem {
     for (const hand of world.hands.values()) {
       if (hand.state !== 'dead') enemies.push(hand.toSnapshot());
     }
+    for (const pacmanGhost of world.pacmanGhosts.values()) {
+      if (pacmanGhost.state !== 'dead') enemies.push(pacmanGhost.toSnapshot());
+    }
 
     const bosses = [];
     for (const boss of world.bosses.values()) {
@@ -180,17 +183,21 @@ export class SnapshotSystem {
 
     for (const boss of world.bosses.values()) {
       if (boss.state === 'dead') continue;
-      if (!(boss instanceof BossGelehk)) continue;
       if (filterFn && !filterFn(boss.x, boss.y)) continue;
 
-      for (const zone of boss.iceZones) {
-        iceZones.push(zone);
+      if (boss instanceof BossGelehk) {
+        for (const zone of boss.iceZones) {
+          iceZones.push(zone);
+        }
       }
-      for (const aoe of boss.aoeIndicators) {
+
+      const bossWithAoeIndicators = boss as { aoeIndicators?: AoeIndicator[] };
+      for (const aoe of bossWithAoeIndicators.aoeIndicators ?? []) {
         aoeIndicators.push({
+          ownerId: aoe.ownerId,
           x: quantizePosition(aoe.x),
           y: quantizePosition(aoe.y),
-          radius: aoe.radius,
+          radius: Math.round(aoe.radius),
           timer: Math.round(aoe.timer),
           hit: aoe.hit,
         });

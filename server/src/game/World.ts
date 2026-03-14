@@ -89,7 +89,7 @@ export interface WorldConfig {
   instanceId: InstanceId;
   spawnX: number;
   spawnY: number;
-  enemyCollection: 'blobs' | 'slimes' | 'hands';
+  enemyCollection: 'blobs' | 'slimes' | 'hands' | 'pacmanGhosts';
   spawnSystem: SpawnSystem;
   bossRegionSystem: BossRegionSystem<BossActorEntity>;
   onBossDeathPortal?: {
@@ -110,6 +110,7 @@ export class World extends EntityWorld<Entity> {
   blobs: Map<string, Blob>;
   slimes: Map<string, Blob>;
   hands: Map<string, Blob>;
+  pacmanGhosts: Map<string, Blob>;
   bosses: Map<string, BossActorEntity>;
   drops: Map<string, Drop>;
   portals: Map<string, Portal>;
@@ -131,6 +132,7 @@ export class World extends EntityWorld<Entity> {
     this.blobs = new Map();
     this.slimes = new Map();
     this.hands = new Map();
+    this.pacmanGhosts = new Map();
     this.bosses = new Map();
     this.drops = new Map();
     this.portals = new Map();
@@ -340,6 +342,7 @@ export class World extends EntityWorld<Entity> {
       this.blobs,
       this.slimes,
       this.hands,
+      this.pacmanGhosts,
       this.bosses,
       this.drops,
       this.portals,
@@ -354,6 +357,9 @@ export class World extends EntityWorld<Entity> {
     if (this.config.enemyCollection === 'hands') {
       return this.hands;
     }
+    if (this.config.enemyCollection === 'pacmanGhosts') {
+      return this.pacmanGhosts;
+    }
     return this.blobs;
   }
 
@@ -366,6 +372,9 @@ export class World extends EntityWorld<Entity> {
     }
     for (const hand of this.hands.values()) {
       yield hand;
+    }
+    for (const pacmanGhost of this.pacmanGhosts.values()) {
+      yield pacmanGhost;
     }
   }
 }

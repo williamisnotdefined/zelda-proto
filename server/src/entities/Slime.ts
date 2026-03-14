@@ -20,6 +20,7 @@ export const SLIME_CONFIG: EnemyConfig = {
   speed: BLOB_SPEED,
   damage: BLOB_DAMAGE,
   aggroRadius: BLOB_AGGRO_RADIUS,
+  contactRadius: SLIME_CONTACT_RADIUS,
   respawnTimeMs: BLOB_RESPAWN_TIME,
 };
 

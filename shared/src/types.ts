@@ -10,6 +10,7 @@ export const INSTANCE_IDS = {
   PHASE1: 'phase1',
   PHASE2: 'phase2',
   PHASE3: 'phase3',
+  PHASE4: 'phase4',
 } as const;
 
 export type InstanceId = (typeof INSTANCE_IDS)[keyof typeof INSTANCE_IDS];
@@ -18,9 +19,19 @@ export const ENEMY_KINDS = {
   BLOB: 'blob',
   SLIME: 'slime',
   HAND: 'hand',
+  PACMAN_GHOST: 'pacman_ghost',
 } as const;
 
 export type EnemyKind = (typeof ENEMY_KINDS)[keyof typeof ENEMY_KINDS];
+
+export const PACMAN_GHOST_VARIANTS = {
+  RED: 'red',
+  BLUE: 'blue',
+  ORANGE: 'orange',
+  PINK: 'pink',
+} as const;
+
+export type PacmanGhostVariant = (typeof PACMAN_GHOST_VARIANTS)[keyof typeof PACMAN_GHOST_VARIANTS];
 
 export const BOSS_KINDS = {
   GELEHK: 'gelehk',
@@ -35,6 +46,7 @@ export type BossKind = (typeof BOSS_KINDS)[keyof typeof BOSS_KINDS];
 export const DROP_KINDS = {
   HEART_SMALL: 'heart_small',
   HEART_LARGE: 'heart_large',
+  HEART_PACMAN: 'heart_pacman',
 } as const;
 
 export type DropKind = (typeof DROP_KINDS)[keyof typeof DROP_KINDS];
@@ -44,6 +56,8 @@ export const PORTAL_KINDS = {
   PHASE2_TO_PHASE1: 'phase2_to_phase1',
   PHASE2_TO_PHASE3: 'phase2_to_phase3',
   PHASE3_TO_PHASE2: 'phase3_to_phase2',
+  PHASE3_TO_PHASE4: 'phase3_to_phase4',
+  PHASE4_TO_PHASE3: 'phase4_to_phase3',
 } as const;
 
 export type PortalKind = (typeof PORTAL_KINDS)[keyof typeof PORTAL_KINDS];
@@ -78,12 +92,14 @@ export const CLIENT_MESSAGE_TYPES = {
   CHAT: 'chat',
 } as const;
 
-export type BossPhase = 1 | 2 | 3;
+export type BossPhase = 1 | 2 | 3 | 4;
 
 export type BossState =
   | 'idle'
   | 'chasing'
   | 'attacking'
+  | 'casting'
+  | 'special'
   | 'targeting'
   | 'jumping'
   | 'charging'
@@ -133,6 +149,7 @@ export interface PlayerSnapshot {
 export interface EnemySnapshot {
   id: string;
   kind: EnemyKind;
+  variant?: PacmanGhostVariant;
   x: number;
   y: number;
   hp: number;
@@ -163,6 +180,7 @@ export interface IceZone {
 }
 
 export interface AoeIndicator {
+  ownerId?: string;
   x: number;
   y: number;
   radius: number;

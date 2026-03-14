@@ -1,12 +1,8 @@
 import { pack, unpack } from 'msgpackr';
 import { resolveWebSocketUrl } from '@gelehka/game-core/network';
-import {
-  createSnapshotNormalizationState,
-  normalizeServerMessage,
-} from '@gelehka/game-core/snapshot';
-import { PROTOCOL_VERSION } from '@gelehka/shared';
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
-import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+import type { ClientMessage, InstanceId, ServerMessage } from '@gelehka/shared';
 import { logError } from '../monitoring/errorLogger';
 
 type MessageHandler = (msg: ServerMessage) => void;
@@ -30,8 +26,10 @@ export class NetworkManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectionState: ConnectionState = 'DISCONNECTED';
-  private normalizationState = createSnapshotNormalizationState();
   private shouldReconnect = true;
+  private snapshotInstanceId: InstanceId | null = null;
+  private lastSnapshotTick = -1;
+  private hasSnapshotBase = false;
 
   connect(): void {
     if (
@@ -50,7 +48,7 @@ export class NetworkManager {
 
     try {
       this.ws = new WebSocket(WS_URL);
-      this.normalizationState = createSnapshotNormalizationState();
+      this.resetSnapshotTracking();
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
       logError({
@@ -99,7 +97,7 @@ export class NetworkManager {
       }
       for (const cb of this.openCallbacks) cb();
       this.openCallbacks = [];
-      this.normalizationState = createSnapshotNormalizationState();
+      this.resetSnapshotTracking();
       this.setConnectionState('CONNECTED');
     };
 
@@ -123,12 +121,12 @@ export class NetworkManager {
         return;
       }
 
-      const normalized = normalizeServerMessage(message, this.normalizationState);
-      if (!normalized) {
+      const filtered = this.filterSnapshotMessage(message);
+      if (!filtered) {
         return;
       }
       for (const handler of this.handlers) {
-        handler(normalized);
+        handler(filtered);
       }
     };
 
@@ -283,7 +281,7 @@ export class NetworkManager {
       this.ws.close();
       this.ws = null;
     }
-    this.normalizationState = createSnapshotNormalizationState();
+    this.resetSnapshotTracking();
     this.setConnectionState('DISCONNECTED');
   }
 
@@ -303,6 +301,42 @@ export class NetworkManager {
     for (const handler of this.connectionStateHandlers) {
       handler(state);
     }
+  }
+
+  private resetSnapshotTracking(): void {
+    this.snapshotInstanceId = null;
+    this.lastSnapshotTick = -1;
+    this.hasSnapshotBase = false;
+  }
+
+  private filterSnapshotMessage(message: ServerMessage): ServerMessage | null {
+    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
+      this.snapshotInstanceId = message.instanceId;
+      this.lastSnapshotTick = -1;
+      this.hasSnapshotBase = true;
+      return message;
+    }
+
+    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
+      if (message.full) {
+        this.snapshotInstanceId = message.instanceId;
+        this.lastSnapshotTick = message.tick;
+        this.hasSnapshotBase = true;
+        return message;
+      }
+
+      if (!this.hasSnapshotBase || this.snapshotInstanceId !== message.instanceId) {
+        return null;
+      }
+
+      if (message.tick <= this.lastSnapshotTick) {
+        return null;
+      }
+
+      this.lastSnapshotTick = message.tick;
+    }
+
+    return message;
   }
 
   private decodeServerMessage(raw: unknown): ServerMessage | null {

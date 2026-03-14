@@ -284,20 +284,18 @@ export class WebSocketHandler {
     this.snapshotTick += 1;
 
     if (this.snapshotTick % LEADERBOARD_INTERVAL_TICKS === 0) {
-      const phase1Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1);
-      const phase2Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE2);
-      const phase3Leaderboard = this.buildLeaderboard(instances, INSTANCE_IDS.PHASE3);
+      const leaderboardsByInstance = {
+        [INSTANCE_IDS.PHASE1]: this.buildLeaderboard(instances, INSTANCE_IDS.PHASE1),
+        [INSTANCE_IDS.PHASE2]: this.buildLeaderboard(instances, INSTANCE_IDS.PHASE2),
+        [INSTANCE_IDS.PHASE3]: this.buildLeaderboard(instances, INSTANCE_IDS.PHASE3),
+        [INSTANCE_IDS.PHASE4]: this.buildLeaderboard(instances, INSTANCE_IDS.PHASE4),
+      };
 
       for (const [playerId, ws] of this.clients.entries()) {
         if (ws.readyState !== WebSocket.OPEN) continue;
         const instanceId = instances.getInstanceForPlayer(playerId);
         if (!instanceId) continue;
-        const leaderboard =
-          instanceId === INSTANCE_IDS.PHASE1
-            ? phase1Leaderboard
-            : instanceId === INSTANCE_IDS.PHASE2
-              ? phase2Leaderboard
-              : phase3Leaderboard;
+        const leaderboard = leaderboardsByInstance[instanceId];
         this.networkManager.send(ws, leaderboard);
       }
     }
