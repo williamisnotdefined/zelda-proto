@@ -60,6 +60,35 @@ const PHASE3_ENTRY_BOSS_SPAWN_DEFS = [
   },
 ] as const;
 const DEV_START_PHASE_ENV = 'DEV_START_PHASE';
+const DEV_STRESS_ENEMIES_PER_CHUNK_ENV = 'DEV_STRESS_ENEMIES_PER_CHUNK';
+
+function resolveDevPositiveIntEnv(
+  envName: string,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const isDev = process.env.NODE_ENV !== 'production';
+  if (!isDev) {
+    return fallback;
+  }
+
+  const raw = process.env[envName]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+  if (Number.isInteger(parsed) && parsed >= min && parsed <= max) {
+    console.log(`[InstanceManager] ${envName}=${parsed}`);
+    return parsed;
+  }
+
+  console.warn(
+    `[InstanceManager] Invalid ${envName}="${raw}". Expected an integer between ${min} and ${max}. Falling back to ${fallback}.`
+  );
+  return fallback;
+}
 
 function selectPacmanGhostVariant(seed: string): PacmanGhostVariant {
   let hash = 0;
@@ -86,6 +115,12 @@ export class InstanceManager {
   private readonly playerInstances: Map<string, InstanceId>;
 
   constructor() {
+    const stressEnemiesPerChunk = resolveDevPositiveIntEnv(
+      DEV_STRESS_ENEMIES_PER_CHUNK_ENV,
+      0,
+      1,
+      400
+    );
     this.phase2SpawnX = WORLD_SPAWN_X + 180;
     this.phase2SpawnY = WORLD_SPAWN_Y;
     this.phase3SpawnX = WORLD_SPAWN_X + 360;
@@ -95,23 +130,26 @@ export class InstanceManager {
 
     const phase1SpawnSystem = new SpawnSystem({
       enemyPrefix: 'blob',
+      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
       createEnemy: (id, x, y, chunkKey) =>
         new Blob(id, x, y, chunkKey, BLOB_CONFIG, DROP_KINDS.HEART_SMALL),
     });
 
     const phase2SpawnSystem = new SpawnSystem({
       enemyPrefix: 'slime',
+      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
       createEnemy: (id, x, y, chunkKey) => new Slime(id, x, y, chunkKey),
     });
 
     const phase3SpawnSystem = new SpawnSystem({
       enemyPrefix: 'hand',
+      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
       createEnemy: (id, x, y, chunkKey) => new Hand(id, x, y, chunkKey),
     });
 
     const phase4SpawnSystem = new SpawnSystem({
       enemyPrefix: 'pacman_ghost',
-      enemiesPerChunk: PHASE4_ENEMIES_PER_CHUNK,
+      enemiesPerChunk: stressEnemiesPerChunk || PHASE4_ENEMIES_PER_CHUNK,
       createEnemy: (id, x, y, chunkKey) =>
         new PacmanGhost(id, x, y, chunkKey, selectPacmanGhostVariant(id)),
     });
@@ -134,7 +172,9 @@ export class InstanceManager {
             (x: number, y: number) => {
               ctx.spawnPurpleField(x, y);
             },
-            ctx.safeZone
+            ctx.safeZone,
+            ctx.findNearestPlayerInRadius,
+            ctx.forEachPlayerInRadius
           );
         }
       },
@@ -149,9 +189,14 @@ export class InstanceManager {
       createBoss: (id, x, y) => new DragonLord(id, x, y),
       updateBoss: (boss, ctx) => {
         if (boss instanceof DragonLord) {
-          boss.update(ctx.dt, ctx.players, (x: number, y: number, dirX: number, dirY: number) => {
-            ctx.spawnFireLine(x, y, dirX, dirY);
-          });
+          boss.update(
+            ctx.dt,
+            ctx.players,
+            (x: number, y: number, dirX: number, dirY: number) => {
+              ctx.spawnFireLine(x, y, dirX, dirY);
+            },
+            ctx.findNearestPlayerInRadius
+          );
         }
       },
     });
@@ -166,9 +211,14 @@ export class InstanceManager {
       createBoss: (id, x, y) => new Phase3Boss(id, x, y, BOSS_KINDS.SILVERBACK_WAINER),
       updateBoss: (boss, ctx) => {
         if (boss instanceof Phase3Boss) {
-          boss.update(ctx.dt, ctx.players, (x: number, y: number, dirX: number, dirY: number) => {
-            ctx.spawnFireLine(x, y, dirX, dirY, boss.flameKind);
-          });
+          boss.update(
+            ctx.dt,
+            ctx.players,
+            (x: number, y: number, dirX: number, dirY: number) => {
+              ctx.spawnFireLine(x, y, dirX, dirY, boss.flameKind);
+            },
+            ctx.findNearestPlayerInRadius
+          );
         }
       },
     });

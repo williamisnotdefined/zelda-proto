@@ -1,6 +1,7 @@
 import { CLIENT_MESSAGE_TYPES, PROTOCOL_VERSION } from '@gelehka/shared';
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
 import { ConnectionState, NetworkManager } from './NetworkManager';
+import type { NetworkPerformanceStats } from './NetworkManager';
 import { useGameStore } from '../ui/store';
 
 type MessageHandler = (msg: ServerMessage) => void;
@@ -79,6 +80,10 @@ export function onConnectionState(handler: ConnectionStateHandler): () => void {
 
 export function getConnectionState(): ConnectionState {
   return networkManager.getConnectionState();
+}
+
+export function getNetworkStats(): NetworkPerformanceStats {
+  return networkManager.getPerformanceStats();
 }
 
 export function disconnect(): void {

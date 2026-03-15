@@ -12,6 +12,8 @@ export type {
   DropSnapshot,
   EnemyKind,
   EnemySnapshot,
+  EnemyStateDelta,
+  EnemyTransformSnapshot,
   HazardKind,
   HazardSnapshot,
   IceZone,

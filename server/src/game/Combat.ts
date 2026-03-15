@@ -28,20 +28,51 @@ import {
 import { Phase3Boss } from '../entities/Phase3Boss.js';
 
 type BossLike = BossGelehk | DragonLord | Phase3Boss;
+type EnemyRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (enemy: Blob) => void
+) => void;
+type BossRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (boss: BossLike) => void
+) => void;
+type PlayerRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (player: Player) => void
+) => void;
+
+const PLAYER_HALF_DIAGONAL = Math.hypot(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
+const BLOB_HALF_DIAGONAL = Math.hypot(BLOB_WIDTH / 2, BLOB_HEIGHT / 2);
+const BOSS_HALF_DIAGONAL = Math.hypot(BOSS_WIDTH / 2, BOSS_HEIGHT / 2);
+const DRAGON_LORD_HALF_DIAGONAL = Math.hypot(DRAGON_LORD_WIDTH / 2, DRAGON_LORD_HEIGHT / 2);
+const MAX_BOSS_HALF_DIAGONAL = Math.max(BOSS_HALF_DIAGONAL, DRAGON_LORD_HALF_DIAGONAL);
+const DRAGON_CONTACT_QUERY_RADIUS = DRAGON_LORD_CONTACT_RADIUS + PLAYER_HALF_DIAGONAL;
 
 export function resolvePlayerAttacks(
   players: Map<string, Player>,
-  blobs: Iterable<Blob>,
-  bosses: Map<string, BossLike>
+  queryEnemiesInRadius: EnemyRadiusQuery,
+  queryBossesInRadius: BossRadiusQuery
 ): void {
   for (const player of players.values()) {
     const hitbox = player.getAttackHitbox();
     if (!hitbox) continue;
 
-    for (const blob of blobs) {
-      if (blob.state === 'dead') continue;
+    const hitboxCenterX = hitbox.x + hitbox.w / 2;
+    const hitboxCenterY = hitbox.y + hitbox.h / 2;
+    const hitboxHalfDiagonal = Math.hypot(hitbox.w / 2, hitbox.h / 2);
+    const enemyQueryRadius = hitboxHalfDiagonal + BLOB_HALF_DIAGONAL;
+    const bossQueryRadius = hitboxHalfDiagonal + MAX_BOSS_HALF_DIAGONAL;
+
+    queryEnemiesInRadius(hitboxCenterX, hitboxCenterY, enemyQueryRadius, (blob) => {
+      if (blob.state === 'dead') return;
       // One hit per enemy per swing
-      if (player.attackHitEnemyIds.has(blob.id)) continue;
+      if (player.attackHitEnemyIds.has(blob.id)) return;
       const blobBox = entityAABB(blob.x, blob.y, BLOB_WIDTH, BLOB_HEIGHT);
       if (aabbOverlap(hitbox, blobBox)) {
         blob.takeDamage(PLAYER_DAMAGE);
@@ -51,11 +82,11 @@ export function resolvePlayerAttacks(
           player.recordMonsterKillInCurrentAttack();
         }
       }
-    }
+    });
 
-    for (const boss of bosses.values()) {
-      if (boss.state === 'dead') continue;
-      if (player.attackHitEnemyIds.has(boss.id)) continue;
+    queryBossesInRadius(hitboxCenterX, hitboxCenterY, bossQueryRadius, (boss) => {
+      if (boss.state === 'dead') return;
+      if (player.attackHitEnemyIds.has(boss.id)) return;
       const bossW = boss instanceof DragonLord ? DRAGON_LORD_WIDTH : BOSS_WIDTH;
       const bossH = boss instanceof DragonLord ? DRAGON_LORD_HEIGHT : BOSS_HEIGHT;
       const bossBox = entityAABB(boss.x, boss.y, bossW, bossH);
@@ -67,7 +98,7 @@ export function resolvePlayerAttacks(
           player.recordMonsterKillInCurrentAttack();
         }
       }
-    }
+    });
   }
 }
 
@@ -113,73 +144,91 @@ export function resolvePlayerVsPlayerWithSafeZone(
 
 export function resolveEnemyContactDamage(
   blobs: Iterable<Blob>,
-  players: Map<string, Player>
+  players: Map<string, Player>,
+  forEachPlayerInRadius: PlayerRadiusQuery
 ): void {
-  resolveEnemyContactDamageWithSafeZone(blobs, players, {
-    x: WORLD_SPAWN_X,
-    y: WORLD_SPAWN_Y,
-    radius: WORLD_SPAWN_SAFE_ZONE_RADIUS,
-  });
+  resolveEnemyContactDamageWithSafeZone(
+    blobs,
+    players,
+    {
+      x: WORLD_SPAWN_X,
+      y: WORLD_SPAWN_Y,
+      radius: WORLD_SPAWN_SAFE_ZONE_RADIUS,
+    },
+    forEachPlayerInRadius
+  );
 }
 
 export function resolveEnemyContactDamageWithSafeZone(
   blobs: Iterable<Blob>,
   players: Map<string, Player>,
-  safeZone: { x: number; y: number; radius: number }
+  safeZone: { x: number; y: number; radius: number },
+  forEachPlayerInRadius: PlayerRadiusQuery
 ): void {
   for (const blob of blobs) {
     if (blob.state === 'dead') continue;
     if (blob.damageCooldown > 0) continue;
 
     const blobCircle = entityCircle(blob.x, blob.y, blob.contactRadius ?? BLOB_CONTACT_RADIUS);
+    const contactQueryRadius = blobCircle.r + PLAYER_HALF_DIAGONAL;
+    let dealtDamage = false;
 
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
-
+    forEachPlayerInRadius(blob.x, blob.y, contactQueryRadius, (player) => {
+      if (dealtDamage) return;
+      if (!players.has(player.id)) return;
+      if (player.state === 'dead') return;
       if (player.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
-        continue;
+        return;
       }
 
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
       if (circleAabbOverlap(blobCircle, playerBox)) {
         player.takeDamage(blob.damage);
         blob.damageCooldown = BLOB_DAMAGE_COOLDOWN;
-        break;
+        dealtDamage = true;
       }
-    }
+    });
   }
 }
 
 export function resolveBossContactDamage(
   bosses: Map<string, BossLike>,
-  players: Map<string, Player>
+  players: Map<string, Player>,
+  forEachPlayerInRadius: PlayerRadiusQuery
 ): void {
-  resolveBossContactDamageWithSafeZone(bosses, players, {
-    x: WORLD_SPAWN_X,
-    y: WORLD_SPAWN_Y,
-    radius: WORLD_SPAWN_SAFE_ZONE_RADIUS,
-  });
+  resolveBossContactDamageWithSafeZone(
+    bosses,
+    players,
+    {
+      x: WORLD_SPAWN_X,
+      y: WORLD_SPAWN_Y,
+      radius: WORLD_SPAWN_SAFE_ZONE_RADIUS,
+    },
+    forEachPlayerInRadius
+  );
 }
 
 export function resolveBossContactDamageWithSafeZone(
   bosses: Map<string, BossLike>,
   players: Map<string, Player>,
-  safeZone: { x: number; y: number; radius: number }
+  safeZone: { x: number; y: number; radius: number },
+  forEachPlayerInRadius: PlayerRadiusQuery
 ): void {
   for (const boss of bosses.values()) {
     if (!(boss instanceof DragonLord)) continue;
     if (boss.state === 'dead') continue;
 
     const bossCircle = entityCircle(boss.x, boss.y, DRAGON_LORD_CONTACT_RADIUS);
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
+    forEachPlayerInRadius(boss.x, boss.y, DRAGON_CONTACT_QUERY_RADIUS, (player) => {
+      if (!players.has(player.id)) return;
+      if (player.state === 'dead') return;
 
       if (player.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
-        continue;
+        return;
       }
 
       if (!boss.canDealContactDamageTo(player.id)) {
-        continue;
+        return;
       }
 
       const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
@@ -187,6 +236,6 @@ export function resolveBossContactDamageWithSafeZone(
         player.takeDamage(boss.damage);
         boss.markContactDamageDealt(player.id);
       }
-    }
+    });
   }
 }

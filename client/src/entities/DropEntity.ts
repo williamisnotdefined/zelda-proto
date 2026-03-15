@@ -12,6 +12,7 @@ export class DropEntity {
   private targetX: number;
   private targetY: number;
   private kind: DropKind;
+  private visible: boolean;
 
   constructor(scene: Phaser.Scene, x: number, y: number, kind: DropKind) {
     this.kind = kind;
@@ -24,6 +25,7 @@ export class DropEntity {
     );
     this.targetX = x;
     this.targetY = y;
+    this.visible = true;
   }
 
   updatePosition(x: number, y: number): void {
@@ -32,13 +34,17 @@ export class DropEntity {
   }
 
   update(dt: number, inView: boolean): void {
-    this.sprite.setVisible(inView);
+    this.setVisible(inView);
     if (!inView) {
       return;
     }
 
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
+    if (Math.abs(dx) <= 0.05 && Math.abs(dy) <= 0.05) {
+      return;
+    }
+
     if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
       this.sprite.x = this.targetX;
       this.sprite.y = this.targetY;
@@ -49,6 +55,15 @@ export class DropEntity {
     const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
     this.sprite.x += (this.targetX - this.sprite.x) * factor;
     this.sprite.y += (this.targetY - this.sprite.y) * factor;
+  }
+
+  private setVisible(visible: boolean): void {
+    if (this.visible === visible) {
+      return;
+    }
+
+    this.sprite.setVisible(visible);
+    this.visible = visible;
   }
 
   destroy(): void {

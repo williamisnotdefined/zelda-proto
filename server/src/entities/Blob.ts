@@ -34,6 +34,15 @@ export interface EnemyConfig {
   respawnEnabled?: boolean;
 }
 
+type FindNearestPlayerInRadius = (
+  x: number,
+  y: number,
+  radius: number,
+  predicate?: (player: Player) => boolean
+) => Player | null;
+
+const TARGET_REACQUIRE_INTERVAL_MS = 120;
+
 export const BLOB_CONFIG: EnemyConfig = {
   kind: ENEMY_KINDS.BLOB,
   maxHp: BLOB_HP,
@@ -46,6 +55,15 @@ export const BLOB_CONFIG: EnemyConfig = {
 
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
+}
+
+function createTargetReacquireOffset(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+
+  return Math.abs(hash) % TARGET_REACQUIRE_INTERVAL_MS;
 }
 
 export class Blob extends Entity {
@@ -68,6 +86,7 @@ export class Blob extends Entity {
   respawnEnabled: boolean;
   variant?: PacmanGhostVariant;
   private readonly respawnTimeMs: number;
+  private targetReacquireTimerMs: number;
 
   constructor(
     id: string,
@@ -96,6 +115,7 @@ export class Blob extends Entity {
     this.dropKind = dropKind;
     this.respawnTimeMs = config.respawnTimeMs;
     this.respawnEnabled = config.respawnEnabled ?? true;
+    this.targetReacquireTimerMs = createTargetReacquireOffset(id);
   }
 
   update(dt: number, players: Map<string, Player>, spawnSafeZoneActive: boolean = false): void {
@@ -110,7 +130,8 @@ export class Blob extends Entity {
     dt: number,
     players: Map<string, Player>,
     spawnSafeZoneActive: boolean,
-    safeZone: { x: number; y: number; radius: number }
+    safeZone: { x: number; y: number; radius: number },
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
   ): void {
     if (this.state === 'dead') return;
 
@@ -118,45 +139,37 @@ export class Blob extends Entity {
       this.damageCooldown -= dt;
     }
 
-    let nearestPlayer: Player | null = null;
-    let nearestDistSq = Infinity;
-
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
-      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
-      if (dSq < nearestDistSq) {
-        nearestDistSq = dSq;
-        nearestPlayer = player;
-      }
+    if (this.targetReacquireTimerMs > 0) {
+      this.targetReacquireTimerMs -= dt;
     }
 
-    if (this.targetPlayerId) {
-      const currentTarget = players.get(this.targetPlayerId);
-
-      if (!currentTarget || currentTarget.state === 'dead') {
-        this.targetPlayerId = null;
-      } else if (nearestPlayer && nearestPlayer.id !== this.targetPlayerId) {
-        this.targetPlayerId = nearestPlayer.id;
-      }
-    }
+    let target = this.targetPlayerId ? (players.get(this.targetPlayerId) ?? null) : null;
 
     if (
-      !this.targetPlayerId &&
-      nearestPlayer &&
-      nearestDistSq <= this.aggroRadius * this.aggroRadius
+      target &&
+      (target.state === 'dead' || target.isProtected(safeZone.x, safeZone.y, safeZone.radius))
     ) {
-      this.targetPlayerId = nearestPlayer.id;
+      this.targetPlayerId = null;
+      this.targetReacquireTimerMs = 0;
+      target = null;
     }
 
-    const target = this.targetPlayerId ? players.get(this.targetPlayerId) : null;
+    if (!target || this.targetReacquireTimerMs <= 0) {
+      const nearestPlayer = this.findNearestAggroPlayer(
+        players,
+        safeZone,
+        findNearestPlayerInRadius
+      );
+      if (nearestPlayer) {
+        this.targetPlayerId = nearestPlayer.id;
+        target = nearestPlayer;
+      } else if (!target) {
+        this.targetPlayerId = null;
+      }
+      this.targetReacquireTimerMs = TARGET_REACQUIRE_INTERVAL_MS;
+    }
 
     if (target && target.state !== 'dead') {
-      if (target.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
-        this.targetPlayerId = null;
-        this.state = 'idle';
-        return;
-      }
-
       this.state = 'chasing';
 
       const dx = target.x - this.x;
@@ -227,6 +240,7 @@ export class Blob extends Entity {
       this.state = 'dead';
       this.targetPlayerId = null;
       this.respawnTimer = this.respawnTimeMs;
+      this.targetReacquireTimerMs = 0;
     }
   }
 
@@ -241,9 +255,37 @@ export class Blob extends Entity {
       this.damageCooldown = 0;
       this.targetPlayerId = null;
       this.hasDropped = false;
+      this.targetReacquireTimerMs = 0;
       return true;
     }
     return false;
+  }
+
+  private findNearestAggroPlayer(
+    players: Map<string, Player>,
+    safeZone: { x: number; y: number; radius: number },
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
+  ): Player | null {
+    const predicate = (player: Player) =>
+      player.state !== 'dead' && !player.isProtected(safeZone.x, safeZone.y, safeZone.radius);
+
+    if (findNearestPlayerInRadius) {
+      return findNearestPlayerInRadius(this.x, this.y, this.aggroRadius, predicate);
+    }
+
+    let nearestPlayer: Player | null = null;
+    let nearestDistSq = this.aggroRadius * this.aggroRadius;
+
+    for (const player of players.values()) {
+      if (!predicate(player)) continue;
+      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
+      if (dSq <= nearestDistSq) {
+        nearestDistSq = dSq;
+        nearestPlayer = player;
+      }
+    }
+
+    return nearestPlayer;
   }
 
   toSnapshot(): EnemySnapshot {

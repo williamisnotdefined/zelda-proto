@@ -20,6 +20,18 @@ export interface BossRegionContext {
   spawnFireLine: (x: number, y: number, dirX: number, dirY: number, kind?: HazardKind) => void;
   spawnPurpleField: (x: number, y: number) => void;
   safeZone: { x: number; y: number; radius: number };
+  findNearestPlayerInRadius: (
+    x: number,
+    y: number,
+    radius: number,
+    predicate?: (player: Player) => boolean
+  ) => Player | null;
+  forEachPlayerInRadius: (
+    x: number,
+    y: number,
+    radius: number,
+    callback: (player: Player) => void
+  ) => void;
 }
 
 export interface BossRegionSystemConfig<TBoss extends BossActor> {

@@ -10,11 +10,25 @@ const PACMAN_GHOST_SCALE = 0.35;
 const PACMAN_GHOST_HP = 38;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
+type EnemyVisualLod = {
+  tier: 'near' | 'mid' | 'far';
+  animate: boolean;
+  animationTimeScale: number;
+  showHud: boolean;
+  showShadow: boolean;
+};
+
+const STATIC_FRAME_BY_FACING: Record<FacingDirection, number> = {
+  right: 0,
+  left: 2,
+  up: 4,
+  down: 6,
+};
 
 export class PacmanGhostEntity {
   sprite: Phaser.GameObjects.Sprite;
-  hpBar: Phaser.GameObjects.Rectangle;
-  hpBarBg: Phaser.GameObjects.Rectangle;
+  hpBar: Phaser.GameObjects.Rectangle | null;
+  hpBarBg: Phaser.GameObjects.Rectangle | null;
   targetX: number;
   targetY: number;
   hp: number;
@@ -26,6 +40,11 @@ export class PacmanGhostEntity {
   private facing: FacingDirection;
   private currentAnimKey: string;
   private readonly animPrefix: string;
+  private isUsingStaticFrame: boolean;
+  private staticFrameFacing: FacingDirection | null;
+  private spriteVisible: boolean;
+  private hudVisible: boolean;
+  private animationTimeScale: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number, variant: PacmanGhostVariant) {
     this.targetX = x;
@@ -39,16 +58,17 @@ export class PacmanGhostEntity {
     this.facing = 'down';
     this.currentAnimKey = '';
     this.animPrefix = `pacman_ghost_${variant}`;
+    this.isUsingStaticFrame = false;
+    this.staticFrameFacing = null;
+    this.spriteVisible = true;
+    this.hudVisible = false;
+    this.animationTimeScale = 1;
 
     this.sprite = scene.add.sprite(x, y, this.animPrefix);
     this.sprite.setDepth(8);
     this.sprite.setScale(PACMAN_GHOST_SCALE);
-
-    this.hpBarBg = scene.add.rectangle(x, y - HP_BAR_OFFSET_Y, HP_BAR_WIDTH, 3, 0x333333);
-    this.hpBarBg.setDepth(9);
-
-    this.hpBar = scene.add.rectangle(x, y - HP_BAR_OFFSET_Y, HP_BAR_WIDTH, 3, 0xff4444);
-    this.hpBar.setDepth(10);
+    this.hpBar = null;
+    this.hpBarBg = null;
   }
 
   get x(): number {
@@ -79,7 +99,34 @@ export class PacmanGhostEntity {
     }
   }
 
-  update(dt: number, inView: boolean, animationTimeScale: number, showHud: boolean): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+    this.prevX = x;
+    this.prevY = y;
+    this.targetX = x;
+    this.targetY = y;
+    this.hp = hp;
+    this.maxHp = maxHp;
+    this.serverState = state;
+    this.resetVisualState();
+    this.sprite.x = x;
+    this.sprite.y = y;
+    this.hpBar?.setVisible(false);
+    this.hpBarBg?.setVisible(false);
+    this.spriteVisible = true;
+    this.hudVisible = false;
+    this.animationTimeScale = 1;
+  }
+
+  setDormant(): void {
+    this.resetVisualState();
+    this.sprite.setVisible(false);
+    this.hpBar?.setVisible(false);
+    this.hpBarBg?.setVisible(false);
+    this.spriteVisible = false;
+    this.hudVisible = false;
+  }
+
+  update(dt: number, inView: boolean, lod: EnemyVisualLod): void {
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
     if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
@@ -102,31 +149,67 @@ export class PacmanGhostEntity {
 
     const alive = this.serverState !== 'dead';
     const visible = alive && inView;
-    this.sprite.setVisible(visible);
+    this.setSpriteVisible(visible);
 
-    const hudVisible = visible && showHud;
-    this.hpBar.setVisible(hudVisible);
-    this.hpBarBg.setVisible(hudVisible);
+    const hudVisible = visible && lod.showHud;
+    this.setHudVisible(hudVisible);
 
     if (!visible) {
-      this.sprite.anims.stop();
-      this.currentAnimKey = '';
+      if (this.currentAnimKey !== '' || this.isUsingStaticFrame || this.sprite.anims.isPlaying) {
+        this.sprite.anims.stop();
+        this.currentAnimKey = '';
+        this.isUsingStaticFrame = false;
+        this.staticFrameFacing = null;
+      }
       return;
     }
 
-    this.sprite.anims.timeScale = animationTimeScale;
-
     if (hudVisible) {
-      this.hpBarBg.x = this.sprite.x;
-      this.hpBarBg.y = this.sprite.y - HP_BAR_OFFSET_Y;
+      this.ensureHealthBars();
+      this.hpBarBg!.x = this.sprite.x;
+      this.hpBarBg!.y = this.sprite.y - HP_BAR_OFFSET_Y;
 
       const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-      this.hpBar.width = HP_BAR_WIDTH * hpRatio;
-      this.hpBar.x = this.sprite.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
-      this.hpBar.y = this.sprite.y - HP_BAR_OFFSET_Y;
+      this.hpBar!.width = HP_BAR_WIDTH * hpRatio;
+      this.hpBar!.x = this.sprite.x - (HP_BAR_WIDTH - this.hpBar!.width) / 2;
+      this.hpBar!.y = this.sprite.y - HP_BAR_OFFSET_Y;
     }
 
+    if (!lod.animate) {
+      this.applyStaticFrame();
+      return;
+    }
+
+    if (this.animationTimeScale !== lod.animationTimeScale) {
+      this.sprite.anims.timeScale = lod.animationTimeScale;
+      this.animationTimeScale = lod.animationTimeScale;
+    }
     this.updateAnimation();
+  }
+
+  private ensureHealthBars(): void {
+    if (this.hpBar && this.hpBarBg) {
+      return;
+    }
+
+    const scene = this.sprite.scene;
+    this.hpBarBg = scene.add.rectangle(
+      this.sprite.x,
+      this.sprite.y - HP_BAR_OFFSET_Y,
+      HP_BAR_WIDTH,
+      3,
+      0x333333
+    );
+    this.hpBarBg.setDepth(9);
+
+    this.hpBar = scene.add.rectangle(
+      this.sprite.x,
+      this.sprite.y - HP_BAR_OFFSET_Y,
+      HP_BAR_WIDTH,
+      3,
+      0xff4444
+    );
+    this.hpBar.setDepth(10);
   }
 
   private updateAnimation(): void {
@@ -141,17 +224,62 @@ export class PacmanGhostEntity {
       return;
     }
 
-    if (this.currentAnimKey === animKey) {
+    if (this.currentAnimKey === animKey && !this.isUsingStaticFrame) {
       return;
     }
 
     this.sprite.play(animKey, true);
     this.currentAnimKey = animKey;
+    this.isUsingStaticFrame = false;
+    this.staticFrameFacing = null;
+  }
+
+  private resetVisualState(): void {
+    this.facing = 'down';
+    this.currentAnimKey = '';
+    this.isUsingStaticFrame = false;
+    this.staticFrameFacing = null;
+    this.sprite.anims.stop();
+    this.sprite.anims.timeScale = 1;
+    this.animationTimeScale = 1;
+    this.sprite.setFlipX(false);
+    this.sprite.setFrame(STATIC_FRAME_BY_FACING.down);
+  }
+
+  private setSpriteVisible(visible: boolean): void {
+    if (this.spriteVisible === visible) {
+      return;
+    }
+
+    this.sprite.setVisible(visible);
+    this.spriteVisible = visible;
+  }
+
+  private setHudVisible(visible: boolean): void {
+    if (this.hudVisible === visible) {
+      return;
+    }
+
+    this.hpBar?.setVisible(visible);
+    this.hpBarBg?.setVisible(visible);
+    this.hudVisible = visible;
+  }
+
+  private applyStaticFrame(): void {
+    if (this.isUsingStaticFrame && this.staticFrameFacing === this.facing) {
+      return;
+    }
+
+    this.sprite.anims.stop();
+    this.sprite.setFrame(STATIC_FRAME_BY_FACING[this.facing]);
+    this.currentAnimKey = '';
+    this.isUsingStaticFrame = true;
+    this.staticFrameFacing = this.facing;
   }
 
   destroy(): void {
     this.sprite.destroy();
-    this.hpBar.destroy();
-    this.hpBarBg.destroy();
+    this.hpBar?.destroy();
+    this.hpBarBg?.destroy();
   }
 }

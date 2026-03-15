@@ -70,7 +70,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 1 as const;
+export const PROTOCOL_VERSION = 2 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -158,6 +158,19 @@ export interface EnemySnapshot {
 }
 
 export type EnemyState = BlobState;
+
+export interface EnemyTransformSnapshot {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface EnemyStateDelta {
+  id: string;
+  hp: number;
+  maxHp: number;
+  state: EnemyState;
+}
 
 export interface BossSnapshot {
   id: string;
@@ -251,6 +264,8 @@ export interface SnapshotDeltaMessage extends ProtocolEnvelope {
   players: PlayerSnapshot[];
   removedPlayerIds: string[];
   enemies: EnemySnapshot[];
+  enemyTransforms: EnemyTransformSnapshot[];
+  enemyStates: EnemyStateDelta[];
   bosses: BossSnapshot[];
   drops: DropSnapshot[];
   portals: PortalSnapshot[];

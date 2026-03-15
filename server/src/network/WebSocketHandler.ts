@@ -31,7 +31,7 @@ const CHAT_RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 1000;
 const MAX_RATE_LIMIT_VIOLATIONS_PER_WINDOW = 15;
 const MAX_INVALID_MESSAGES_PER_WINDOW = 8;
-const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 40;
+const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 0;
 const LEADERBOARD_INTERVAL_TICKS = Math.max(
   1,
   Math.round(SERVER_NET_TICK_RATE / SERVER_LEADERBOARD_TICK_RATE)
@@ -312,10 +312,15 @@ export class WebSocketHandler {
           this.forceFullSnapshotFor.add(playerId);
         }
         const previous = this.previousSnapshots.get(playerId) ?? null;
+        const periodicFullSnapshotEnabled = FORCE_FULL_SNAPSHOT_EVERY_TICKS > 0;
         const full =
           this.forceFullSnapshotFor.has(playerId) ||
-          this.snapshotTick % FORCE_FULL_SNAPSHOT_EVERY_TICKS === 0;
-        const { message, nextState } = diffSnapshot(previous, snapshot, this.snapshotTick, full);
+          (periodicFullSnapshotEnabled &&
+            this.snapshotTick % FORCE_FULL_SNAPSHOT_EVERY_TICKS === 0);
+        const { message, nextState } = diffSnapshot(previous, snapshot, this.snapshotTick, full, {
+          viewerX: world.players.get(playerId)?.x ?? 0,
+          viewerY: world.players.get(playerId)?.y ?? 0,
+        });
         const sent = this.networkManager.send(ws, message);
         if (sent) {
           this.previousSnapshots.set(playerId, nextState);

@@ -254,8 +254,16 @@ export class World extends EntityWorld<Entity> {
       (id) => this.remove(id)
     );
 
+    this.rebuildPlayerIndex();
+
     for (const enemy of this.getAllEnemies()) {
-      enemy.updateWithSafeZone(dt, this.players, spawnSafeZoneActive, spawnSafeZone);
+      enemy.updateWithSafeZone(
+        dt,
+        this.players,
+        spawnSafeZoneActive,
+        spawnSafeZone,
+        (x, y, radius, predicate) => this.findNearestPlayerInRadius(x, y, radius, predicate)
+      );
       enemy.tryRespawn(dt);
     }
 
@@ -276,6 +284,10 @@ export class World extends EntityWorld<Entity> {
           this.hazardSystem.spawnFireFieldLine(x, y, dirX, dirY, this.now, kind),
         spawnPurpleField: (x, y) => this.hazardSystem.spawnPurpleField(this.hazards, x, y),
         safeZone: spawnSafeZone,
+        findNearestPlayerInRadius: (x, y, radius, predicate) =>
+          this.findNearestPlayerInRadius(x, y, radius, predicate),
+        forEachPlayerInRadius: (x, y, radius, callback) =>
+          this.forEachPlayerInRadius(x, y, radius, callback),
       }
     );
 
@@ -287,21 +299,51 @@ export class World extends EntityWorld<Entity> {
       );
     }
 
-    resolvePlayerAttacks(this.players, this.getAllEnemies(), this.bosses);
-    resolvePlayerVsPlayerWithSafeZone(this.players, spawnSafeZone);
-    resolveEnemyContactDamageWithSafeZone(this.getAllEnemies(), this.players, spawnSafeZone);
-    resolveBossContactDamageWithSafeZone(this.bosses, this.players, spawnSafeZone);
+    this.rebuildEnemyBossIndexes();
 
-    this.hazardSystem.update(dt, this.now, this.players, this.hazards, spawnSafeZone);
-    this.dropSystem.update(this.players, this.getAllEnemies(), this.drops);
+    resolvePlayerAttacks(
+      this.players,
+      (x, y, radius, callback) => this.forEachEnemyInRadius(x, y, radius, callback),
+      (x, y, radius, callback) => this.forEachBossInRadius(x, y, radius, callback)
+    );
+    resolvePlayerVsPlayerWithSafeZone(this.players, spawnSafeZone);
+    resolveEnemyContactDamageWithSafeZone(
+      this.getAllEnemies(),
+      this.players,
+      spawnSafeZone,
+      (x, y, radius, callback) => this.forEachPlayerInRadius(x, y, radius, callback)
+    );
+    resolveBossContactDamageWithSafeZone(
+      this.bosses,
+      this.players,
+      spawnSafeZone,
+      (x, y, radius, callback) => this.forEachPlayerInRadius(x, y, radius, callback)
+    );
+    this.rebuildEnemyBossIndexes();
+
+    this.hazardSystem.update(
+      dt,
+      this.now,
+      this.players,
+      this.hazards,
+      spawnSafeZone,
+      (x, y, radius, callback) => this.forEachPlayerInRadius(x, y, radius, callback)
+    );
+    this.dropSystem.update(
+      this.players,
+      this.getAllEnemies(),
+      this.drops,
+      (x, y, radius, callback) => this.forEachPlayerInRadius(x, y, radius, callback)
+    );
     this.portalSystem.update(
       this.now,
       this.players,
       this.portals,
       this.bosses,
+      (x, y, radius, callback) => this.forEachPlayerInRadius(x, y, radius, callback),
       this.config.onBossDeathPortal
     );
-    this.rebuildSpatialIndexes();
+    this.rebuildStaticIndexes();
   }
 
   consumeTransferRequests(): PortalTransferRequest[] {
@@ -312,8 +354,44 @@ export class World extends EntityWorld<Entity> {
     return this.spatialIndexSystem.queryPlayersInRadius(x, y, radius);
   }
 
+  forEachPlayerInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    callback: (player: Player) => void
+  ): void {
+    this.spatialIndexSystem.forEachPlayerInRadius(x, y, radius, callback);
+  }
+
+  findNearestPlayerInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    predicate?: (player: Player) => boolean
+  ): Player | null {
+    return this.spatialIndexSystem.findNearestPlayerInRadius(x, y, radius, predicate);
+  }
+
   queryEnemiesInRadius(x: number, y: number, radius: number): Blob[] {
     return this.spatialIndexSystem.queryEnemiesInRadius(x, y, radius);
+  }
+
+  forEachEnemyInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    callback: (enemy: Blob) => void
+  ): void {
+    this.spatialIndexSystem.forEachEnemyInRadius(x, y, radius, callback);
+  }
+
+  forEachBossInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    callback: (boss: BossActorEntity) => void
+  ): void {
+    this.spatialIndexSystem.forEachBossInRadius(x, y, radius, callback);
   }
 
   queryBossesInRadius(x: number, y: number, radius: number): BossActorEntity[] {
@@ -324,12 +402,34 @@ export class World extends EntityWorld<Entity> {
     return this.spatialIndexSystem.queryDropsInRadius(x, y, radius);
   }
 
+  forEachDropInRadius(x: number, y: number, radius: number, callback: (drop: Drop) => void): void {
+    this.spatialIndexSystem.forEachDropInRadius(x, y, radius, callback);
+  }
+
   queryPortalsInRadius(x: number, y: number, radius: number): Portal[] {
     return this.spatialIndexSystem.queryPortalsInRadius(x, y, radius);
   }
 
+  forEachPortalInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    callback: (portal: Portal) => void
+  ): void {
+    this.spatialIndexSystem.forEachPortalInRadius(x, y, radius, callback);
+  }
+
   queryHazardsInRadius(x: number, y: number, radius: number): Hazard[] {
     return this.spatialIndexSystem.queryHazardsInRadius(x, y, radius);
+  }
+
+  forEachHazardInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    callback: (hazard: Hazard) => void
+  ): void {
+    this.spatialIndexSystem.forEachHazardInRadius(x, y, radius, callback);
   }
 
   spawnPortal(config: PortalConfig): Portal {
@@ -348,6 +448,24 @@ export class World extends EntityWorld<Entity> {
       this.portals,
       this.hazards
     );
+  }
+
+  private rebuildPlayerIndex(): void {
+    this.spatialIndexSystem.rebuildPlayerIndex(this.players);
+  }
+
+  private rebuildEnemyBossIndexes(): void {
+    this.spatialIndexSystem.rebuildEnemyBossIndexes(
+      this.blobs,
+      this.slimes,
+      this.hands,
+      this.pacmanGhosts,
+      this.bosses
+    );
+  }
+
+  private rebuildStaticIndexes(): void {
+    this.spatialIndexSystem.rebuildStaticIndexes(this.drops, this.portals, this.hazards);
   }
 
   private getSpawnTargetEnemies(): Map<string, Blob> {

@@ -1,16 +1,19 @@
 import { PORTAL_KINDS } from '@gelehka/shared';
+import type { EnemySnapshot } from '@gelehka/shared';
 import Phaser from 'phaser';
-import { BlobEntity } from '../entities/Blob';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';
 import { BossPhase3Entity } from '../entities/BossPhase3';
-import { HandEntity } from '../entities/Hand';
-import { PacmanGhostEntity } from '../entities/PacmanGhost';
 import { PlayerEntity } from '../entities/Player';
 import { PortalEntity } from '../entities/PortalEntity';
-import { SlimeEntity } from '../entities/Slime';
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
+type EnemyRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (enemy: EnemySnapshot) => void
+) => void;
 
 const MINIMAP_RADIUS = 60;
 const MINIMAP_SCREEN_MULTIPLIER = 3;
@@ -18,6 +21,8 @@ const MINIMAP_MIN_WORLD_RANGE = 900;
 const MINIMAP_MAX_WORLD_RANGE = 1800;
 const MINIMAP_BG_ALPHA = 0.35;
 const MINIMAP_PADDING = 14;
+const MINIMAP_ENEMY_CLUSTER_SIZE_PX = 4;
+const MINIMAP_MAX_ENEMY_MARKERS = 180;
 
 export class Minimap {
   private graphics: Phaser.GameObjects.Graphics;
@@ -37,10 +42,7 @@ export class Minimap {
     localX: number,
     localY: number,
     playerEntities: Map<string, PlayerEntity>,
-    blobEntities: Map<string, BlobEntity>,
-    slimeEntities: Map<string, SlimeEntity>,
-    handEntities: Map<string, HandEntity>,
-    pacmanGhostEntities: Map<string, PacmanGhostEntity>,
+    forEachEnemyInRadius: EnemyRadiusQuery,
     bossEntities: Map<string, BossEntity>,
     portalEntities: Map<string, PortalEntity>,
     localPlayerId: string | null
@@ -66,23 +68,42 @@ export class Minimap {
     );
     const scale = (MINIMAP_RADIUS - 4) / worldRange;
 
-    // Draw blobs (red dots)
+    // Draw enemies (clustered red dots)
     g.fillStyle(0xff4444, 0.9);
-    for (const blob of blobEntities.values()) {
-      if (blob.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, blob.sprite.x, blob.sprite.y, scale, 1.5);
-    }
-    for (const slime of slimeEntities.values()) {
-      if (slime.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, slime.x, slime.y, scale, 1.5);
-    }
-    for (const hand of handEntities.values()) {
-      if (hand.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, hand.x, hand.y, scale, 1.5);
-    }
-    for (const pacmanGhost of pacmanGhostEntities.values()) {
-      if (pacmanGhost.serverState === 'dead') continue;
-      this.drawDot(g, localX, localY, pacmanGhost.x, pacmanGhost.y, scale, 1.5);
+    const enemyClusters = new Map<string, { x: number; y: number; count: number }>();
+    const maxEnemyDist = MINIMAP_RADIUS - 1.5;
+    const maxEnemyDistSq = maxEnemyDist * maxEnemyDist;
+    forEachEnemyInRadius(localX, localY, worldRange, (enemy) => {
+      if (enemy.state === 'dead') return;
+
+      const dx = (enemy.x - localX) * scale;
+      const dy = (enemy.y - localY) * scale;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > maxEnemyDistSq) return;
+
+      const clusterX = Math.round(dx / MINIMAP_ENEMY_CLUSTER_SIZE_PX);
+      const clusterY = Math.round(dy / MINIMAP_ENEMY_CLUSTER_SIZE_PX);
+      const key = `${clusterX},${clusterY}`;
+      const cluster = enemyClusters.get(key);
+      if (cluster) {
+        cluster.count += 1;
+        return;
+      }
+
+      if (enemyClusters.size >= MINIMAP_MAX_ENEMY_MARKERS) {
+        return;
+      }
+
+      enemyClusters.set(key, {
+        x: clusterX * MINIMAP_ENEMY_CLUSTER_SIZE_PX,
+        y: clusterY * MINIMAP_ENEMY_CLUSTER_SIZE_PX,
+        count: 1,
+      });
+    });
+
+    for (const cluster of enemyClusters.values()) {
+      const radius = cluster.count >= 12 ? 2.6 : cluster.count >= 5 ? 2.1 : 1.5;
+      g.fillCircle(this.screenX + cluster.x, this.screenY + cluster.y, radius);
     }
 
     // Draw bosses (purple dots, larger)

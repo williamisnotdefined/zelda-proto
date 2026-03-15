@@ -1,7 +1,9 @@
 import type {
   BossSnapshot,
   DropSnapshot,
+  EnemyStateDelta,
   EnemySnapshot,
+  EnemyTransformSnapshot,
   HazardSnapshot,
   PlayerSnapshot,
   PortalSnapshot,
@@ -101,6 +103,19 @@ export function applySnapshotDelta(
 
   for (const player of delta.players) snapshotCache.players.set(player.id, cloneItem(player));
   for (const enemy of delta.enemies) snapshotCache.enemies.set(enemy.id, cloneItem(enemy));
+  for (const transform of delta.enemyTransforms) {
+    const enemy = snapshotCache.enemies.get(transform.id);
+    if (!enemy) continue;
+    enemy.x = transform.x;
+    enemy.y = transform.y;
+  }
+  for (const state of delta.enemyStates) {
+    const enemy = snapshotCache.enemies.get(state.id);
+    if (!enemy) continue;
+    enemy.hp = state.hp;
+    enemy.maxHp = state.maxHp;
+    enemy.state = state.state;
+  }
   for (const boss of delta.bosses) snapshotCache.bosses.set(boss.id, cloneItem(boss));
   for (const drop of delta.drops) snapshotCache.drops.set(drop.id, cloneItem(drop));
   for (const portal of delta.portals) snapshotCache.portals.set(portal.id, cloneItem(portal));

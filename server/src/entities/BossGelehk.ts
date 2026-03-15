@@ -53,6 +53,22 @@ const PHASE3_SPEED_MULT = 1.3;
 const ICE_ZONE_SLOW = 0.4;
 const SNAPSHOT_POSITION_PRECISION = 10;
 
+type FindNearestPlayerInRadius = (
+  x: number,
+  y: number,
+  radius: number,
+  predicate?: (player: Player) => boolean
+) => Player | null;
+type ForEachPlayerInRadius = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (player: Player) => void
+) => void;
+
+const PLAYER_HALF_DIAGONAL = Math.hypot(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
+const CHARGE_CONTACT_QUERY_RADIUS = BOSS_CONTACT_RADIUS + PLAYER_HALF_DIAGONAL;
+
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
 }
@@ -164,7 +180,9 @@ export class BossGelehk extends Entity {
     players: Map<string, Player>,
     spawnMinions: (x: number, y: number, count: number) => void,
     spawnPurpleField: (x: number, y: number) => void,
-    safeZone?: { x: number; y: number; radius: number }
+    safeZone?: { x: number; y: number; radius: number },
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius,
+    forEachPlayerInRadius?: ForEachPlayerInRadius
   ): void {
     if (this.state === 'dead') return;
 
@@ -175,20 +193,14 @@ export class BossGelehk extends Entity {
     }
 
     if (!this.active) {
-      const activationRadiusSq = BOSS_ACTIVATION_RADIUS * BOSS_ACTIVATION_RADIUS;
-      for (const player of players.values()) {
-        if (player.state === 'dead') continue;
-        if (distanceSquared(this.x, this.y, player.x, player.y) < activationRadiusSq) {
-          this.active = true;
-          break;
-        }
-      }
+      this.active =
+        this.findNearestPlayer(players, BOSS_ACTIVATION_RADIUS, findNearestPlayerInRadius) !== null;
       if (!this.active) return;
     }
 
     this.updatePhase();
     this.updateAoeIndicators(dt, spawnPurpleField);
-    this.updateWave(dt, players);
+    this.updateWave(dt, players, forEachPlayerInRadius);
 
     if (this.attackTimer > 0) {
       this.attackTimer -= dt;
@@ -196,7 +208,7 @@ export class BossGelehk extends Entity {
 
     switch (this.state) {
       case 'idle':
-        this.handleIdle(players);
+        this.handleIdle(players, findNearestPlayerInRadius);
         break;
       case 'targeting':
         this.handleTargeting(dt, players);
@@ -205,7 +217,7 @@ export class BossGelehk extends Entity {
         this.handleJumping(dt);
         break;
       case 'charging':
-        this.handleCharging(dt, players);
+        this.handleCharging(dt, players, forEachPlayerInRadius);
         break;
       case 'spawning_minions':
         this.handleSpawning(dt, spawnMinions);
@@ -232,10 +244,17 @@ export class BossGelehk extends Entity {
     }
   }
 
-  private handleIdle(players: Map<string, Player>): void {
+  private handleIdle(
+    players: Map<string, Player>,
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
+  ): void {
     if (this.attackTimer > 0) return;
 
-    const nearest = this.findNearestPlayer(players);
+    const nearest = this.findNearestPlayer(
+      players,
+      BOSS_ACTIVATION_RADIUS,
+      findNearestPlayerInRadius
+    );
     if (!nearest) return;
 
     switch (this.phase) {
@@ -305,7 +324,11 @@ export class BossGelehk extends Entity {
     }
   }
 
-  private handleCharging(dt: number, players: Map<string, Player>): void {
+  private handleCharging(
+    dt: number,
+    players: Map<string, Player>,
+    forEachPlayerInRadius?: ForEachPlayerInRadius
+  ): void {
     this.stateTimer -= dt;
 
     this.x += this.chargeDx * CHARGE_SPEED * (dt / 1000);
@@ -313,16 +336,23 @@ export class BossGelehk extends Entity {
 
     if (!this.hasDealtChargeDamage) {
       const bossCircle = entityCircle(this.x, this.y, BOSS_CONTACT_RADIUS);
-      for (const player of players.values()) {
-        if (player.state === 'dead') continue;
-        if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
-        const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
-        if (circleAabbOverlap(bossCircle, playerBox)) {
-          player.takeDamage(CHARGE_DAMAGE);
-          this.hasDealtChargeDamage = true;
-          break;
-        }
-      }
+      this.forEachPlayerCandidate(
+        players,
+        this.x,
+        this.y,
+        CHARGE_CONTACT_QUERY_RADIUS,
+        (player) => {
+          if (this.hasDealtChargeDamage) return;
+          if (player.state === 'dead') return;
+          if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) return;
+          const playerBox = entityAABB(player.x, player.y, PLAYER_WIDTH, PLAYER_HEIGHT);
+          if (circleAabbOverlap(bossCircle, playerBox)) {
+            player.takeDamage(CHARGE_DAMAGE);
+            this.hasDealtChargeDamage = true;
+          }
+        },
+        forEachPlayerInRadius
+      );
     }
 
     const distToTargetSq = distanceSquared(this.x, this.y, this.chargeTargetX, this.chargeTargetY);
@@ -372,20 +402,31 @@ export class BossGelehk extends Entity {
     this.waveRadius = 0;
   }
 
-  private updateWave(dt: number, players: Map<string, Player>): void {
+  private updateWave(
+    dt: number,
+    players: Map<string, Player>,
+    forEachPlayerInRadius?: ForEachPlayerInRadius
+  ): void {
     if (!this.waveActive) return;
 
     const prevRadius = this.waveRadius;
     this.waveRadius += WAVE_SPEED * (dt / 1000);
 
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
-      if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) continue;
-      const dist = distance(this.x, this.y, player.x, player.y);
-      if (dist >= prevRadius && dist <= this.waveRadius) {
-        player.takeDamage(WAVE_DAMAGE);
-      }
-    }
+    this.forEachPlayerCandidate(
+      players,
+      this.x,
+      this.y,
+      this.waveRadius,
+      (player) => {
+        if (player.state === 'dead') return;
+        if (player.isProtected(this.safeZoneX, this.safeZoneY, this.safeZoneRadius)) return;
+        const dist = distance(this.x, this.y, player.x, player.y);
+        if (dist >= prevRadius && dist <= this.waveRadius) {
+          player.takeDamage(WAVE_DAMAGE);
+        }
+      },
+      forEachPlayerInRadius
+    );
 
     if (this.waveRadius > WAVE_MAX_RADIUS) {
       this.waveActive = false;
@@ -410,20 +451,53 @@ export class BossGelehk extends Entity {
     return false;
   }
 
-  private findNearestPlayer(players: Map<string, Player>): Player | null {
+  private findNearestPlayer(
+    players: Map<string, Player>,
+    radius: number,
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
+  ): Player | null {
+    const predicate = (player: Player) => player.state !== 'dead';
+
+    if (findNearestPlayerInRadius) {
+      return findNearestPlayerInRadius(this.x, this.y, radius, predicate);
+    }
+
     let nearest: Player | null = null;
-    let minDistSq = Infinity;
+    let minDistSq = radius * radius;
 
     for (const player of players.values()) {
-      if (player.state === 'dead') continue;
+      if (!predicate(player)) continue;
       const dSq = distanceSquared(this.x, this.y, player.x, player.y);
-      if (dSq < minDistSq) {
+      if (dSq <= minDistSq) {
         minDistSq = dSq;
         nearest = player;
       }
     }
 
     return nearest;
+  }
+
+  private forEachPlayerCandidate(
+    players: Map<string, Player>,
+    x: number,
+    y: number,
+    radius: number,
+    callback: (player: Player) => void,
+    forEachPlayerInRadius?: ForEachPlayerInRadius
+  ): void {
+    if (forEachPlayerInRadius) {
+      forEachPlayerInRadius(x, y, radius, callback);
+      return;
+    }
+
+    const radiusSq = radius * radius;
+    for (const player of players.values()) {
+      const dx = player.x - x;
+      const dy = player.y - y;
+      if (dx * dx + dy * dy <= radiusSq) {
+        callback(player);
+      }
+    }
   }
 
   takeDamage(amount: number): void {

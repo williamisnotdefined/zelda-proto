@@ -2,7 +2,7 @@ import { HAZARD_KINDS } from '@gelehka/shared';
 import type { HazardKind } from '@gelehka/shared';
 import { nanoid } from 'nanoid';
 import { BLOB_DAMAGE } from '../../entities/Blob.js';
-import { Player } from '../../entities/Player.js';
+import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from '../../entities/Player.js';
 import type { Hazard } from '../World.js';
 import type { SafeZoneArea } from './SafeZoneSystem.js';
 
@@ -15,6 +15,14 @@ const PURPLE_FIELD_DURATION_MS = 3000;
 const PURPLE_FIELD_HIT_RADIUS = 18;
 const PURPLE_FIELD_BLAST_RADIUS = 80;
 const PURPLE_FIELD_TILE_STEP = 34;
+const PLAYER_HALF_DIAGONAL = Math.hypot(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
+
+type PlayerRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (player: Player) => void
+) => void;
 
 interface PendingFireFieldLine {
   x: number;
@@ -87,11 +95,12 @@ export class HazardSystem {
     now: number,
     players: Map<string, Player>,
     hazards: Map<string, Hazard>,
-    safeZone: SafeZoneArea
+    safeZone: SafeZoneArea,
+    forEachPlayerInRadius: PlayerRadiusQuery
   ): void {
     this.updateHazards(dt, hazards);
     this.updatePendingFireFieldLines(now, hazards);
-    this.resolveHazardDamage(players, hazards, safeZone);
+    this.resolveHazardDamage(players, hazards, safeZone, forEachPlayerInRadius);
   }
 
   private spawnFireFieldSegment(
@@ -164,20 +173,23 @@ export class HazardSystem {
   private resolveHazardDamage(
     players: Map<string, Player>,
     hazards: Map<string, Hazard>,
-    safeZone: SafeZoneArea
+    safeZone: SafeZoneArea,
+    forEachPlayerInRadius: PlayerRadiusQuery
   ): void {
     const purpleHitThisTick = new Set<string>();
 
     for (const hazard of hazards.values()) {
       const hitRadius =
         hazard.kind === HAZARD_KINDS.PURPLE_FIELD ? PURPLE_FIELD_HIT_RADIUS : FIRE_FIELD_HIT_RADIUS;
+      const queryRadius = hitRadius + PLAYER_HALF_DIAGONAL;
       const hitRadiusSq = hitRadius * hitRadius;
-      for (const player of players.values()) {
-        if (player.state === 'dead') continue;
-        if (hazard.hitPlayerIds.has(player.id)) continue;
-        if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD && purpleHitThisTick.has(player.id)) continue;
+      forEachPlayerInRadius(hazard.x, hazard.y, queryRadius, (player) => {
+        if (player.state === 'dead') return;
+        if (!players.has(player.id)) return;
+        if (hazard.hitPlayerIds.has(player.id)) return;
+        if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD && purpleHitThisTick.has(player.id)) return;
         if (player.isProtected(safeZone.x, safeZone.y, safeZone.radius)) {
-          continue;
+          return;
         }
 
         const dx = player.x - hazard.x;
@@ -194,7 +206,7 @@ export class HazardSystem {
           }
           hazard.hitPlayerIds.add(player.id);
         }
-      }
+      });
     }
   }
 }

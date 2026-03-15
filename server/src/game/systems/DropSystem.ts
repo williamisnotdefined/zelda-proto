@@ -11,9 +11,21 @@ const SMALL_HEAL_AMOUNT = 5;
 const LARGE_HEAL_AMOUNT = 10;
 const PACMAN_HEAL_AMOUNT = 20;
 
+type PlayerRadiusQuery = (
+  x: number,
+  y: number,
+  radius: number,
+  callback: (player: Player) => void
+) => void;
+
 export class DropSystem {
-  update(players: Map<string, Player>, blobs: Iterable<Blob>, drops: Map<string, Drop>): void {
-    this.handleDropPickup(players, drops);
+  update(
+    players: Map<string, Player>,
+    blobs: Iterable<Blob>,
+    drops: Map<string, Drop>,
+    forEachPlayerInRadius: PlayerRadiusQuery
+  ): void {
+    this.handleDropPickup(players, drops, forEachPlayerInRadius);
     this.handleEnemyDrops(blobs, drops);
   }
 
@@ -34,10 +46,19 @@ export class DropSystem {
     }
   }
 
-  private handleDropPickup(players: Map<string, Player>, drops: Map<string, Drop>): void {
+  private handleDropPickup(
+    players: Map<string, Player>,
+    drops: Map<string, Drop>,
+    forEachPlayerInRadius: PlayerRadiusQuery
+  ): void {
     for (const [dropId, drop] of drops) {
-      for (const player of players.values()) {
-        if (player.state === 'dead') continue;
+      let pickedUp = false;
+
+      forEachPlayerInRadius(drop.x, drop.y, PICKUP_RADIUS, (player) => {
+        if (pickedUp) return;
+        if (player.state === 'dead') return;
+        if (!players.has(player.id)) return;
+
         const dx = player.x - drop.x;
         const dy = player.y - drop.y;
         if (dx * dx + dy * dy < PICKUP_RADIUS_SQ) {
@@ -49,9 +70,9 @@ export class DropSystem {
                 : SMALL_HEAL_AMOUNT;
           player.hp = Math.min(player.hp + healAmount, player.maxHp);
           drops.delete(dropId);
-          break;
+          pickedUp = true;
         }
-      }
+      });
     }
   }
 }

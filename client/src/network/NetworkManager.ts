@@ -15,7 +15,17 @@ const WS_URL = resolveWebSocketUrl({
 });
 const MAX_CONNECTION_TIMEOUT = 30000;
 
+const NETWORK_STATS_WINDOW_MS = 1000;
+
 export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
+
+export interface NetworkPerformanceStats {
+  incomingBytesPerSecond: number;
+  incomingMessagesPerSecond: number;
+  outgoingBytesPerSecond: number;
+  outgoingMessagesPerSecond: number;
+  bufferedAmount: number;
+}
 
 export class NetworkManager {
   private ws: WebSocket | null = null;
@@ -30,6 +40,18 @@ export class NetworkManager {
   private snapshotInstanceId: InstanceId | null = null;
   private lastSnapshotTick = -1;
   private hasSnapshotBase = false;
+  private networkStatsWindowStartedAt = performance.now();
+  private incomingBytesThisWindow = 0;
+  private incomingMessagesThisWindow = 0;
+  private outgoingBytesThisWindow = 0;
+  private outgoingMessagesThisWindow = 0;
+  private readonly networkStats: NetworkPerformanceStats = {
+    incomingBytesPerSecond: 0,
+    incomingMessagesPerSecond: 0,
+    outgoingBytesPerSecond: 0,
+    outgoingMessagesPerSecond: 0,
+    bufferedAmount: 0,
+  };
 
   connect(): void {
     if (
@@ -98,10 +120,12 @@ export class NetworkManager {
       for (const cb of this.openCallbacks) cb();
       this.openCallbacks = [];
       this.resetSnapshotTracking();
+      this.resetNetworkStats();
       this.setConnectionState('CONNECTED');
     };
 
     this.ws.onmessage = (event) => {
+      this.recordIncomingTraffic(event.data);
       const message = this.decodeServerMessage(event.data);
       if (!message) return;
 
@@ -234,7 +258,9 @@ export class NetworkManager {
       });
       return;
     }
-    this.ws.send(pack(msg));
+    const encoded = pack(msg);
+    this.recordOutgoingTraffic(encoded.byteLength);
+    this.ws.send(encoded);
   }
 
   onceOpen(cb: () => void): void {
@@ -282,11 +308,18 @@ export class NetworkManager {
       this.ws = null;
     }
     this.resetSnapshotTracking();
+    this.resetNetworkStats();
     this.setConnectionState('DISCONNECTED');
   }
 
   getConnectionState(): ConnectionState {
     return this.connectionState;
+  }
+
+  getPerformanceStats(): NetworkPerformanceStats {
+    this.flushNetworkStatsWindow();
+    this.networkStats.bufferedAmount = this.ws?.bufferedAmount ?? 0;
+    return this.networkStats;
   }
 
   private notifyError(error: string): void {
@@ -307,6 +340,58 @@ export class NetworkManager {
     this.snapshotInstanceId = null;
     this.lastSnapshotTick = -1;
     this.hasSnapshotBase = false;
+  }
+
+  private resetNetworkStats(): void {
+    this.networkStatsWindowStartedAt = performance.now();
+    this.incomingBytesThisWindow = 0;
+    this.incomingMessagesThisWindow = 0;
+    this.outgoingBytesThisWindow = 0;
+    this.outgoingMessagesThisWindow = 0;
+    this.networkStats.incomingBytesPerSecond = 0;
+    this.networkStats.incomingMessagesPerSecond = 0;
+    this.networkStats.outgoingBytesPerSecond = 0;
+    this.networkStats.outgoingMessagesPerSecond = 0;
+    this.networkStats.bufferedAmount = this.ws?.bufferedAmount ?? 0;
+  }
+
+  private recordIncomingTraffic(raw: unknown): void {
+    const byteLength =
+      raw instanceof ArrayBuffer ? raw.byteLength : raw instanceof Blob ? raw.size : 0;
+    this.incomingBytesThisWindow += byteLength;
+    this.incomingMessagesThisWindow += 1;
+    this.flushNetworkStatsWindow();
+  }
+
+  private recordOutgoingTraffic(byteLength: number): void {
+    this.outgoingBytesThisWindow += byteLength;
+    this.outgoingMessagesThisWindow += 1;
+    this.flushNetworkStatsWindow();
+  }
+
+  private flushNetworkStatsWindow(): void {
+    const now = performance.now();
+    const elapsedMs = now - this.networkStatsWindowStartedAt;
+    this.networkStats.bufferedAmount = this.ws?.bufferedAmount ?? 0;
+    if (elapsedMs < NETWORK_STATS_WINDOW_MS) {
+      return;
+    }
+
+    const scale = 1000 / elapsedMs;
+    this.networkStats.incomingBytesPerSecond = Math.round(this.incomingBytesThisWindow * scale);
+    this.networkStats.incomingMessagesPerSecond = Math.round(
+      this.incomingMessagesThisWindow * scale
+    );
+    this.networkStats.outgoingBytesPerSecond = Math.round(this.outgoingBytesThisWindow * scale);
+    this.networkStats.outgoingMessagesPerSecond = Math.round(
+      this.outgoingMessagesThisWindow * scale
+    );
+
+    this.networkStatsWindowStartedAt = now;
+    this.incomingBytesThisWindow = 0;
+    this.incomingMessagesThisWindow = 0;
+    this.outgoingBytesThisWindow = 0;
+    this.outgoingMessagesThisWindow = 0;
   }
 
   private filterSnapshotMessage(message: ServerMessage): ServerMessage | null {

@@ -10,7 +10,7 @@ const SIM_TICK_MS = 1000 / SERVER_SIM_TICK_RATE;
 const NET_TICK_MS = 1000 / SERVER_NET_TICK_RATE;
 const METRICS_LOG_INTERVAL_MS = 5000;
 const MAX_SIM_STEPS_PER_TICK = 5;
-const DEBUG_METRICS = false;
+const DEBUG_METRICS = process.env.DEBUG_GAME_METRICS === '1';
 
 export class GameLoop {
   instances: InstanceManager;

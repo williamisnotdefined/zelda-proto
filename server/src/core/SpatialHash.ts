@@ -1,15 +1,13 @@
-interface SpatialEntry<T> {
-  x: number;
-  y: number;
-  item: T;
-}
-
 export class SpatialHash<T> {
   private readonly cellSize: number;
-  private readonly cells: Map<string, SpatialEntry<T>[]>;
+  private readonly getX: (item: T) => number;
+  private readonly getY: (item: T) => number;
+  private readonly cells: Map<number, Map<number, T[]>>;
 
-  constructor(cellSize: number) {
+  constructor(cellSize: number, getX: (item: T) => number, getY: (item: T) => number) {
     this.cellSize = cellSize;
+    this.getX = getX;
+    this.getY = getY;
     this.cells = new Map();
   }
 
@@ -17,44 +15,103 @@ export class SpatialHash<T> {
     this.cells.clear();
   }
 
-  insert(x: number, y: number, item: T): void {
-    const key = this.keyFor(x, y);
-    const bucket = this.cells.get(key);
-    if (bucket) {
-      bucket.push({ x, y, item });
-      return;
-    }
-    this.cells.set(key, [{ x, y, item }]);
+  insert(item: T): void {
+    const x = this.getX(item);
+    const y = this.getY(item);
+    const cellX = this.getCellCoord(x);
+    const cellY = this.getCellCoord(y);
+    this.getOrCreateBucket(cellX, cellY).push(item);
   }
 
   queryRadius(x: number, y: number, radius: number): T[] {
-    const minCellX = Math.floor((x - radius) / this.cellSize);
-    const maxCellX = Math.floor((x + radius) / this.cellSize);
-    const minCellY = Math.floor((y - radius) / this.cellSize);
-    const maxCellY = Math.floor((y + radius) / this.cellSize);
-    const radiusSq = radius * radius;
     const out: T[] = [];
+    this.forEachInRadius(x, y, radius, (item) => {
+      out.push(item);
+    });
+
+    return out;
+  }
+
+  forEachInRadius(x: number, y: number, radius: number, callback: (item: T) => void): void {
+    const minCellX = this.getCellCoord(x - radius);
+    const maxCellX = this.getCellCoord(x + radius);
+    const minCellY = this.getCellCoord(y - radius);
+    const maxCellY = this.getCellCoord(y + radius);
+    const radiusSq = radius * radius;
 
     for (let cx = minCellX; cx <= maxCellX; cx++) {
       for (let cy = minCellY; cy <= maxCellY; cy++) {
-        const bucket = this.cells.get(`${cx},${cy}`);
+        const bucket = this.getBucket(cx, cy);
         if (!bucket) continue;
-        for (const entry of bucket) {
-          const dx = entry.x - x;
-          const dy = entry.y - y;
+        for (const item of bucket) {
+          const dx = this.getX(item) - x;
+          const dy = this.getY(item) - y;
           if (dx * dx + dy * dy <= radiusSq) {
-            out.push(entry.item);
+            callback(item);
+          }
+        }
+      }
+    }
+  }
+
+  findNearestInRadius(
+    x: number,
+    y: number,
+    radius: number,
+    predicate?: (item: T) => boolean
+  ): T | null {
+    const minCellX = this.getCellCoord(x - radius);
+    const maxCellX = this.getCellCoord(x + radius);
+    const minCellY = this.getCellCoord(y - radius);
+    const maxCellY = this.getCellCoord(y + radius);
+    const radiusSq = radius * radius;
+    let nearest: T | null = null;
+    let nearestDistSq = radiusSq;
+
+    for (let cx = minCellX; cx <= maxCellX; cx++) {
+      for (let cy = minCellY; cy <= maxCellY; cy++) {
+        const bucket = this.getBucket(cx, cy);
+        if (!bucket) continue;
+        for (const item of bucket) {
+          if (predicate && !predicate(item)) {
+            continue;
+          }
+
+          const dx = this.getX(item) - x;
+          const dy = this.getY(item) - y;
+          const distSq = dx * dx + dy * dy;
+          if (distSq <= nearestDistSq) {
+            nearest = item;
+            nearestDistSq = distSq;
           }
         }
       }
     }
 
-    return out;
+    return nearest;
   }
 
-  private keyFor(x: number, y: number): string {
-    const cx = Math.floor(x / this.cellSize);
-    const cy = Math.floor(y / this.cellSize);
-    return `${cx},${cy}`;
+  private getBucket(cellX: number, cellY: number): T[] | undefined {
+    return this.cells.get(cellX)?.get(cellY);
+  }
+
+  private getOrCreateBucket(cellX: number, cellY: number): T[] {
+    let column = this.cells.get(cellX);
+    if (!column) {
+      column = new Map();
+      this.cells.set(cellX, column);
+    }
+
+    let bucket = column.get(cellY);
+    if (!bucket) {
+      bucket = [];
+      column.set(cellY, bucket);
+    }
+
+    return bucket;
+  }
+
+  private getCellCoord(value: number): number {
+    return Math.floor(value / this.cellSize);
   }
 }

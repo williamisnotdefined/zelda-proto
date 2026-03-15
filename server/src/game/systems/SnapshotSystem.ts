@@ -13,6 +13,9 @@ import { World } from '../World.js';
 import { BossGelehk } from '../../entities/BossGelehk.js';
 
 const SNAPSHOT_POSITION_PRECISION = 10;
+const ENEMY_SNAPSHOT_RADIUS = 1300;
+const DROP_SNAPSHOT_RADIUS = 850;
+const MAX_DROPS_PER_PLAYER_SNAPSHOT = 180;
 
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
@@ -26,7 +29,7 @@ export class SnapshotSystem {
   getSnapshotBundle(world: World): SnapshotBundle {
     const { iceZones, aoeIndicators } = this.collectBossEffects(world);
 
-    const enemies = [];
+    const enemies = [] as SnapshotBundle['enemies'];
     for (const blob of world.blobs.values()) {
       if (blob.state !== 'dead') enemies.push(blob.toSnapshot());
     }
@@ -45,7 +48,7 @@ export class SnapshotSystem {
       bosses.push(boss.toSnapshot());
     }
 
-    const drops = [];
+    const drops = [] as SnapshotBundle['drops'];
     for (const drop of world.drops.values()) {
       drops.push(drop);
     }
@@ -97,43 +100,58 @@ export class SnapshotSystem {
       return dx * dx + dy * dy <= viewRadiusSq;
     };
 
-    const players = [];
-    for (const player of world.queryPlayersInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+    const players: PlayerSnapshot[] = [];
+    let sawSelf = false;
+    world.forEachPlayerInRadius(vx, vy, WORLD_VIEW_RADIUS, (player) => {
       players.push(player.toSnapshot());
+      if (player.id === playerId) {
+        sawSelf = true;
+      }
+    });
+
+    if (!sawSelf) {
+      players.push(viewer.toSnapshot());
     }
 
-    const selfSnapshot = world.players.get(playerId)?.toSnapshot();
-    if (selfSnapshot && !players.some((p) => p.id === selfSnapshot.id)) {
-      players.push(selfSnapshot);
-    }
-
-    const enemies = [];
-    for (const blob of world.queryEnemiesInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+    const enemies: SnapshotBundle['enemies'] = [];
+    world.forEachEnemyInRadius(vx, vy, ENEMY_SNAPSHOT_RADIUS, (blob) => {
       enemies.push(blob.toSnapshot());
-    }
+    });
 
-    const bosses = [];
+    const bosses: SnapshotBundle['bosses'] = [];
     for (const boss of world.queryBossesInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
       bosses.push(boss.toSnapshot());
     }
 
-    const drops = [];
-    for (const drop of world.queryDropsInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
-      drops.push(drop);
+    const nearbyDrops: Array<{ drop: SnapshotBundle['drops'][number]; distSq: number }> = [];
+    world.forEachDropInRadius(vx, vy, DROP_SNAPSHOT_RADIUS, (drop) => {
+      const dx = drop.x - vx;
+      const dy = drop.y - vy;
+      nearbyDrops.push({ drop, distSq: dx * dx + dy * dy });
+    });
+
+    if (nearbyDrops.length > MAX_DROPS_PER_PLAYER_SNAPSHOT) {
+      nearbyDrops.sort((a, b) => a.distSq - b.distSq);
+    }
+
+    const drops: SnapshotBundle['drops'] = [];
+    const dropCount = Math.min(nearbyDrops.length, MAX_DROPS_PER_PLAYER_SNAPSHOT);
+    for (let index = 0; index < dropCount; index += 1) {
+      drops.push(nearbyDrops[index].drop);
     }
 
     const portals: PortalSnapshot[] = [];
-    for (const portal of world.queryPortalsInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+    world.forEachPortalInRadius(vx, vy, WORLD_VIEW_RADIUS, (portal) => {
       portals.push({
         id: portal.id,
         x: quantizePosition(portal.x),
         y: quantizePosition(portal.y),
         kind: portal.kind,
       });
-    }
+    });
 
     const hazards: HazardSnapshot[] = [];
-    for (const hazard of world.queryHazardsInRadius(vx, vy, WORLD_VIEW_RADIUS)) {
+    world.forEachHazardInRadius(vx, vy, WORLD_VIEW_RADIUS, (hazard) => {
       hazards.push({
         id: hazard.id,
         x: quantizePosition(hazard.x),
@@ -141,7 +159,7 @@ export class SnapshotSystem {
         kind: hazard.kind,
         ttlMs: Math.max(0, Math.round(hazard.ttlMs)),
       });
-    }
+    });
 
     const { iceZones, aoeIndicators } = this.collectBossEffects(world, inRange);
 

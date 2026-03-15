@@ -17,7 +17,15 @@ export const DRAGON_LORD_RESPAWN_TIME = 15000;
 export const DRAGON_LORD_ATTACK_COOLDOWN = 2500;
 const DRAGON_AXIS_HYSTERESIS = 18;
 const DRAGON_FIRE_DIAGONAL_RATIO_THRESHOLD = 0.82;
+const DRAGON_REACQUIRE_INTERVAL_MS = 250;
 const SNAPSHOT_POSITION_PRECISION = 10;
+
+type FindNearestPlayerInRadius = (
+  x: number,
+  y: number,
+  radius: number,
+  predicate?: (player: Player) => boolean
+) => Player | null;
 
 function quantizePosition(value: number): number {
   return Math.round(value * SNAPSHOT_POSITION_PRECISION) / SNAPSHOT_POSITION_PRECISION;
@@ -37,6 +45,7 @@ export class DragonLord extends Entity {
   targetPlayerId: string | null;
   private moveAxis: 'x' | 'y';
   private readonly contactDamageCooldownByPlayer: Map<string, number>;
+  private targetReacquireCooldownMs: number;
 
   constructor(id: string, x: number, y: number) {
     super(id, x, y);
@@ -53,17 +62,23 @@ export class DragonLord extends Entity {
     this.targetPlayerId = null;
     this.moveAxis = 'x';
     this.contactDamageCooldownByPlayer = new Map();
+    this.targetReacquireCooldownMs = 0;
   }
 
   update(
     dt: number,
     players: Map<string, Player>,
-    spawnFireLine: (x: number, y: number, dirX: number, dirY: number) => void
+    spawnFireLine: (x: number, y: number, dirX: number, dirY: number) => void,
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
   ): void {
     if (this.state === 'dead') return;
 
     if (this.attackCooldownMs > 0) {
       this.attackCooldownMs -= dt;
+    }
+
+    if (this.targetReacquireCooldownMs > 0) {
+      this.targetReacquireCooldownMs = Math.max(0, this.targetReacquireCooldownMs - dt);
     }
 
     for (const [playerId, cooldownMs] of this.contactDamageCooldownByPlayer) {
@@ -75,24 +90,19 @@ export class DragonLord extends Entity {
       }
     }
 
-    let nearestPlayer: Player | null = null;
-    let nearestDistSq = Infinity;
+    let target = this.getCurrentTargetIfValid(players);
 
-    for (const player of players.values()) {
-      if (player.state === 'dead') continue;
-      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
-      if (dSq < nearestDistSq) {
-        nearestDistSq = dSq;
-        nearestPlayer = player;
-      }
+    if (!target || this.targetReacquireCooldownMs <= 0) {
+      target = this.findNearestPlayer(players, findNearestPlayerInRadius);
+      this.targetPlayerId = target?.id ?? null;
+      this.targetReacquireCooldownMs = DRAGON_REACQUIRE_INTERVAL_MS;
     }
 
-    if (nearestPlayer && nearestDistSq <= DRAGON_LORD_AGGRO_RADIUS * DRAGON_LORD_AGGRO_RADIUS) {
-      this.targetPlayerId = nearestPlayer.id;
+    if (target) {
       this.state = 'chasing';
 
-      const dx = nearestPlayer.x - this.x;
-      const dy = nearestPlayer.y - this.y;
+      const dx = target.x - this.x;
+      const dy = target.y - this.y;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
       let moveX = 0;
@@ -167,6 +177,54 @@ export class DragonLord extends Entity {
     }
   }
 
+  private findNearestPlayer(
+    players: Map<string, Player>,
+    findNearestPlayerInRadius?: FindNearestPlayerInRadius
+  ): Player | null {
+    const predicate = (player: Player) => player.state !== 'dead';
+
+    if (findNearestPlayerInRadius) {
+      return findNearestPlayerInRadius(this.x, this.y, DRAGON_LORD_AGGRO_RADIUS, predicate);
+    }
+
+    let nearestPlayer: Player | null = null;
+    let nearestDistSq = DRAGON_LORD_AGGRO_RADIUS * DRAGON_LORD_AGGRO_RADIUS;
+
+    for (const player of players.values()) {
+      if (!predicate(player)) continue;
+      const dSq = distanceSquared(this.x, this.y, player.x, player.y);
+      if (dSq <= nearestDistSq) {
+        nearestDistSq = dSq;
+        nearestPlayer = player;
+      }
+    }
+
+    return nearestPlayer;
+  }
+
+  private getCurrentTargetIfValid(players: Map<string, Player>): Player | null {
+    if (!this.targetPlayerId) {
+      return null;
+    }
+
+    const target = players.get(this.targetPlayerId);
+    if (!target || target.state === 'dead') {
+      this.targetPlayerId = null;
+      return null;
+    }
+
+    const targetWithinAggro =
+      distanceSquared(this.x, this.y, target.x, target.y) <=
+      DRAGON_LORD_AGGRO_RADIUS * DRAGON_LORD_AGGRO_RADIUS;
+
+    if (!targetWithinAggro) {
+      this.targetPlayerId = null;
+      return null;
+    }
+
+    return target;
+  }
+
   takeDamage(amount: number): void {
     if (this.state === 'dead') return;
     this.hp -= amount;
@@ -176,6 +234,7 @@ export class DragonLord extends Entity {
       this.respawnTimer = DRAGON_LORD_RESPAWN_TIME;
       this.targetPlayerId = null;
       this.attackCooldownMs = 0;
+      this.targetReacquireCooldownMs = 0;
       this.contactDamageCooldownByPlayer.clear();
     }
   }
@@ -198,6 +257,7 @@ export class DragonLord extends Entity {
       this.state = 'idle';
       this.targetPlayerId = null;
       this.attackCooldownMs = 0;
+      this.targetReacquireCooldownMs = 0;
       this.moveAxis = 'x';
       this.contactDamageCooldownByPlayer.clear();
       return true;

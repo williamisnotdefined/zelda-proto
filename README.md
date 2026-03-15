@@ -17,6 +17,8 @@ npm run dev
 # Or separately
 npm run dev:server   # WebSocket server on :3002
 npm run dev:client   # Vite dev server on :5173
+
+DEV_STRESS_ENEMIES_PER_CHUNK=40 DEBUG_GAME_METRICS=1 npm run dev:server
 ```
 
 ## Production Deployment
