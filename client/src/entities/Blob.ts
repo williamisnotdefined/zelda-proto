@@ -124,11 +124,9 @@ export class BlobEntity {
     this.sprite.y = y;
     this.collisionShadow.x = x;
     this.collisionShadow.y = y;
-    this.hpBar?.setVisible(false);
-    this.hpBarBg?.setVisible(false);
-    this.spriteVisible = true;
-    this.shadowVisible = true;
-    this.hudVisible = false;
+    this.setSpriteVisible(true);
+    this.setShadowVisible(true);
+    this.setHudVisible(false);
     this.animationTimeScale = 1;
   }
 

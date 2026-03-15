@@ -110,10 +110,8 @@ export class PacmanGhostEntity {
     this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
-    this.hpBar?.setVisible(false);
-    this.hpBarBg?.setVisible(false);
-    this.spriteVisible = true;
-    this.hudVisible = false;
+    this.setSpriteVisible(true);
+    this.setHudVisible(false);
     this.animationTimeScale = 1;
   }
 
