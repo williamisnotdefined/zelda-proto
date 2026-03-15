@@ -54,7 +54,7 @@ const INPUT_SEND_INTERVAL_MS = 33;
 const MAX_PENDING_INPUTS = 128;
 const MAX_COMMON_ENEMY_POOL_SIZE = 128;
 const MAX_PACMAN_GHOST_ENTITY_POOL_SIZE = 64;
-const ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX = 192;
+const ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX = 416;
 const ENTITY_CULL_MARGIN_PX = 220;
 const PICKUP_ENTITY_CULL_MARGIN_PX = 160;
 const STATIC_ENTITY_CULL_MARGIN_PX = 260;
@@ -66,6 +66,7 @@ const ENEMY_VISUAL_LOD_MID_DISTANCE_PX = 860;
 const ENEMY_VISUAL_LOD_NEAR_TIME_SCALE = 1;
 const ENEMY_VISUAL_LOD_MID_TIME_SCALE = 0.75;
 const ENEMY_VISUAL_ANIMATION_BUDGET = 160;
+const MAX_SMOOTH_VISIBLE_ENEMIES = 400;
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
 type HazardEntity = FireFieldHazardEntity | PurpleFieldHazardEntity | BlueFlameHazardEntity;
@@ -89,6 +90,14 @@ type EnemyVisualBudget = {
   midCount: number;
   farCount: number;
   animatedCount: number;
+};
+type EnemyVisualStats = {
+  visibleCount: number;
+  nearCount: number;
+  midCount: number;
+  farCount: number;
+  animatedCount: number;
+  usingBudget: boolean;
 };
 type EnemyVisualUpdatable = {
   serverState: string;
@@ -466,8 +475,6 @@ export class WorldScene extends Phaser.Scene {
     for (const enemyId of removedEnemyIds) {
       this.removeEnemySnapshot(enemyId);
     }
-
-    this.flushDirtyEnemyVisualPresence();
   }
 
   private applyEnemyTransform(transform: EnemyTransformSnapshot): void {
@@ -482,10 +489,6 @@ export class WorldScene extends Phaser.Scene {
     snapshot.y = transform.y;
     this.moveIndexedEnemySnapshot(snapshot, prevX, prevY);
 
-    if (this.hasEnemyVisual(snapshot)) {
-      this.updateExistingEnemyVisual(snapshot);
-    }
-
     this.dirtyEnemyVisualIds.add(snapshot.id);
   }
 
@@ -498,10 +501,6 @@ export class WorldScene extends Phaser.Scene {
     snapshot.hp = state.hp;
     snapshot.maxHp = state.maxHp;
     snapshot.state = state.state;
-
-    if (this.hasEnemyVisual(snapshot)) {
-      this.updateExistingEnemyVisual(snapshot);
-    }
 
     this.dirtyEnemyVisualIds.add(snapshot.id);
   }
@@ -520,10 +519,6 @@ export class WorldScene extends Phaser.Scene {
       this.moveIndexedEnemySnapshot(enemy, previousSnapshot.x, previousSnapshot.y);
     } else {
       this.indexEnemySnapshot(enemy);
-    }
-
-    if (this.hasEnemyVisual(enemy)) {
-      this.updateExistingEnemyVisual(enemy);
     }
 
     if (schedulePresenceSync) {
@@ -859,20 +854,6 @@ export class WorldScene extends Phaser.Scene {
     return this.staticEntityView;
   }
 
-  private syncEnemyVisualPresence(enemy: EnemySnapshot, view: Phaser.Geom.Rectangle): void {
-    if (!this.isEntityInView(view, enemy.x, enemy.y)) {
-      this.releaseEnemyVisual(enemy.id, enemy.kind);
-      return;
-    }
-
-    if (!this.hasEnemyVisual(enemy)) {
-      this.ensureEnemyVisual(enemy);
-      return;
-    }
-
-    this.updateExistingEnemyVisual(enemy);
-  }
-
   private syncDirtyEnemyVisualPresence(view: Phaser.Geom.Rectangle): void {
     if (this.dirtyEnemyVisualIds.size === 0) {
       return;
@@ -891,18 +872,13 @@ export class WorldScene extends Phaser.Scene {
 
       if (!this.hasEnemyVisual(enemy)) {
         this.ensureEnemyVisual(enemy);
+        continue;
       }
+
+      this.updateExistingEnemyVisual(enemy);
     }
 
     this.dirtyEnemyVisualIds.clear();
-  }
-
-  private flushDirtyEnemyVisualPresence(): void {
-    if (this.pendingEnemyVisualSync || this.dirtyEnemyVisualIds.size === 0) {
-      return;
-    }
-
-    this.syncDirtyEnemyVisualPresence(this.getExpandedEnemyView());
   }
 
   private shouldSyncEnemyVisuals(view: Phaser.Geom.Rectangle): boolean {
@@ -946,7 +922,12 @@ export class WorldScene extends Phaser.Scene {
 
     this.forEachEnemySnapshotInRect(view, (enemy) => {
       visibleEnemyIds.add(enemy.id);
-      this.ensureEnemyVisual(enemy);
+      if (!this.hasEnemyVisual(enemy)) {
+        this.ensureEnemyVisual(enemy);
+        return;
+      }
+
+      this.updateExistingEnemyVisual(enemy);
     });
 
     this.destroyEnemyVisualsOutsideSet(this.blobEntities, visibleEnemyIds, ENEMY_KINDS.BLOB);
@@ -1327,39 +1308,17 @@ export class WorldScene extends Phaser.Scene {
       this.syncDirtyEnemyVisualPresence(expandedView);
     }
 
-    const enemyVisualBudget = this.buildEnemyVisualBudget(localX, localY, expandedView);
-    this.updateEnemyVisualEntities(
-      this.blobEntities,
-      expandedView,
-      enemyVisualBudget.lodById,
-      delta,
-      (entity) => entity.sprite.x,
-      (entity) => entity.sprite.y
-    );
-    this.updateEnemyVisualEntities(
-      this.slimeEntities,
-      expandedView,
-      enemyVisualBudget.lodById,
-      delta,
-      (entity) => entity.x,
-      (entity) => entity.y
-    );
-    this.updateEnemyVisualEntities(
-      this.handEntities,
-      expandedView,
-      enemyVisualBudget.lodById,
-      delta,
-      (entity) => entity.x,
-      (entity) => entity.y
-    );
-    this.updateEnemyVisualEntities(
-      this.pacmanGhostEntities,
-      expandedView,
-      enemyVisualBudget.lodById,
-      delta,
-      (entity) => entity.x,
-      (entity) => entity.y
-    );
+    const visibleEnemyCount = this.countEnemySnapshotsInRect(this.cameras.main.worldView);
+    const enemyVisualStats =
+      visibleEnemyCount <= MAX_SMOOTH_VISIBLE_ENEMIES
+        ? this.updateEnemyVisualsWithDistanceLod(
+            localX,
+            localY,
+            expandedView,
+            delta,
+            visibleEnemyCount
+          )
+        : this.updateEnemyVisualsWithBudget(localX, localY, expandedView, delta, visibleEnemyCount);
 
     for (const entity of this.bossEntities.values()) {
       entity.update(delta);
@@ -1398,6 +1357,7 @@ export class WorldScene extends Phaser.Scene {
         fps: this.game.loop.actualFps,
         frameMs: delta,
         enemySnapshots: this.enemySnapshotsById.size,
+        visibleEnemies: enemyVisualStats.visibleCount,
         enemyVisuals:
           this.blobEntities.size +
           this.slimeEntities.size +
@@ -1411,16 +1371,17 @@ export class WorldScene extends Phaser.Scene {
           this.pacmanGhostEntityPools[PACMAN_GHOST_VARIANTS.BLUE].length +
           this.pacmanGhostEntityPools[PACMAN_GHOST_VARIANTS.ORANGE].length +
           this.pacmanGhostEntityPools[PACMAN_GHOST_VARIANTS.PINK].length,
+        enemyVisualMode: enemyVisualStats.usingBudget ? 'budget' : 'smooth',
         players: this.playerEntities.size,
         bosses: this.bossEntities.size,
         drops: this.dropEntities.size,
         portals: this.portalEntities.size,
         hazards: this.hazardEntities.size,
         displayObjects: this.children.list.length,
-        enemyVisualLodNear: enemyVisualBudget.nearCount,
-        enemyVisualLodMid: enemyVisualBudget.midCount,
-        enemyVisualLodFar: enemyVisualBudget.farCount,
-        animatedEnemies: enemyVisualBudget.animatedCount,
+        enemyVisualLodNear: enemyVisualStats.nearCount,
+        enemyVisualLodMid: enemyVisualStats.midCount,
+        enemyVisualLodFar: enemyVisualStats.farCount,
+        animatedEnemies: enemyVisualStats.animatedCount,
         network: getNetworkStats(),
       });
     }
@@ -1476,6 +1437,16 @@ export class WorldScene extends Phaser.Scene {
 
   private isEntityInView(view: Phaser.Geom.Rectangle, x: number, y: number): boolean {
     return x >= view.left && x <= view.right && y >= view.top && y <= view.bottom;
+  }
+
+  private countEnemySnapshotsInRect(view: Phaser.Geom.Rectangle): number {
+    let count = 0;
+    this.forEachEnemySnapshotInRect(view, (enemy) => {
+      if (enemy.state !== 'dead') {
+        count += 1;
+      }
+    });
+    return count;
   }
 
   private getEnemyVisualLodForDistance(distSq: number): EnemyVisualLod {
@@ -1607,6 +1578,163 @@ export class WorldScene extends Phaser.Scene {
       midCount,
       farCount,
       animatedCount,
+    };
+  }
+
+  private createEnemyVisualStats(visibleCount: number, usingBudget: boolean): EnemyVisualStats {
+    return {
+      visibleCount,
+      nearCount: 0,
+      midCount: 0,
+      farCount: 0,
+      animatedCount: 0,
+      usingBudget,
+    };
+  }
+
+  private recordEnemyVisualStats(stats: EnemyVisualStats, lod: EnemyVisualLod): void {
+    if (lod.tier === 'near') {
+      stats.nearCount += 1;
+    } else if (lod.tier === 'mid') {
+      stats.midCount += 1;
+    } else {
+      stats.farCount += 1;
+    }
+
+    if (lod.animate) {
+      stats.animatedCount += 1;
+    }
+  }
+
+  private updateEnemyVisualEntitiesWithDistanceLod<TEntity extends EnemyVisualUpdatable>(
+    entities: Map<string, TEntity>,
+    view: Phaser.Geom.Rectangle,
+    delta: number,
+    originX: number,
+    originY: number,
+    getX: (entity: TEntity) => number,
+    getY: (entity: TEntity) => number,
+    stats: EnemyVisualStats
+  ): void {
+    for (const entity of entities.values()) {
+      const x = getX(entity);
+      const y = getY(entity);
+      const inView = this.isEntityInView(view, x, y);
+
+      let lod = ENEMY_VISUAL_LOD_FAR;
+      if (inView && entity.serverState !== 'dead') {
+        const dx = x - originX;
+        const dy = y - originY;
+        lod = this.getEnemyVisualLodForDistance(dx * dx + dy * dy);
+        this.recordEnemyVisualStats(stats, lod);
+      }
+
+      entity.update(delta, inView, lod);
+    }
+  }
+
+  private updateEnemyVisualsWithDistanceLod(
+    originX: number,
+    originY: number,
+    view: Phaser.Geom.Rectangle,
+    delta: number,
+    visibleCount: number
+  ): EnemyVisualStats {
+    const stats = this.createEnemyVisualStats(visibleCount, false);
+
+    this.updateEnemyVisualEntitiesWithDistanceLod(
+      this.blobEntities,
+      view,
+      delta,
+      originX,
+      originY,
+      (entity) => entity.sprite.x,
+      (entity) => entity.sprite.y,
+      stats
+    );
+    this.updateEnemyVisualEntitiesWithDistanceLod(
+      this.slimeEntities,
+      view,
+      delta,
+      originX,
+      originY,
+      (entity) => entity.x,
+      (entity) => entity.y,
+      stats
+    );
+    this.updateEnemyVisualEntitiesWithDistanceLod(
+      this.handEntities,
+      view,
+      delta,
+      originX,
+      originY,
+      (entity) => entity.x,
+      (entity) => entity.y,
+      stats
+    );
+    this.updateEnemyVisualEntitiesWithDistanceLod(
+      this.pacmanGhostEntities,
+      view,
+      delta,
+      originX,
+      originY,
+      (entity) => entity.x,
+      (entity) => entity.y,
+      stats
+    );
+
+    return stats;
+  }
+
+  private updateEnemyVisualsWithBudget(
+    originX: number,
+    originY: number,
+    view: Phaser.Geom.Rectangle,
+    delta: number,
+    visibleCount: number
+  ): EnemyVisualStats {
+    const enemyVisualBudget = this.buildEnemyVisualBudget(originX, originY, view);
+
+    this.updateEnemyVisualEntities(
+      this.blobEntities,
+      view,
+      enemyVisualBudget.lodById,
+      delta,
+      (entity) => entity.sprite.x,
+      (entity) => entity.sprite.y
+    );
+    this.updateEnemyVisualEntities(
+      this.slimeEntities,
+      view,
+      enemyVisualBudget.lodById,
+      delta,
+      (entity) => entity.x,
+      (entity) => entity.y
+    );
+    this.updateEnemyVisualEntities(
+      this.handEntities,
+      view,
+      enemyVisualBudget.lodById,
+      delta,
+      (entity) => entity.x,
+      (entity) => entity.y
+    );
+    this.updateEnemyVisualEntities(
+      this.pacmanGhostEntities,
+      view,
+      enemyVisualBudget.lodById,
+      delta,
+      (entity) => entity.x,
+      (entity) => entity.y
+    );
+
+    return {
+      visibleCount,
+      nearCount: enemyVisualBudget.nearCount,
+      midCount: enemyVisualBudget.midCount,
+      farCount: enemyVisualBudget.farCount,
+      animatedCount: enemyVisualBudget.animatedCount,
+      usingBudget: true,
     };
   }
 

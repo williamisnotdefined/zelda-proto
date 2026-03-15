@@ -320,6 +320,7 @@ export class WebSocketHandler {
         const { message, nextState } = diffSnapshot(previous, snapshot, this.snapshotTick, full, {
           viewerX: world.players.get(playerId)?.x ?? 0,
           viewerY: world.players.get(playerId)?.y ?? 0,
+          relevantEnemyCount: snapshot.enemies.length,
         });
         const sent = this.networkManager.send(ws, message);
         if (sent) {

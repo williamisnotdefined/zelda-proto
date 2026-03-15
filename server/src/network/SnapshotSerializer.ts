@@ -15,10 +15,13 @@ import type {
 } from './MessageTypes.js';
 import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 
-const ENEMY_TRANSFORM_NEAR_DISTANCE_PX = 650;
-const ENEMY_TRANSFORM_MID_DISTANCE_PX = 1200;
-const ENEMY_TRANSFORM_MID_INTERVAL_TICKS = 1;
+const MAX_SMOOTH_RELEVANT_ENEMIES = 400;
+const HIGH_DENSITY_RELEVANT_ENEMIES = 650;
+const ENEMY_TRANSFORM_NEAR_DISTANCE_PX = 850;
+const ENEMY_TRANSFORM_MID_DISTANCE_PX = 1450;
+const ENEMY_TRANSFORM_MID_INTERVAL_TICKS = 2;
 const ENEMY_TRANSFORM_FAR_INTERVAL_TICKS = 3;
+const ENEMY_TRANSFORM_EXTREME_FAR_INTERVAL_TICKS = 4;
 
 export interface SnapshotBundle {
   instanceId: InstanceId;
@@ -44,6 +47,7 @@ export interface SnapshotState {
 export interface DiffSnapshotOptions {
   viewerX: number;
   viewerY: number;
+  relevantEnemyCount: number;
 }
 
 function toMap<T extends { id: string }>(items: T[]): Map<string, T> {
@@ -57,10 +61,14 @@ function cloneEnemySnapshot(enemy: EnemySnapshot): EnemySnapshot {
 }
 
 function getEnemyTransformIntervalTicks(
-  viewerX: number,
-  viewerY: number,
+  options: DiffSnapshotOptions,
   enemy: EnemySnapshot
 ): number {
+  if (options.relevantEnemyCount <= MAX_SMOOTH_RELEVANT_ENEMIES) {
+    return 1;
+  }
+
+  const { viewerX, viewerY, relevantEnemyCount } = options;
   const dx = enemy.x - viewerX;
   const dy = enemy.y - viewerY;
   const distSq = dx * dx + dy * dy;
@@ -73,7 +81,9 @@ function getEnemyTransformIntervalTicks(
     return ENEMY_TRANSFORM_MID_INTERVAL_TICKS;
   }
 
-  return ENEMY_TRANSFORM_FAR_INTERVAL_TICKS;
+  return relevantEnemyCount > HIGH_DENSITY_RELEVANT_ENEMIES
+    ? ENEMY_TRANSFORM_EXTREME_FAR_INTERVAL_TICKS
+    : ENEMY_TRANSFORM_FAR_INTERVAL_TICKS;
 }
 
 export function toSnapshotState(snapshot: SnapshotBundle): SnapshotState {
@@ -235,9 +245,7 @@ function diffEnemies(
     const transformChanged = previous.x !== item.x || previous.y !== item.y;
     const stateChanged =
       previous.hp !== item.hp || previous.maxHp !== item.maxHp || previous.state !== item.state;
-    const transformInterval = options
-      ? getEnemyTransformIntervalTicks(options.viewerX, options.viewerY, item)
-      : 1;
+    const transformInterval = options ? getEnemyTransformIntervalTicks(options, item) : 1;
     const shouldSendTransform =
       transformChanged && isEnemyTransformTick(item.id, tick, transformInterval);
 

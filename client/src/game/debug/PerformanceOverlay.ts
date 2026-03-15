@@ -11,12 +11,14 @@ export interface PerformanceOverlaySnapshot {
   fps: number;
   frameMs: number;
   enemySnapshots: number;
+  visibleEnemies: number;
   enemyVisuals: number;
   pooledEnemyVisuals: number;
   enemyVisualLodNear: number;
   enemyVisualLodMid: number;
   enemyVisualLodFar: number;
   animatedEnemies: number;
+  enemyVisualMode: 'smooth' | 'budget';
   players: number;
   bosses: number;
   drops: number;
@@ -96,7 +98,8 @@ export class PerformanceOverlay {
 
     const lines = [
       `FPS ${snapshot.fps.toFixed(1)} | frame ${snapshot.frameMs.toFixed(1)} ms`,
-      `Enemies ${snapshot.enemyVisuals}/${snapshot.enemySnapshots} visuals | pool ${snapshot.pooledEnemyVisuals}`,
+      `Enemies ${snapshot.enemyVisuals}/${snapshot.enemySnapshots} visuals | visible ${snapshot.visibleEnemies}`,
+      `Visual mode ${snapshot.enemyVisualMode} | pool ${snapshot.pooledEnemyVisuals}`,
       `LOD near ${snapshot.enemyVisualLodNear} | mid ${snapshot.enemyVisualLodMid} | far ${snapshot.enemyVisualLodFar} | anim ${snapshot.animatedEnemies}`,
       `Players ${snapshot.players} | bosses ${snapshot.bosses} | drops ${snapshot.drops}`,
       `Portals ${snapshot.portals} | hazards ${snapshot.hazards} | display ${snapshot.displayObjects}`,
