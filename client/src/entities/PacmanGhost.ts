@@ -4,8 +4,6 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
-const HP_BAR_WIDTH = 24;
-const HP_BAR_OFFSET_Y = 20;
 const PACMAN_GHOST_SCALE = 0.35;
 const PACMAN_GHOST_HP = 38;
 
@@ -14,8 +12,6 @@ type EnemyVisualLod = {
   tier: 'near' | 'mid' | 'far';
   animate: boolean;
   animationTimeScale: number;
-  showHud: boolean;
-  showShadow: boolean;
 };
 
 const STATIC_FRAME_BY_FACING: Record<FacingDirection, number> = {
@@ -27,8 +23,6 @@ const STATIC_FRAME_BY_FACING: Record<FacingDirection, number> = {
 
 export class PacmanGhostEntity {
   sprite: Phaser.GameObjects.Sprite;
-  hpBar: Phaser.GameObjects.Rectangle | null;
-  hpBarBg: Phaser.GameObjects.Rectangle | null;
   targetX: number;
   targetY: number;
   hp: number;
@@ -43,7 +37,6 @@ export class PacmanGhostEntity {
   private isUsingStaticFrame: boolean;
   private staticFrameFacing: FacingDirection | null;
   private spriteVisible: boolean;
-  private hudVisible: boolean;
   private animationTimeScale: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number, variant: PacmanGhostVariant) {
@@ -61,14 +54,11 @@ export class PacmanGhostEntity {
     this.isUsingStaticFrame = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
-    this.hudVisible = false;
     this.animationTimeScale = 1;
 
     this.sprite = scene.add.sprite(x, y, this.animPrefix);
     this.sprite.setDepth(8);
     this.sprite.setScale(PACMAN_GHOST_SCALE);
-    this.hpBar = null;
-    this.hpBarBg = null;
   }
 
   get x(): number {
@@ -111,17 +101,13 @@ export class PacmanGhostEntity {
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
-    this.setHudVisible(false);
     this.animationTimeScale = 1;
   }
 
   setDormant(): void {
     this.resetVisualState();
     this.sprite.setVisible(false);
-    this.hpBar?.setVisible(false);
-    this.hpBarBg?.setVisible(false);
     this.spriteVisible = false;
-    this.hudVisible = false;
   }
 
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void {
@@ -149,9 +135,6 @@ export class PacmanGhostEntity {
     const visible = alive && inView;
     this.setSpriteVisible(visible);
 
-    const hudVisible = visible && lod.showHud;
-    this.setHudVisible(hudVisible);
-
     if (!visible) {
       if (this.currentAnimKey !== '' || this.isUsingStaticFrame || this.sprite.anims.isPlaying) {
         this.sprite.anims.stop();
@@ -160,17 +143,6 @@ export class PacmanGhostEntity {
         this.staticFrameFacing = null;
       }
       return;
-    }
-
-    if (hudVisible) {
-      this.ensureHealthBars();
-      this.hpBarBg!.x = this.sprite.x;
-      this.hpBarBg!.y = this.sprite.y - HP_BAR_OFFSET_Y;
-
-      const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-      this.hpBar!.width = HP_BAR_WIDTH * hpRatio;
-      this.hpBar!.x = this.sprite.x - (HP_BAR_WIDTH - this.hpBar!.width) / 2;
-      this.hpBar!.y = this.sprite.y - HP_BAR_OFFSET_Y;
     }
 
     if (!lod.animate) {
@@ -183,31 +155,6 @@ export class PacmanGhostEntity {
       this.animationTimeScale = lod.animationTimeScale;
     }
     this.updateAnimation();
-  }
-
-  private ensureHealthBars(): void {
-    if (this.hpBar && this.hpBarBg) {
-      return;
-    }
-
-    const scene = this.sprite.scene;
-    this.hpBarBg = scene.add.rectangle(
-      this.sprite.x,
-      this.sprite.y - HP_BAR_OFFSET_Y,
-      HP_BAR_WIDTH,
-      3,
-      0x333333
-    );
-    this.hpBarBg.setDepth(9);
-
-    this.hpBar = scene.add.rectangle(
-      this.sprite.x,
-      this.sprite.y - HP_BAR_OFFSET_Y,
-      HP_BAR_WIDTH,
-      3,
-      0xff4444
-    );
-    this.hpBar.setDepth(10);
   }
 
   private updateAnimation(): void {
@@ -253,16 +200,6 @@ export class PacmanGhostEntity {
     this.spriteVisible = visible;
   }
 
-  private setHudVisible(visible: boolean): void {
-    if (this.hudVisible === visible) {
-      return;
-    }
-
-    this.hpBar?.setVisible(visible);
-    this.hpBarBg?.setVisible(visible);
-    this.hudVisible = visible;
-  }
-
   private applyStaticFrame(): void {
     if (this.isUsingStaticFrame && this.staticFrameFacing === this.facing) {
       return;
@@ -277,7 +214,5 @@ export class PacmanGhostEntity {
 
   destroy(): void {
     this.sprite.destroy();
-    this.hpBar?.destroy();
-    this.hpBarBg?.destroy();
   }
 }

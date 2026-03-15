@@ -65,8 +65,6 @@ const ENEMY_VISUAL_LOD_NEAR_DISTANCE_PX = 420;
 const ENEMY_VISUAL_LOD_MID_DISTANCE_PX = 860;
 const ENEMY_VISUAL_LOD_NEAR_TIME_SCALE = 1;
 const ENEMY_VISUAL_LOD_MID_TIME_SCALE = 0.75;
-const ENEMY_VISUAL_HUD_BUDGET = 24;
-const ENEMY_VISUAL_SHADOW_BUDGET = 72;
 const ENEMY_VISUAL_ANIMATION_BUDGET = 160;
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
@@ -79,8 +77,6 @@ type EnemyVisualLod = Readonly<{
   tier: EnemyVisualLodTier;
   animate: boolean;
   animationTimeScale: number;
-  showHud: boolean;
-  showShadow: boolean;
 }>;
 type EnemyVisualCandidate = {
   id: string;
@@ -103,48 +99,18 @@ const ENEMY_VISUAL_LOD_NEAR: EnemyVisualLod = {
   tier: 'near',
   animate: true,
   animationTimeScale: ENEMY_VISUAL_LOD_NEAR_TIME_SCALE,
-  showHud: true,
-  showShadow: true,
 };
 
 const ENEMY_VISUAL_LOD_MID: EnemyVisualLod = {
   tier: 'mid',
   animate: true,
   animationTimeScale: ENEMY_VISUAL_LOD_MID_TIME_SCALE,
-  showHud: false,
-  showShadow: false,
-};
-
-const ENEMY_VISUAL_LOD_NEAR_NO_HUD: EnemyVisualLod = {
-  tier: 'near',
-  animate: true,
-  animationTimeScale: ENEMY_VISUAL_LOD_NEAR_TIME_SCALE,
-  showHud: false,
-  showShadow: true,
-};
-
-const ENEMY_VISUAL_LOD_NEAR_ANIM_ONLY: EnemyVisualLod = {
-  tier: 'near',
-  animate: true,
-  animationTimeScale: ENEMY_VISUAL_LOD_NEAR_TIME_SCALE,
-  showHud: false,
-  showShadow: false,
-};
-
-const ENEMY_VISUAL_LOD_MID_WITH_SHADOW: EnemyVisualLod = {
-  tier: 'mid',
-  animate: true,
-  animationTimeScale: ENEMY_VISUAL_LOD_MID_TIME_SCALE,
-  showHud: false,
-  showShadow: true,
 };
 
 const ENEMY_VISUAL_LOD_FAR: EnemyVisualLod = {
   tier: 'far',
   animate: false,
   animationTimeScale: 0,
-  showHud: false,
-  showShadow: false,
 };
 
 export class WorldScene extends Phaser.Scene {
@@ -1528,26 +1494,8 @@ export class WorldScene extends Phaser.Scene {
     baseLod: EnemyVisualLod,
     priorityIndex: number
   ): EnemyVisualLod {
-    if (priorityIndex < ENEMY_VISUAL_HUD_BUDGET && baseLod.tier === 'near') {
-      return ENEMY_VISUAL_LOD_NEAR;
-    }
-
-    if (priorityIndex < ENEMY_VISUAL_SHADOW_BUDGET) {
-      if (baseLod.tier === 'near') {
-        return ENEMY_VISUAL_LOD_NEAR_NO_HUD;
-      }
-
-      if (baseLod.tier === 'mid') {
-        return ENEMY_VISUAL_LOD_MID_WITH_SHADOW;
-      }
-    }
-
     if (priorityIndex < ENEMY_VISUAL_ANIMATION_BUDGET) {
-      if (baseLod.tier === 'near') {
-        return ENEMY_VISUAL_LOD_NEAR_ANIM_ONLY;
-      }
-
-      return ENEMY_VISUAL_LOD_MID;
+      return baseLod;
     }
 
     return ENEMY_VISUAL_LOD_FAR;

@@ -3,24 +3,14 @@ import Phaser from 'phaser';
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
-const HP_BAR_WIDTH = 24;
-const HP_BAR_OFFSET_Y = 40;
-const CONTACT_SHADOW_RADIUS = 24;
-const CONTACT_SHADOW_COLOR = 0x000000;
-const CONTACT_SHADOW_ALPHA = 0.3;
 const SLIME_SCALE = 1.24;
 const SLIME_SPRITE_OFFSET_X = -2;
-const EXPULSION_PULSE_ALPHA = 0.55;
-const EXPULSION_PULSE_DISTANCE = 44;
-const EXPULSION_PULSE_DURATION_MS = 130;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
   tier: 'near' | 'mid' | 'far';
   animate: boolean;
   animationTimeScale: number;
-  showHud: boolean;
-  showShadow: boolean;
 };
 
 const STATIC_FRAME_BY_FACING: Record<FacingDirection, number> = {
@@ -32,9 +22,6 @@ const STATIC_FRAME_BY_FACING: Record<FacingDirection, number> = {
 
 export class SlimeEntity {
   sprite: Phaser.GameObjects.Sprite;
-  collisionShadow: Phaser.GameObjects.Arc;
-  hpBar: Phaser.GameObjects.Rectangle | null;
-  hpBarBg: Phaser.GameObjects.Rectangle | null;
   targetX: number;
   targetY: number;
   hp: number;
@@ -42,14 +29,11 @@ export class SlimeEntity {
   serverState: string;
   private prevX: number;
   private prevY: number;
-  private shadowPulseTween: Phaser.Tweens.Tween | null;
   private facing: FacingDirection;
   private currentAnimKey: string;
   private isUsingStaticFrame: boolean;
   private staticFrameFacing: FacingDirection | null;
   private spriteVisible: boolean;
-  private shadowVisible: boolean;
-  private hudVisible: boolean;
   private animationTimeScale: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
@@ -60,30 +44,16 @@ export class SlimeEntity {
     this.serverState = 'idle';
     this.prevX = x;
     this.prevY = y;
-    this.shadowPulseTween = null;
     this.facing = 'down';
     this.currentAnimKey = '';
     this.isUsingStaticFrame = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
-    this.shadowVisible = true;
-    this.hudVisible = false;
     this.animationTimeScale = 1;
 
     this.sprite = scene.add.sprite(x + SLIME_SPRITE_OFFSET_X, y, 'slime');
     this.sprite.setDepth(8);
     this.sprite.setScale(SLIME_SCALE);
-
-    this.collisionShadow = scene.add.circle(
-      x,
-      y,
-      CONTACT_SHADOW_RADIUS,
-      CONTACT_SHADOW_COLOR,
-      CONTACT_SHADOW_ALPHA
-    );
-    this.collisionShadow.setDepth(7.5);
-    this.hpBar = null;
-    this.hpBarBg = null;
   }
 
   get x(): number {
@@ -112,10 +82,6 @@ export class SlimeEntity {
         this.facing = dy < 0 ? 'up' : 'down';
       }
     }
-
-    if (dx * dx + dy * dy >= EXPULSION_PULSE_DISTANCE * EXPULSION_PULSE_DISTANCE) {
-      this.pulseCollisionShadow();
-    }
   }
 
   restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
@@ -126,49 +92,17 @@ export class SlimeEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
-    this.shadowPulseTween?.stop();
-    this.shadowPulseTween = null;
     this.resetVisualState();
     this.sprite.x = x + SLIME_SPRITE_OFFSET_X;
     this.sprite.y = y;
-    this.collisionShadow.x = x;
-    this.collisionShadow.y = y;
     this.setSpriteVisible(true);
-    this.setShadowVisible(true);
-    this.setHudVisible(false);
     this.animationTimeScale = 1;
   }
 
   setDormant(): void {
-    this.shadowPulseTween?.stop();
-    this.shadowPulseTween = null;
     this.resetVisualState();
     this.sprite.setVisible(false);
-    this.collisionShadow.setVisible(false);
-    this.hpBar?.setVisible(false);
-    this.hpBarBg?.setVisible(false);
     this.spriteVisible = false;
-    this.shadowVisible = false;
-    this.hudVisible = false;
-  }
-
-  private pulseCollisionShadow(): void {
-    if (!this.sprite.visible || !this.collisionShadow.visible) {
-      return;
-    }
-
-    this.shadowPulseTween?.stop();
-    this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, EXPULSION_PULSE_ALPHA);
-    this.collisionShadow.setAlpha(EXPULSION_PULSE_ALPHA);
-    this.shadowPulseTween = this.sprite.scene.tweens.add({
-      targets: this.collisionShadow,
-      alpha: CONTACT_SHADOW_ALPHA,
-      duration: EXPULSION_PULSE_DURATION_MS,
-      ease: 'Sine.Out',
-      onComplete: () => {
-        this.shadowPulseTween = null;
-      },
-    });
   }
 
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void {
@@ -197,20 +131,7 @@ export class SlimeEntity {
 
     const alive = this.serverState !== 'dead';
     const visible = alive && inView;
-    const hudVisible = visible && lod.showHud;
-    const shadowVisible = visible && lod.showShadow;
     this.setSpriteVisible(visible);
-    this.setShadowVisible(shadowVisible);
-    this.setHudVisible(hudVisible);
-
-    if (!shadowVisible) {
-      this.shadowPulseTween?.stop();
-      this.shadowPulseTween = null;
-      this.resetCollisionShadowAppearance();
-    }
-
-    this.collisionShadow.x = this.sprite.x - SLIME_SPRITE_OFFSET_X;
-    this.collisionShadow.y = this.sprite.y;
 
     if (!visible) {
       if (this.currentAnimKey !== '' || this.isUsingStaticFrame || this.sprite.anims.isPlaying) {
@@ -220,16 +141,6 @@ export class SlimeEntity {
         this.staticFrameFacing = null;
       }
       return;
-    }
-
-    if (hudVisible) {
-      this.ensureHealthBars();
-      const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-      this.hpBarBg!.x = this.collisionShadow.x;
-      this.hpBarBg!.y = this.sprite.y - HP_BAR_OFFSET_Y;
-      this.hpBar!.width = HP_BAR_WIDTH * hpRatio;
-      this.hpBar!.x = this.collisionShadow.x - (HP_BAR_WIDTH - this.hpBar!.width) / 2;
-      this.hpBar!.y = this.sprite.y - HP_BAR_OFFSET_Y;
     }
 
     if (!lod.animate) {
@@ -242,32 +153,6 @@ export class SlimeEntity {
       this.animationTimeScale = lod.animationTimeScale;
     }
     this.updateAnimation();
-  }
-
-  private ensureHealthBars(): void {
-    if (this.hpBar && this.hpBarBg) {
-      return;
-    }
-
-    const scene = this.sprite.scene;
-    const logicalX = this.sprite.x - SLIME_SPRITE_OFFSET_X;
-    this.hpBarBg = scene.add.rectangle(
-      logicalX,
-      this.sprite.y - HP_BAR_OFFSET_Y,
-      HP_BAR_WIDTH,
-      3,
-      0x333333
-    );
-    this.hpBarBg.setDepth(9);
-
-    this.hpBar = scene.add.rectangle(
-      logicalX,
-      this.sprite.y - HP_BAR_OFFSET_Y,
-      HP_BAR_WIDTH,
-      3,
-      0xff4444
-    );
-    this.hpBar.setDepth(10);
   }
 
   private updateAnimation(): void {
@@ -293,7 +178,6 @@ export class SlimeEntity {
     this.animationTimeScale = 1;
     this.sprite.setFlipX(false);
     this.sprite.setFrame(STATIC_FRAME_BY_FACING.down);
-    this.resetCollisionShadowAppearance();
   }
 
   private setSpriteVisible(visible: boolean): void {
@@ -303,30 +187,6 @@ export class SlimeEntity {
 
     this.sprite.setVisible(visible);
     this.spriteVisible = visible;
-  }
-
-  private setShadowVisible(visible: boolean): void {
-    if (this.shadowVisible === visible) {
-      return;
-    }
-
-    this.collisionShadow.setVisible(visible);
-    this.shadowVisible = visible;
-  }
-
-  private setHudVisible(visible: boolean): void {
-    if (this.hudVisible === visible) {
-      return;
-    }
-
-    this.hpBar?.setVisible(visible);
-    this.hpBarBg?.setVisible(visible);
-    this.hudVisible = visible;
-  }
-
-  private resetCollisionShadowAppearance(): void {
-    this.collisionShadow.setFillStyle(CONTACT_SHADOW_COLOR, CONTACT_SHADOW_ALPHA);
-    this.collisionShadow.setAlpha(CONTACT_SHADOW_ALPHA);
   }
 
   private applyStaticFrame(): void {
@@ -343,9 +203,5 @@ export class SlimeEntity {
 
   destroy(): void {
     this.sprite.destroy();
-    this.shadowPulseTween?.stop();
-    this.collisionShadow.destroy();
-    this.hpBar?.destroy();
-    this.hpBarBg?.destroy();
   }
 }
