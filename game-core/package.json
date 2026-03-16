@@ -2,6 +2,9 @@
   "name": "@gelehka/game-core",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
   "exports": {
     ".": {
       "types": "./src/index.ts",
@@ -37,6 +40,11 @@
       "types": "./src/interpolation.ts",
       "import": "./src/interpolation.ts",
       "default": "./src/interpolation.ts"
+    },
+    "./player": {
+      "types": "./src/player.ts",
+      "import": "./src/player.ts",
+      "default": "./src/player.ts"
     }
   },
   "dependencies": {

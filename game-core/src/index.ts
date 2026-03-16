@@ -4,3 +4,4 @@ export * from './prediction';
 export * from './snapshot';
 export * from './input';
 export * from './interpolation';
+export * from './player';

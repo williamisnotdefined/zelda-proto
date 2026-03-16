@@ -2,6 +2,9 @@
   "name": "@gelehka/shared",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
   "exports": {
     ".": {
       "types": "./src/types.ts",
@@ -17,6 +20,11 @@
       "types": "./src/constants.ts",
       "import": "./src/constants.ts",
       "default": "./src/constants.ts"
+    },
+    "./protocol": {
+      "types": "./src/protocol.ts",
+      "import": "./src/protocol.ts",
+      "default": "./src/protocol.ts"
     }
   }
 }

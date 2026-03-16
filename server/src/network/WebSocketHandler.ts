@@ -16,22 +16,22 @@ import { InstanceManager } from '../game/InstanceManager.js';
 import type { ClientMessage, ServerChatMessage, ServerMessage } from './MessageTypes.js';
 import type { InstanceId } from '@gelehka/shared';
 import { SnapshotSystem } from '../game/systems/SnapshotSystem.js';
-import {
-  MAX_CHAT_LENGTH,
-  MAX_NICKNAME_LENGTH,
-  validateClientMessage,
-} from './MessageValidation.js';
+import { validateClientMessage } from './MessageValidation.js';
 import { NetworkManager } from './NetworkManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
+import { getRequestIp, isAllowedWebSocketOrigin } from './requestPolicy.js';
 
 const HEARTBEAT_INTERVAL_MS = 15000;
+const JOIN_TIMEOUT_MS = 5000;
 const MAX_CONNECTIONS = 200;
+const MAX_CONNECTIONS_PER_IP = 12;
 const INPUT_RATE_LIMIT = 65;
 const CHAT_RATE_LIMIT = 5;
 const RATE_WINDOW_MS = 1000;
 const MAX_RATE_LIMIT_VIOLATIONS_PER_WINDOW = 15;
 const MAX_INVALID_MESSAGES_PER_WINDOW = 8;
-const FORCE_FULL_SNAPSHOT_EVERY_TICKS = 0;
+const MAX_CONSECUTIVE_BLOCKED_SENDS = SERVER_NET_TICK_RATE * 3;
+const FORCE_FULL_SNAPSHOT_EVERY_TICKS = SERVER_NET_TICK_RATE * 5;
 const LEADERBOARD_INTERVAL_TICKS = Math.max(
   1,
   Math.round(SERVER_NET_TICK_RATE / SERVER_LEADERBOARD_TICK_RATE)
@@ -48,22 +48,6 @@ function formatDateTime(): string {
   });
 }
 
-function stripControlCharacters(text: string): string {
-  let result = '';
-
-  for (const char of text) {
-    const code = char.charCodeAt(0);
-    if ((code >= 0 && code <= 31) || code === 127) {
-      result += ' ';
-      continue;
-    }
-
-    result += char;
-  }
-
-  return result;
-}
-
 export class WebSocketHandler {
   private wss: WebSocketServer;
   readonly clients: Map<string, WebSocket> = new Map();
@@ -72,6 +56,10 @@ export class WebSocketHandler {
   private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
   private readonly forceFullSnapshotFor: Set<string> = new Set();
   private readonly lastInstanceByPlayer: Map<string, string> = new Map();
+  private readonly blockedSendStreakByPlayer: Map<string, number> = new Map();
+  private readonly joinTimeoutByPlayer: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private readonly playerIpById: Map<string, string> = new Map();
+  private readonly connectionsByIp: Map<string, number> = new Map();
   private snapshotTick = 0;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -112,9 +100,20 @@ export class WebSocketHandler {
       });
     }
 
-    this.wss.on('connection', (ws) => {
+    this.wss.on('connection', (ws, req) => {
+      if (!isAllowedWebSocketOrigin(req)) {
+        ws.close(1008, 'Origin not allowed');
+        return;
+      }
+
+      const ip = getRequestIp(req);
       if (this.clients.size >= MAX_CONNECTIONS) {
         ws.close(1013, 'Server full');
+        return;
+      }
+
+      if ((this.connectionsByIp.get(ip) ?? 0) >= MAX_CONNECTIONS_PER_IP) {
+        ws.close(1008, 'Too many connections from IP');
         return;
       }
 
@@ -157,8 +156,19 @@ export class WebSocketHandler {
         }
       };
 
+      this.connectionsByIp.set(ip, (this.connectionsByIp.get(ip) ?? 0) + 1);
+      this.playerIpById.set(playerId, ip);
       this.clients.set(playerId, ws);
+      this.blockedSendStreakByPlayer.set(playerId, 0);
       (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
+      this.joinTimeoutByPlayer.set(
+        playerId,
+        setTimeout(() => {
+          if (!hasJoined && ws.readyState === WebSocket.OPEN) {
+            ws.close(1008, 'Join timeout');
+          }
+        }, JOIN_TIMEOUT_MS)
+      );
       ws.on('pong', () => {
         (ws as WebSocket & { isAlive?: boolean }).isAlive = true;
       });
@@ -187,14 +197,11 @@ export class WebSocketHandler {
           const validMessage = validation.message;
 
           if (validMessage.type === CLIENT_MESSAGE_TYPES.JOIN) {
-            const nickname =
-              validMessage.nickname
-                .replace(/[^a-zA-Z0-9 ]/g, '')
-                .slice(0, MAX_NICKNAME_LENGTH)
-                .trim() || 'Player';
+            const nickname = validMessage.nickname;
 
             instances.addPlayer(playerId, nickname);
             hasJoined = true;
+            this.clearJoinTimeout(playerId);
 
             console.log(
               `[Game] Player connected: ${nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
@@ -207,8 +214,11 @@ export class WebSocketHandler {
               mapWidth: 0,
               mapHeight: 0,
             };
-            this.networkManager.send(ws, welcome);
-            this.networkManager.send(
+            if (!this.trySendToPlayer(playerId, ws, welcome, true)) {
+              return;
+            }
+            this.trySendToPlayer(
+              playerId,
               ws,
               this.buildLeaderboard(
                 instances,
@@ -227,6 +237,9 @@ export class WebSocketHandler {
               return;
             }
             this.handleChat(instances, playerId, validMessage.text);
+          } else if (validMessage.type === CLIENT_MESSAGE_TYPES.SNAPSHOT_RESYNC) {
+            this.previousSnapshots.delete(playerId);
+            this.forceFullSnapshotFor.add(playerId);
           } else {
             registerInvalidMessage();
           }
@@ -236,10 +249,13 @@ export class WebSocketHandler {
       });
 
       ws.on('close', () => {
+        this.clearJoinTimeout(playerId);
         this.clients.delete(playerId);
         this.previousSnapshots.delete(playerId);
         this.forceFullSnapshotFor.delete(playerId);
         this.lastInstanceByPlayer.delete(playerId);
+        this.blockedSendStreakByPlayer.delete(playerId);
+        this.decrementIpConnectionCount(playerId);
         if (hasJoined) {
           const nickname = instances.getPlayersInAnyWorld().get(playerId)?.nickname ?? 'Unknown';
           instances.removePlayer(playerId);
@@ -255,14 +271,9 @@ export class WebSocketHandler {
     });
   }
 
-  private handleChat(instances: InstanceManager, playerId: string, rawText: unknown): void {
+  private handleChat(instances: InstanceManager, playerId: string, text: string): void {
     const player = instances.getPlayersInAnyWorld().get(playerId);
     if (!player) return;
-
-    const text = stripControlCharacters(String(rawText ?? ''))
-      .trim()
-      .slice(0, MAX_CHAT_LENGTH);
-    if (text.length === 0) return;
 
     const chatMsg: ServerChatMessage = {
       protocolVersion: PROTOCOL_VERSION,
@@ -276,7 +287,7 @@ export class WebSocketHandler {
     for (const [peerId, ws] of this.clients) {
       if (ws.readyState !== WebSocket.OPEN) continue;
       if (senderInstance && instances.getInstanceForPlayer(peerId) !== senderInstance) continue;
-      this.networkManager.send(ws, chatMsg);
+      this.trySendToPlayer(peerId, ws, chatMsg);
     }
   }
 
@@ -296,7 +307,7 @@ export class WebSocketHandler {
         const instanceId = instances.getInstanceForPlayer(playerId);
         if (!instanceId) continue;
         const leaderboard = leaderboardsByInstance[instanceId];
-        this.networkManager.send(ws, leaderboard);
+        this.trySendToPlayer(playerId, ws, leaderboard);
       }
     }
 
@@ -322,16 +333,64 @@ export class WebSocketHandler {
           viewerY: world.players.get(playerId)?.y ?? 0,
           relevantEnemyCount: snapshot.enemies.length,
         });
-        const sent = this.networkManager.send(ws, message);
+        const sent = this.trySendToPlayer(playerId, ws, message);
         if (sent) {
           this.previousSnapshots.set(playerId, nextState);
           this.forceFullSnapshotFor.delete(playerId);
           this.lastInstanceByPlayer.set(playerId, snapshot.instanceId);
-        } else {
-          this.forceFullSnapshotFor.add(playerId);
         }
       }
     }
+  }
+
+  private clearJoinTimeout(playerId: string): void {
+    const timeout = this.joinTimeoutByPlayer.get(playerId);
+    if (timeout) {
+      clearTimeout(timeout);
+      this.joinTimeoutByPlayer.delete(playerId);
+    }
+  }
+
+  private decrementIpConnectionCount(playerId: string): void {
+    const ip = this.playerIpById.get(playerId);
+    if (!ip) {
+      return;
+    }
+
+    const current = this.connectionsByIp.get(ip) ?? 0;
+    if (current <= 1) {
+      this.connectionsByIp.delete(ip);
+    } else {
+      this.connectionsByIp.set(ip, current - 1);
+    }
+
+    this.playerIpById.delete(playerId);
+  }
+
+  private trySendToPlayer(
+    playerId: string,
+    ws: WebSocket,
+    message: ServerMessage,
+    closeOnFailure = false
+  ): boolean {
+    const sent = this.networkManager.send(ws, message);
+    if (sent) {
+      this.blockedSendStreakByPlayer.set(playerId, 0);
+      return true;
+    }
+
+    this.forceFullSnapshotFor.add(playerId);
+
+    const nextBlockedStreak = (this.blockedSendStreakByPlayer.get(playerId) ?? 0) + 1;
+    this.blockedSendStreakByPlayer.set(playerId, nextBlockedStreak);
+
+    if (closeOnFailure || nextBlockedStreak >= MAX_CONSECUTIVE_BLOCKED_SENDS) {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close(1013, 'Connection overloaded');
+      }
+    }
+
+    return false;
   }
 
   private buildLeaderboard(instances: InstanceManager, instanceId: InstanceId): ServerMessage {

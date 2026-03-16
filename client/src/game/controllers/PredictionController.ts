@@ -1,28 +1,19 @@
-import type { InputMessage, PlayerSnapshot } from '@gelehka/shared';
+import type { PlayerSnapshot } from '@gelehka/shared';
 import {
+  PLAYER_ATTACK_SPEED_PENALTY,
+  PLAYER_SPEED,
   getDeltaForInput,
   reconcilePredictedPosition,
   trimPendingInputs,
 } from '@gelehka/game-core';
+import type {
+  InputState as CoreInputState,
+  PendingInput as CorePendingInput,
+} from '@gelehka/game-core';
 import { PlayerEntity } from '../../entities/Player';
 
-const PLAYER_PREDICT_SPEED = 150;
-const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
-
-export interface PendingInput {
-  input: InputMessage;
-  dtMs: number;
-  sentAtMs: number;
-  speedMultiplier?: number;
-}
-
-export interface InputState {
-  up: boolean;
-  down: boolean;
-  left: boolean;
-  right: boolean;
-  attack: boolean;
-}
+export type PendingInput = CorePendingInput;
+export type InputState = CoreInputState;
 
 export class PredictionController {
   trimPendingInputs(pendingInputs: PendingInput[]): void {
@@ -34,7 +25,7 @@ export class PredictionController {
     if (entity.serverState === 'dead') return;
 
     const speedPenalty = entity.serverState === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
-    const delta = getDeltaForInput(input, dtMs, PLAYER_PREDICT_SPEED, speedPenalty);
+    const delta = getDeltaForInput(input, dtMs, PLAYER_SPEED, speedPenalty);
     if (delta.dx === 0 && delta.dy === 0) return;
 
     entity.targetX += delta.dx;
@@ -70,7 +61,7 @@ export class PredictionController {
         serverPlayer,
         pendingInputs,
         { x: localEntity.targetX, y: localEntity.targetY },
-        PLAYER_PREDICT_SPEED
+        PLAYER_SPEED
       );
 
       localEntity.updateFromServer(

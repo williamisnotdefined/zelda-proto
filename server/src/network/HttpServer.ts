@@ -5,6 +5,7 @@ import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { ClientErrorLogEnvelope, ClientErrorLogStore } from '../monitoring/clientErrorLogStore.js';
+import { getRequestIp } from './requestPolicy.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const CLIENT_DIST = resolve(__dirname, '../../../client/dist');
@@ -183,15 +184,6 @@ function writeJson(
     ...headers,
   });
   res.end(JSON.stringify(payload));
-}
-
-function getRequestIp(req: IncomingMessage): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0].trim();
-  }
-
-  return req.socket.remoteAddress ?? 'unknown';
 }
 
 function isRateLimited(ip: string): boolean {

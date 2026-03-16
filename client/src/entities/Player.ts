@@ -1,3 +1,10 @@
+import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import {
+  PLAYER_ATTACK_RANGE_DOWN,
+  PLAYER_ATTACK_RANGE_LEFT,
+  PLAYER_ATTACK_RANGE_RIGHT,
+  PLAYER_ATTACK_RANGE_UP,
+} from '@gelehka/game-core/player';
 import type { PlayerStatusSnapshot } from '@gelehka/shared';
 import Phaser from 'phaser';
 
@@ -24,10 +31,6 @@ const ATTACK_SHADOW_STROKE_ALPHA = 0.95;
 const ATTACK_SHADOW_PULSE_DURATION_MS = 140;
 const ATTACK_CONE_RADIUS = 44;
 const ATTACK_CONE_SPAN_DEG = 95;
-const ATTACK_RANGE_UP = 40;
-const ATTACK_RANGE_DOWN = 56;
-const ATTACK_RANGE_LEFT = 48;
-const ATTACK_RANGE_RIGHT = 48;
 const NICKNAME_OFFSET_Y = 36;
 
 export class PlayerEntity {
@@ -208,12 +211,12 @@ export class PlayerEntity {
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
 
     if (this.isLocal) {
-      const factor = 1 - Math.pow(1 - LOCAL_LERP_BASE, dtMs / 16.667);
+      const factor = getExponentialInterpolationFactor(LOCAL_LERP_BASE, dtMs);
       this.sprite.x += (this.targetX - this.sprite.x) * factor;
       this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
     } else {
       // Remote players: time-based exponential lerp (frame-rate independent)
-      const factor = 1 - Math.pow(1 - REMOTE_LERP_BASE, dtMs / 16.667);
+      const factor = getExponentialInterpolationFactor(REMOTE_LERP_BASE, dtMs);
       this.sprite.x += (this.targetX - this.sprite.x) * factor;
       this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
     }
@@ -277,16 +280,16 @@ export class PlayerEntity {
 
     switch (this.serverDirection) {
       case 'up':
-        hitY -= ATTACK_RANGE_UP;
+        hitY -= PLAYER_ATTACK_RANGE_UP;
         break;
       case 'down':
-        hitY += ATTACK_RANGE_DOWN;
+        hitY += PLAYER_ATTACK_RANGE_DOWN;
         break;
       case 'left':
-        hitX -= ATTACK_RANGE_LEFT;
+        hitX -= PLAYER_ATTACK_RANGE_LEFT;
         break;
       case 'right':
-        hitX += ATTACK_RANGE_RIGHT;
+        hitX += PLAYER_ATTACK_RANGE_RIGHT;
         break;
     }
 

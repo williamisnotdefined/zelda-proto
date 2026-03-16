@@ -1,3 +1,4 @@
+import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
 import Phaser from 'phaser';
 import { PORTAL_KINDS, type PortalKind } from '@gelehka/shared';
 
@@ -75,7 +76,7 @@ export class PortalEntity {
     }
 
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
-    const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
+    const factor = getExponentialInterpolationFactor(LERP_BASE, dtMs);
     this.element.x += dx * factor;
     this.element.y += dy * factor;
   }

@@ -1,8 +1,13 @@
 import { pack, unpack } from 'msgpackr';
 import { resolveWebSocketUrl } from '@gelehka/game-core/network';
-import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import {
+  createSnapshotNormalizationState,
+  normalizeServerMessageResult,
+} from '@gelehka/game-core/snapshot';
+import { PROTOCOL_VERSION } from '@gelehka/shared';
+import { createSnapshotResyncMessage } from '@gelehka/shared/protocol';
 import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
-import type { ClientMessage, InstanceId, ServerMessage } from '@gelehka/shared';
+import type { ClientMessage, ServerMessage } from '@gelehka/shared';
 import { logError } from '../monitoring/errorLogger';
 
 type MessageHandler = (msg: ServerMessage) => void;
@@ -37,9 +42,8 @@ export class NetworkManager {
   private connectionTimeout: ReturnType<typeof setTimeout> | null = null;
   private connectionState: ConnectionState = 'DISCONNECTED';
   private shouldReconnect = true;
-  private snapshotInstanceId: InstanceId | null = null;
-  private lastSnapshotTick = -1;
-  private hasSnapshotBase = false;
+  private readonly snapshotNormalizationState = createSnapshotNormalizationState();
+  private snapshotResyncRequested = false;
   private networkStatsWindowStartedAt = performance.now();
   private incomingBytesThisWindow = 0;
   private incomingMessagesThisWindow = 0;
@@ -145,12 +149,12 @@ export class NetworkManager {
         return;
       }
 
-      const filtered = this.filterSnapshotMessage(message);
-      if (!filtered) {
+      const normalized = this.normalizeSnapshotMessage(message);
+      if (!normalized) {
         return;
       }
       for (const handler of this.handlers) {
-        handler(filtered);
+        handler(normalized);
       }
     };
 
@@ -228,7 +232,7 @@ export class NetworkManager {
     };
   }
 
-  send(msg: ClientMessage): void {
+  send(msg: ClientMessage): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       logError({
         category: 'network',
@@ -241,7 +245,7 @@ export class NetworkManager {
           messageType: msg.type,
         },
       });
-      return;
+      return false;
     }
     if (this.ws.bufferedAmount > WS_MAX_BUFFERED_BYTES) {
       logError({
@@ -256,11 +260,12 @@ export class NetworkManager {
           messageType: msg.type,
         },
       });
-      return;
+      return false;
     }
     const encoded = pack(msg);
     this.recordOutgoingTraffic(encoded.byteLength);
     this.ws.send(encoded);
+    return true;
   }
 
   onceOpen(cb: () => void): void {
@@ -337,9 +342,11 @@ export class NetworkManager {
   }
 
   private resetSnapshotTracking(): void {
-    this.snapshotInstanceId = null;
-    this.lastSnapshotTick = -1;
-    this.hasSnapshotBase = false;
+    this.snapshotNormalizationState.snapshotCache = null;
+    this.snapshotNormalizationState.lastSnapshotTick = -1;
+    this.snapshotNormalizationState.lastSnapshotInstanceId = null;
+    this.snapshotNormalizationState.resyncRequired = false;
+    this.snapshotResyncRequested = false;
   }
 
   private resetNetworkStats(): void {
@@ -394,34 +401,54 @@ export class NetworkManager {
     this.outgoingMessagesThisWindow = 0;
   }
 
-  private filterSnapshotMessage(message: ServerMessage): ServerMessage | null {
-    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
-      this.snapshotInstanceId = message.instanceId;
-      this.lastSnapshotTick = -1;
-      this.hasSnapshotBase = true;
-      return message;
+  private normalizeSnapshotMessage(message: ServerMessage): ServerMessage | null {
+    const result = normalizeServerMessageResult(message, this.snapshotNormalizationState);
+
+    if (result.kind === 'message') {
+      if (result.snapshotBaseApplied) {
+        this.snapshotResyncRequested = false;
+      }
+      return result.message;
     }
 
-    if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
-      if (message.full) {
-        this.snapshotInstanceId = message.instanceId;
-        this.lastSnapshotTick = message.tick;
-        this.hasSnapshotBase = true;
-        return message;
-      }
-
-      if (!this.hasSnapshotBase || this.snapshotInstanceId !== message.instanceId) {
-        return null;
-      }
-
-      if (message.tick <= this.lastSnapshotTick) {
-        return null;
-      }
-
-      this.lastSnapshotTick = message.tick;
+    if (result.kind === 'resync') {
+      this.requestSnapshotResync(result.reason, result.lastTick, result.instanceId);
     }
 
-    return message;
+    return null;
+  }
+
+  private requestSnapshotResync(
+    reason: ReturnType<typeof createSnapshotResyncMessage>['reason'],
+    lastTick: number,
+    instanceId: ReturnType<typeof createSnapshotResyncMessage>['instanceId']
+  ): void {
+    if (this.snapshotResyncRequested) {
+      return;
+    }
+
+    this.snapshotResyncRequested = true;
+    const sent = this.send(
+      createSnapshotResyncMessage(reason, {
+        lastTick,
+        instanceId,
+      })
+    );
+
+    logError({
+      category: 'network',
+      type: sent ? 'websocket.snapshot-resync-requested' : 'websocket.snapshot-resync-deferred',
+      level: 'warn',
+      message: sent
+        ? 'Requested a full snapshot resync after snapshot desync'
+        : 'Snapshot desync detected but resync request could not be sent immediately',
+      handled: true,
+      context: {
+        reason,
+        lastTick,
+        instanceId,
+      },
+    });
   }
 
   private decodeServerMessage(raw: unknown): ServerMessage | null {

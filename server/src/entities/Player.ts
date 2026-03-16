@@ -1,3 +1,24 @@
+import { getDeltaForInput, getNormalizedDirection } from '@gelehka/game-core';
+import {
+  BURNING_TICK_DAMAGE,
+  BURNING_TICK_MS,
+  BURNING_TICKS,
+  PLAYER_ATTACK_COOLDOWN,
+  PLAYER_ATTACK_RANGE_DOWN,
+  PLAYER_ATTACK_RANGE_LEFT,
+  PLAYER_ATTACK_RANGE_RIGHT,
+  PLAYER_ATTACK_RANGE_UP,
+  PLAYER_ATTACK_SPEED_PENALTY,
+  PLAYER_ATTACK_STATE_DURATION,
+  PLAYER_ATTACK_WIDTH,
+  PLAYER_DAMAGE,
+  PLAYER_HEIGHT,
+  PLAYER_MAX_HP,
+  PLAYER_SPEED,
+  PLAYER_WIDTH,
+  PVP_DAMAGE,
+  SAFE_ZONE_DURATION,
+} from '@gelehka/game-core/player';
 import { TOASTY_KILL_THRESHOLD } from '@gelehka/shared/constants';
 import { Entity } from '../core/Entity.js';
 import { State, StateMachine } from '../core/StateMachine.js';
@@ -9,24 +30,26 @@ import type {
   PlayerState,
 } from '../network/MessageTypes.js';
 
-export const PLAYER_SPEED = 150;
-export const PLAYER_MAX_HP = 100;
-export const PLAYER_DAMAGE = 10;
-export const PLAYER_ATTACK_COOLDOWN = 400;
-export const PLAYER_ATTACK_STATE_DURATION = 300;
-export const PLAYER_ATTACK_SPEED_PENALTY = 0.5;
-export const PLAYER_WIDTH = 48;
-export const PLAYER_HEIGHT = 48;
-export const PLAYER_ATTACK_RANGE_UP = 40;
-export const PLAYER_ATTACK_RANGE_DOWN = 56;
-export const PLAYER_ATTACK_RANGE_LEFT = 48;
-export const PLAYER_ATTACK_RANGE_RIGHT = 48;
-export const PLAYER_ATTACK_WIDTH = 72;
-export const PVP_DAMAGE = 25;
-export const SAFE_ZONE_DURATION = 3000;
-export const BURNING_TICK_DAMAGE = 4;
-export const BURNING_TICKS = 3;
-export const BURNING_TICK_MS = 1000;
+export {
+  BURNING_TICK_DAMAGE,
+  BURNING_TICK_MS,
+  BURNING_TICKS,
+  PLAYER_ATTACK_COOLDOWN,
+  PLAYER_ATTACK_RANGE_DOWN,
+  PLAYER_ATTACK_RANGE_LEFT,
+  PLAYER_ATTACK_RANGE_RIGHT,
+  PLAYER_ATTACK_RANGE_UP,
+  PLAYER_ATTACK_SPEED_PENALTY,
+  PLAYER_ATTACK_STATE_DURATION,
+  PLAYER_ATTACK_WIDTH,
+  PLAYER_DAMAGE,
+  PLAYER_HEIGHT,
+  PLAYER_MAX_HP,
+  PLAYER_SPEED,
+  PLAYER_WIDTH,
+  PVP_DAMAGE,
+  SAFE_ZONE_DURATION,
+};
 const SNAPSHOT_POSITION_PRECISION = 10;
 const EMPTY_STATUS_EFFECTS: PlayerSnapshot['statusEffects'] = {};
 
@@ -163,31 +186,22 @@ export class Player extends Entity {
       this.resetAttackTracking();
     }
 
-    let dx = 0;
-    let dy = 0;
-    if (input.up) dy -= 1;
-    if (input.down) dy += 1;
-    if (input.left) dx -= 1;
-    if (input.right) dx += 1;
-
-    if (dx !== 0 || dy !== 0) {
-      const len = Math.sqrt(dx * dx + dy * dy);
-      dx /= len;
-      dy /= len;
-
+    const direction = getNormalizedDirection(input);
+    if (direction) {
       const attackPenalty = this.state === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
-      this.x += dx * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
-      this.y += dy * this.speed * speedMultiplier * attackPenalty * (dt / 1000);
+      const delta = getDeltaForInput(input, dt, this.speed, speedMultiplier * attackPenalty);
+      this.x += delta.dx;
+      this.y += delta.dy;
 
       if (this.state !== 'attacking') {
         this.transitionTo('moving');
       }
 
       if (this.state !== 'attacking') {
-        if (Math.abs(dx) > Math.abs(dy)) {
-          this.direction = dx > 0 ? 'right' : 'left';
+        if (Math.abs(direction.dx) > Math.abs(direction.dy)) {
+          this.direction = direction.dx > 0 ? 'right' : 'left';
         } else {
-          this.direction = dy > 0 ? 'down' : 'up';
+          this.direction = direction.dy > 0 ? 'down' : 'up';
         }
       }
     } else if (this.state !== 'attacking') {

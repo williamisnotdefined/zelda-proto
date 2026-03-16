@@ -33,6 +33,8 @@ export type {
   EnemyState,
   SnapshotDeltaMessage,
   SnapshotMessage,
+  SnapshotResyncReason,
+  SnapshotResyncRequestMessage,
   PortalKind,
   PortalSnapshot,
   WelcomeMessage,
@@ -49,4 +51,5 @@ export {
   PLAYER_STATUS_EFFECTS,
   PORTAL_KINDS,
   SERVER_MESSAGE_TYPES,
+  SNAPSHOT_RESYNC_REASONS,
 } from '@gelehka/shared';

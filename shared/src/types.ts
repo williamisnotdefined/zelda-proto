@@ -70,7 +70,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 2 as const;
+export const PROTOCOL_VERSION = 3 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -90,7 +90,18 @@ export const CLIENT_MESSAGE_TYPES = {
   INPUT: 'input',
   JOIN: 'join',
   CHAT: 'chat',
+  SNAPSHOT_RESYNC: 'snapshot_resync',
 } as const;
+
+export const SNAPSHOT_RESYNC_REASONS = {
+  MISSING_BASE: 'missing_base',
+  TICK_GAP: 'tick_gap',
+  INSTANCE_MISMATCH: 'instance_mismatch',
+  MANUAL: 'manual',
+} as const;
+
+export type SnapshotResyncReason =
+  (typeof SNAPSHOT_RESYNC_REASONS)[keyof typeof SNAPSHOT_RESYNC_REASONS];
 
 export type BossPhase = 1 | 2 | 3 | 4;
 
@@ -223,8 +234,7 @@ export interface HazardSnapshot {
   ttlMs: number;
 }
 
-export interface SnapshotMessage extends ProtocolEnvelope {
-  type: typeof SERVER_MESSAGE_TYPES.SNAPSHOT;
+interface SnapshotWorldState {
   instanceId: InstanceId;
   players: PlayerSnapshot[];
   enemies: EnemySnapshot[];
@@ -234,6 +244,10 @@ export interface SnapshotMessage extends ProtocolEnvelope {
   drops: DropSnapshot[];
   portals: PortalSnapshot[];
   hazards: HazardSnapshot[];
+}
+
+export interface SnapshotMessage extends ProtocolEnvelope, SnapshotWorldState {
+  type: typeof SERVER_MESSAGE_TYPES.SNAPSHOT;
 }
 
 export interface WelcomeMessage extends ProtocolEnvelope {
@@ -256,28 +270,36 @@ export interface LeaderboardMessage extends ProtocolEnvelope {
   players: PlayerLeaderboardEntry[];
 }
 
-export interface SnapshotDeltaMessage extends ProtocolEnvelope {
+interface SnapshotDeltaMessageBase extends ProtocolEnvelope, SnapshotWorldState {
   type: typeof SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA;
   tick: number;
-  full: boolean;
-  instanceId: InstanceId;
-  players: PlayerSnapshot[];
+}
+
+export interface FullSnapshotDeltaMessage extends SnapshotDeltaMessageBase {
+  full: true;
+  removedPlayerIds: [];
+  enemyTransforms: [];
+  enemyStates: [];
+  removedEnemyIds: [];
+  removedBossIds: [];
+  removedDropIds: [];
+  removedPortalIds: [];
+  removedHazardIds: [];
+}
+
+export interface IncrementalSnapshotDeltaMessage extends SnapshotDeltaMessageBase {
+  full: false;
   removedPlayerIds: string[];
-  enemies: EnemySnapshot[];
   enemyTransforms: EnemyTransformSnapshot[];
   enemyStates: EnemyStateDelta[];
-  bosses: BossSnapshot[];
-  drops: DropSnapshot[];
-  portals: PortalSnapshot[];
-  hazards: HazardSnapshot[];
   removedEnemyIds: string[];
   removedBossIds: string[];
   removedDropIds: string[];
   removedPortalIds: string[];
   removedHazardIds: string[];
-  iceZones: IceZone[];
-  aoeIndicators: AoeIndicator[];
 }
+
+export type SnapshotDeltaMessage = FullSnapshotDeltaMessage | IncrementalSnapshotDeltaMessage;
 
 export type BlobSnapshot = EnemySnapshot;
 
@@ -311,4 +333,16 @@ export interface ClientChatMessage {
   text: string;
 }
 
-export type ClientMessage = InputMessage | JoinMessage | ClientChatMessage;
+export interface SnapshotResyncRequestMessage {
+  protocolVersion: ProtocolVersion;
+  type: typeof CLIENT_MESSAGE_TYPES.SNAPSHOT_RESYNC;
+  reason: SnapshotResyncReason;
+  lastTick: number;
+  instanceId: InstanceId | null;
+}
+
+export type ClientMessage =
+  | InputMessage
+  | JoinMessage
+  | ClientChatMessage
+  | SnapshotResyncRequestMessage;

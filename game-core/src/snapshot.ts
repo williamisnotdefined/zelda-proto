@@ -1,17 +1,16 @@
 import type {
   BossSnapshot,
   DropSnapshot,
-  EnemyStateDelta,
   EnemySnapshot,
-  EnemyTransformSnapshot,
   HazardSnapshot,
   PlayerSnapshot,
   PortalSnapshot,
   ServerMessage,
+  SnapshotResyncReason,
   SnapshotDeltaMessage,
   SnapshotMessage,
 } from '@gelehka/shared';
-import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
+import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES, SNAPSHOT_RESYNC_REASONS } from '@gelehka/shared';
 
 export interface SnapshotCache {
   instanceId: SnapshotMessage['instanceId'];
@@ -28,7 +27,37 @@ export interface SnapshotCache {
 export interface SnapshotNormalizationState {
   snapshotCache: SnapshotCache | null;
   lastSnapshotTick: number;
+  lastSnapshotInstanceId: SnapshotMessage['instanceId'] | null;
+  resyncRequired: boolean;
 }
+
+export interface SnapshotMessageFilterState {
+  snapshotInstanceId: SnapshotMessage['instanceId'] | null;
+  lastSnapshotTick: number;
+  hasSnapshotBase: boolean;
+}
+
+export interface SnapshotResyncRequest {
+  reason: SnapshotResyncReason;
+  lastTick: number;
+  instanceId: SnapshotMessage['instanceId'] | null;
+}
+
+export type SnapshotNormalizationDropReason = 'stale_tick' | 'resync_pending';
+
+export type NormalizeServerMessageResult =
+  | {
+      kind: 'message';
+      message: ServerMessage;
+      snapshotBaseApplied: boolean;
+    }
+  | {
+      kind: 'drop';
+      reason: SnapshotNormalizationDropReason;
+    }
+  | ({
+      kind: 'resync';
+    } & SnapshotResyncRequest);
 
 function cloneItem<T extends object>(item: T): T {
   return { ...item };
@@ -42,6 +71,16 @@ export function createSnapshotNormalizationState(): SnapshotNormalizationState {
   return {
     snapshotCache: null,
     lastSnapshotTick: -1,
+    lastSnapshotInstanceId: null,
+    resyncRequired: false,
+  };
+}
+
+export function createSnapshotMessageFilterState(): SnapshotMessageFilterState {
+  return {
+    snapshotInstanceId: null,
+    lastSnapshotTick: -1,
+    hasSnapshotBase: false,
   };
 }
 
@@ -87,7 +126,7 @@ export function applySnapshotDelta(
   delta: SnapshotDeltaMessage,
   snapshotCache: SnapshotCache | null
 ): SnapshotCache {
-  if (delta.full || !snapshotCache) {
+  if (delta.full) {
     return {
       instanceId: delta.instanceId,
       players: toEntityMap(delta.players),
@@ -99,6 +138,10 @@ export function applySnapshotDelta(
       iceZones: cloneArrayItems(delta.iceZones),
       aoeIndicators: cloneArrayItems(delta.aoeIndicators),
     };
+  }
+
+  if (!snapshotCache) {
+    throw new Error('Cannot apply incremental snapshot delta without a baseline');
   }
 
   for (const player of delta.players) snapshotCache.players.set(player.id, cloneItem(player));
@@ -139,26 +182,126 @@ export function normalizeServerMessage(
   message: ServerMessage,
   state: SnapshotNormalizationState
 ): ServerMessage | null {
+  const result = normalizeServerMessageResult(message, state);
+  return result.kind === 'message' ? result.message : null;
+}
+
+function createResyncRequest(
+  state: SnapshotNormalizationState,
+  reason: SnapshotResyncReason
+): NormalizeServerMessageResult {
+  state.snapshotCache = null;
+  state.resyncRequired = true;
+
+  return {
+    kind: 'resync',
+    reason,
+    lastTick: state.lastSnapshotTick,
+    instanceId: state.lastSnapshotInstanceId,
+  };
+}
+
+function applyFullSnapshotBase(
+  snapshot: SnapshotMessage,
+  state: SnapshotNormalizationState,
+  tick: number
+): NormalizeServerMessageResult {
+  state.snapshotCache = toSnapshotCache(snapshot);
+  state.lastSnapshotTick = tick;
+  state.lastSnapshotInstanceId = snapshot.instanceId;
+  state.resyncRequired = false;
+
+  return {
+    kind: 'message',
+    message: toSnapshotMessage(state.snapshotCache),
+    snapshotBaseApplied: true,
+  };
+}
+
+export function normalizeServerMessageResult(
+  message: ServerMessage,
+  state: SnapshotNormalizationState
+): NormalizeServerMessageResult {
   if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
-    state.snapshotCache = toSnapshotCache(message);
-    state.lastSnapshotTick = -1;
-    return toSnapshotMessage(state.snapshotCache);
+    return applyFullSnapshotBase(message, state, -1);
   }
 
   if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
-    if (
-      state.snapshotCache &&
-      state.snapshotCache.instanceId !== message.instanceId &&
-      !message.full
-    ) {
+    if (message.full) {
+      const fullSnapshot = toSnapshotMessage(applySnapshotDelta(message, null));
+      return applyFullSnapshotBase(fullSnapshot, state, message.tick);
+    }
+
+    if (state.resyncRequired) {
+      return { kind: 'drop', reason: 'resync_pending' };
+    }
+
+    if (!state.snapshotCache) {
+      return createResyncRequest(state, SNAPSHOT_RESYNC_REASONS.MISSING_BASE);
+    }
+
+    if (state.snapshotCache.instanceId !== message.instanceId) {
+      return createResyncRequest(state, SNAPSHOT_RESYNC_REASONS.INSTANCE_MISMATCH);
+    }
+
+    if (message.tick <= state.lastSnapshotTick) {
+      return { kind: 'drop', reason: 'stale_tick' };
+    }
+
+    if (state.lastSnapshotTick >= 0 && message.tick !== state.lastSnapshotTick + 1) {
+      return createResyncRequest(state, SNAPSHOT_RESYNC_REASONS.TICK_GAP);
+    }
+
+    state.lastSnapshotTick = message.tick;
+    state.lastSnapshotInstanceId = message.instanceId;
+    state.snapshotCache = applySnapshotDelta(message, state.snapshotCache);
+    return {
+      kind: 'message',
+      message: toSnapshotMessage(state.snapshotCache),
+      snapshotBaseApplied: false,
+    };
+  }
+
+  return {
+    kind: 'message',
+    message,
+    snapshotBaseApplied: false,
+  };
+}
+
+export function filterSnapshotMessage(
+  message: ServerMessage,
+  state: SnapshotMessageFilterState
+): ServerMessage | null {
+  if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT) {
+    state.snapshotInstanceId = message.instanceId;
+    state.lastSnapshotTick = -1;
+    state.hasSnapshotBase = true;
+    return message;
+  }
+
+  if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
+    if (message.full) {
+      state.snapshotInstanceId = message.instanceId;
+      state.lastSnapshotTick = message.tick;
+      state.hasSnapshotBase = true;
+      return message;
+    }
+
+    if (!state.hasSnapshotBase || state.snapshotInstanceId !== message.instanceId) {
       return null;
     }
+
     if (message.tick <= state.lastSnapshotTick) {
       return null;
     }
+
+    if (state.lastSnapshotTick >= 0 && message.tick !== state.lastSnapshotTick + 1) {
+      state.hasSnapshotBase = false;
+      return null;
+    }
+
     state.lastSnapshotTick = message.tick;
-    state.snapshotCache = applySnapshotDelta(message, state.snapshotCache);
-    return toSnapshotMessage(state.snapshotCache);
   }
 
   return message;

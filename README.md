@@ -139,7 +139,8 @@ DEV_START_PHASE=2 npm run dev:server
 - Communication via MessagePack over WebSocket with snapshot delta replication
 
 ## Next Steps
-
+- [ ] Player se movimentando rapido double click da seta (cooldown de 5s)
+- [ ] Monstros devem ter opacidade para indicar vida baixa ou devemos colocar isso na sprite?
 - [ ] Distance weapon (e.g. bow)
 - [ ] Select class Warrior Or Mage
 

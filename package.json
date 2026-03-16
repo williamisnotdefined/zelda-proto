@@ -16,6 +16,7 @@
     "build": "npm run build:server && npm run build:client",
     "start:server": "npm run start --workspace=server",
     "start": "NODE_ENV=production PORT=3001 npm run start:server",
+    "test": "npm run test --workspace=shared && npm run test --workspace=game-core && npm run test --workspace=server && npm run test --workspace=client",
     "lint": "eslint client/src server/src shared/src game-core/src --ext .ts,.tsx",
     "lint:fix": "eslint client/src server/src shared/src game-core/src --ext .ts,.tsx --fix",
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\"",
@@ -34,6 +35,7 @@
     "eslint-config-prettier": "^10.1.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "prettier": "^3.5.3"
+    "prettier": "^3.5.3",
+    "vitest": "^3.2.4"
   }
 }

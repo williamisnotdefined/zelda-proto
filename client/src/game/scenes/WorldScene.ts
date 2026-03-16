@@ -16,7 +16,11 @@ import type {
   ServerMessage,
   SnapshotDeltaMessage,
 } from '@gelehka/shared';
-import { createInputMessage, hasDirectionalChange } from '@gelehka/game-core';
+import {
+  PLAYER_ATTACK_SPEED_PENALTY,
+  createInputMessage,
+  hasDirectionalChange,
+} from '@gelehka/game-core';
 import {
   BOSS_KINDS,
   ENEMY_KINDS,
@@ -229,13 +233,6 @@ export class WorldScene extends Phaser.Scene {
         case SERVER_MESSAGE_TYPES.SNAPSHOT:
           this.handleSnapshot(msg);
           break;
-        case SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA:
-          if (msg.full) {
-            this.handleSnapshot(msg);
-          } else {
-            this.handleSnapshotDelta(msg);
-          }
-          break;
         case SERVER_MESSAGE_TYPES.LEADERBOARD:
           useGameStore.getState().setAllPlayers(msg.players);
           useGameStore.getState().setPlayerCount(msg.players.length);
@@ -437,21 +434,34 @@ export class WorldScene extends Phaser.Scene {
 
   private syncBlobs(enemies: EnemySnapshot[]): void {
     const seenEnemyIds = new Set<string>();
-    this.clearEnemySnapshotIndex();
-    this.dirtyEnemyVisualIds.clear();
 
     for (const enemy of enemies) {
       seenEnemyIds.add(enemy.id);
-      this.upsertEnemySnapshot(enemy, false);
+      const previousSnapshot = this.enemySnapshotsById.get(enemy.id);
+      if (previousSnapshot && !this.enemySnapshotChanged(previousSnapshot, enemy)) {
+        continue;
+      }
+
+      this.upsertEnemySnapshot(enemy);
     }
 
-    for (const [id] of this.enemySnapshotsById) {
+    for (const id of Array.from(this.enemySnapshotsById.keys())) {
       if (!seenEnemyIds.has(id)) {
         this.removeEnemySnapshot(id);
       }
     }
+  }
 
-    this.pendingEnemyVisualSync = true;
+  private enemySnapshotChanged(previous: EnemySnapshot, next: EnemySnapshot): boolean {
+    return (
+      previous.kind !== next.kind ||
+      previous.variant !== next.variant ||
+      previous.x !== next.x ||
+      previous.y !== next.y ||
+      previous.hp !== next.hp ||
+      previous.maxHp !== next.maxHp ||
+      previous.state !== next.state
+    );
   }
 
   private applyEnemyDelta(
@@ -1262,7 +1272,9 @@ export class WorldScene extends Phaser.Scene {
 
       const input: InputMessage = createInputMessage(this.nextInputSeq++, inputState);
       const speedMultiplier =
-        localEntity?.serverState === 'attacking' || inputState.attack ? 0.5 : 1;
+        localEntity?.serverState === 'attacking' || inputState.attack
+          ? PLAYER_ATTACK_SPEED_PENALTY
+          : 1;
 
       this.pendingInputs.push({
         input,

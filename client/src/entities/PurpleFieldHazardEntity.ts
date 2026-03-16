@@ -1,3 +1,4 @@
+import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
 import Phaser from 'phaser';
 
 const PURPLE_FIELD_SPRITE_OFFSET_X = -6;
@@ -65,7 +66,7 @@ export class PurpleFieldHazardEntity {
       this.sprite.y = targetY;
     } else {
       const dtMs = Math.min(dt, MAX_LERP_DT_MS);
-      const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
+      const factor = getExponentialInterpolationFactor(LERP_BASE, dtMs);
       this.sprite.x += dx * factor;
       this.sprite.y += dy * factor;
     }

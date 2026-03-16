@@ -1,3 +1,4 @@
+import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
 import Phaser from 'phaser';
 
 /** Base lerp factors per 16.667ms (60fps) frame. */
@@ -315,7 +316,7 @@ export class BossGelehkEntity {
     }
 
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
-    const factor = 1 - Math.pow(1 - LERP_BASE, dtMs / 16.667);
+    const factor = getExponentialInterpolationFactor(LERP_BASE, dtMs);
     this.sprite.x += (this.targetX - this.sprite.x) * factor;
     this.sprite.y += (this.targetY - this.sprite.y) * factor;
 

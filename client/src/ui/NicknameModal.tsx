@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { MAX_NICKNAME_LENGTH } from '@gelehka/shared/constants';
+import { parseNickname, type NicknameValidationReason } from '@gelehka/shared/protocol';
 import { connect, sendJoin } from '../network/socket';
 import { useGameStore } from './store';
 
@@ -9,28 +11,31 @@ export function NicknameModal() {
   const setNickname = useGameStore((s) => s.setNickname);
   const hideNicknameModal = useGameStore((s) => s.hideNicknameModal);
 
+  const getErrorMessage = (reason: NicknameValidationReason): string => {
+    switch (reason) {
+      case 'too_short':
+        return 'Nickname must be at least 2 characters';
+      case 'too_long':
+        return 'Nickname must be 16 characters or less';
+      case 'invalid_characters':
+        return 'Only letters, numbers, and spaces allowed';
+    }
+  };
+
   if (!showModal) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const trimmed = inputValue.trim();
-    if (trimmed.length < 2) {
-      setError('Nickname must be at least 2 characters');
-      return;
-    }
-    if (trimmed.length > 16) {
-      setError('Nickname must be 16 characters or less');
-      return;
-    }
-    if (!/^[a-zA-Z0-9 ]+$/.test(trimmed)) {
-      setError('Only letters, numbers, and spaces allowed');
+    const parsed = parseNickname(inputValue);
+    if (!parsed.ok) {
+      setError(getErrorMessage(parsed.reason));
       return;
     }
 
-    setNickname(trimmed);
+    setNickname(parsed.value);
     hideNicknameModal();
-    sendJoin(trimmed);
+    sendJoin(parsed.value);
     connect();
   };
 
@@ -89,7 +94,7 @@ export function NicknameModal() {
             setError('');
           }}
           placeholder="Nickname"
-          maxLength={16}
+          maxLength={MAX_NICKNAME_LENGTH}
           autoFocus
           style={{
             width: 200,

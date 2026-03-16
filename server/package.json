@@ -7,9 +7,11 @@
     "dev": "tsx watch --ignore 'dist/**' --ignore '**/*.test.ts' src/index.ts",
     "build": "tsc",
     "start": "node --enable-source-maps dist/index.js",
+    "test": "vitest run",
     "logs:client": "tsx src/monitoring/readClientErrors.ts"
   },
   "dependencies": {
+    "@gelehka/game-core": "*",
     "@gelehka/shared": "*",
     "msgpackr": "^1.11.5",
     "nanoid": "^5.1.6",

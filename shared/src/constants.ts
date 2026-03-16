@@ -3,6 +3,10 @@ export const WORLD_SPAWN_Y = 200;
 export const WORLD_SPAWN_SAFE_ZONE_RADIUS = 150;
 export const WORLD_VIEW_RADIUS = 2000;
 
+export const MIN_NICKNAME_LENGTH = 2;
+export const MAX_NICKNAME_LENGTH = 16;
+export const MAX_CHAT_LENGTH = 100;
+
 export const SERVER_SIM_TICK_RATE = 60;
 export const SERVER_NET_TICK_RATE = 20;
 export const SERVER_LEADERBOARD_TICK_RATE = 1;

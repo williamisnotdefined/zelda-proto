@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { MAX_CHAT_LENGTH } from '@gelehka/shared/constants';
+import { parseChatText } from '@gelehka/shared/protocol';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { sendChat } from '../network/socket';
 import { useGameStore } from './store';
@@ -56,9 +58,9 @@ export function Chat() {
   };
 
   const handleSubmit = () => {
-    const text = input.trim();
-    if (text.length === 0 || text.length > 100) return;
-    sendChat(text);
+    const parsed = parseChatText(input);
+    if (!parsed.ok) return;
+    sendChat(parsed.value);
     setInput('');
     // Blur the input so Phaser regains movement/attack controls.
     // The player must press Enter again to re-activate the chat.
@@ -126,7 +128,7 @@ export function Chat() {
       <input
         ref={inputRef}
         type="text"
-        maxLength={100}
+        maxLength={MAX_CHAT_LENGTH}
         placeholder="Press Enter to chat…"
         value={input}
         onChange={(e) => setInput(e.target.value)}

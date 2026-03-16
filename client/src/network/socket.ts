@@ -1,5 +1,10 @@
-import { CLIENT_MESSAGE_TYPES, PROTOCOL_VERSION } from '@gelehka/shared';
 import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+import {
+  createChatMessage,
+  createJoinMessage,
+  parseChatText,
+  parseNickname,
+} from '@gelehka/shared/protocol';
 import { ConnectionState, NetworkManager } from './NetworkManager';
 import type { NetworkPerformanceStats } from './NetworkManager';
 import { useGameStore } from '../ui/store';
@@ -22,11 +27,7 @@ networkManager.onConnectionState((state) => {
     return;
   }
 
-  networkManager.send({
-    protocolVersion: PROTOCOL_VERSION,
-    type: CLIENT_MESSAGE_TYPES.JOIN,
-    nickname: desiredNickname,
-  });
+  networkManager.send(createJoinMessage(desiredNickname));
 });
 
 networkManager.onError((error) => {
@@ -51,15 +52,25 @@ export function send(msg: ClientMessage): void {
 }
 
 export function sendJoin(nickname: string): void {
-  desiredNickname = nickname;
+  const parsed = parseNickname(nickname);
+  if (!parsed.ok) {
+    return;
+  }
+
+  desiredNickname = parsed.value;
 
   if (getConnectionState() === 'CONNECTED') {
-    send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.JOIN, nickname });
+    send(createJoinMessage(parsed.value));
   }
 }
 
 export function sendChat(text: string): void {
-  send({ protocolVersion: PROTOCOL_VERSION, type: CLIENT_MESSAGE_TYPES.CHAT, text });
+  const parsed = parseChatText(text);
+  if (!parsed.ok) {
+    return;
+  }
+
+  send(createChatMessage(parsed.value));
 }
 
 export function onceOpen(cb: () => void): void {
