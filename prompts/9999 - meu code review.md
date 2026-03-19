@@ -1,4 +1,5 @@
 - skills de phaser, skill de game, code review, skill da porra toda, etc.
+- diminuir mais ainda a densidade da wave da phase 3 do gelehk
 - no op functions (Chat.tsx)
 - zod para validação (protocol, e forms)
 - style={{...}} -> usar classes css ou tailwind.
