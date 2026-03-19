@@ -3,6 +3,7 @@ import {
   CLIENT_MESSAGE_TYPES,
   INSTANCE_IDS,
   PROTOCOL_VERSION,
+  SESSION_RESUME_REJECT_REASONS,
   SERVER_MESSAGE_TYPES,
 } from '@gelehka/shared';
 import {
@@ -18,6 +19,7 @@ import type { InstanceId } from '@gelehka/shared';
 import { SnapshotSystem } from '../game/systems/SnapshotSystem.js';
 import { validateClientMessage } from './MessageValidation.js';
 import { NetworkManager } from './NetworkManager.js';
+import { SessionManager } from './SessionManager.js';
 import { diffSnapshot, SnapshotState } from './SnapshotSerializer.js';
 import { getRequestIp, isAllowedWebSocketOrigin } from './requestPolicy.js';
 
@@ -51,8 +53,10 @@ function formatDateTime(): string {
 export class WebSocketHandler {
   private wss: WebSocketServer;
   readonly clients: Map<string, WebSocket> = new Map();
+  private instances: InstanceManager | null = null;
   private readonly networkManager: NetworkManager;
   private readonly snapshotSystem: SnapshotSystem;
+  private readonly sessionManager: SessionManager;
   private readonly previousSnapshots: Map<string, SnapshotState> = new Map();
   private readonly forceFullSnapshotFor: Set<string> = new Set();
   private readonly lastInstanceByPlayer: Map<string, string> = new Map();
@@ -71,9 +75,30 @@ export class WebSocketHandler {
     });
     this.networkManager = new NetworkManager();
     this.snapshotSystem = new SnapshotSystem();
+    this.sessionManager = new SessionManager({
+      onSessionExpired: (playerId) => {
+        const instances = this.instances;
+        if (!instances) {
+          return;
+        }
+
+        const nickname = instances.getPlayerById(playerId)?.nickname ?? 'Unknown';
+        instances.removePlayer(playerId);
+        this.previousSnapshots.delete(playerId);
+        this.forceFullSnapshotFor.delete(playerId);
+        this.lastInstanceByPlayer.delete(playerId);
+        this.blockedSendStreakByPlayer.delete(playerId);
+
+        console.log(
+          `[Game] Session expired: ${nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
+        );
+      },
+    });
   }
 
   start(instances: InstanceManager): void {
+    this.instances = instances;
+
     if (!this.heartbeatTimer) {
       this.heartbeatTimer = setInterval(() => {
         for (const ws of this.clients.values()) {
@@ -117,7 +142,7 @@ export class WebSocketHandler {
         return;
       }
 
-      const playerId = nanoid(12);
+      let playerId = nanoid(12);
       let hasJoined = false;
       let inputCount = 0;
       let chatCount = 0;
@@ -198,6 +223,7 @@ export class WebSocketHandler {
 
           if (validMessage.type === CLIENT_MESSAGE_TYPES.JOIN) {
             const nickname = validMessage.nickname;
+            const { token: sessionToken } = this.sessionManager.createSession(playerId, nickname);
 
             instances.addPlayer(playerId, nickname);
             hasJoined = true;
@@ -211,12 +237,74 @@ export class WebSocketHandler {
               protocolVersion: PROTOCOL_VERSION,
               type: SERVER_MESSAGE_TYPES.WELCOME,
               id: playerId,
+              sessionToken,
+              resumed: false,
               mapWidth: 0,
               mapHeight: 0,
             };
             if (!this.trySendToPlayer(playerId, ws, welcome, true)) {
               return;
             }
+            this.trySendToPlayer(
+              playerId,
+              ws,
+              this.buildLeaderboard(
+                instances,
+                instances.getInstanceForPlayer(playerId) ?? INSTANCE_IDS.PHASE1
+              )
+            );
+          } else if (validMessage.type === CLIENT_MESSAGE_TYPES.RESUME_SESSION) {
+            const resumeResult = this.sessionManager.tryResume(validMessage.sessionToken);
+            if (!resumeResult.ok) {
+              this.trySendToPlayer(playerId, ws, {
+                protocolVersion: PROTOCOL_VERSION,
+                type: SERVER_MESSAGE_TYPES.RESUME_REJECTED,
+                reason:
+                  resumeResult.reason === 'session_in_use'
+                    ? SESSION_RESUME_REJECT_REASONS.SESSION_IN_USE
+                    : SESSION_RESUME_REJECT_REASONS.INVALID_SESSION,
+              });
+              return;
+            }
+
+            const resumedPlayerId = resumeResult.session.playerId;
+            const resumedPlayer = instances.getPlayerById(resumedPlayerId);
+            if (!resumedPlayer) {
+              this.sessionManager.invalidatePlayer(resumedPlayerId);
+              this.trySendToPlayer(playerId, ws, {
+                protocolVersion: PROTOCOL_VERSION,
+                type: SERVER_MESSAGE_TYPES.RESUME_REJECTED,
+                reason: SESSION_RESUME_REJECT_REASONS.INVALID_SESSION,
+              });
+              return;
+            }
+
+            this.clearJoinTimeout(playerId);
+            this.rekeyConnection(playerId, resumedPlayerId, ws);
+            playerId = resumedPlayerId;
+            hasJoined = true;
+            this.previousSnapshots.delete(playerId);
+            this.forceFullSnapshotFor.add(playerId);
+            this.lastInstanceByPlayer.delete(playerId);
+            this.blockedSendStreakByPlayer.set(playerId, 0);
+
+            console.log(
+              `[Game] Player resumed: ${resumedPlayer.nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
+            );
+
+            const welcome: ServerMessage = {
+              protocolVersion: PROTOCOL_VERSION,
+              type: SERVER_MESSAGE_TYPES.WELCOME,
+              id: playerId,
+              sessionToken: resumeResult.session.token,
+              resumed: true,
+              mapWidth: 0,
+              mapHeight: 0,
+            };
+            if (!this.trySendToPlayer(playerId, ws, welcome, true)) {
+              return;
+            }
+
             this.trySendToPlayer(
               playerId,
               ws,
@@ -257,10 +345,11 @@ export class WebSocketHandler {
         this.blockedSendStreakByPlayer.delete(playerId);
         this.decrementIpConnectionCount(playerId);
         if (hasJoined) {
-          const nickname = instances.getPlayersInAnyWorld().get(playerId)?.nickname ?? 'Unknown';
-          instances.removePlayer(playerId);
+          const nickname = instances.getPlayerById(playerId)?.nickname ?? 'Unknown';
+          instances.suspendPlayer(playerId);
+          this.sessionManager.markDisconnected(playerId);
           console.log(
-            `[Game] Player disconnected: ${nickname} | ${formatDateTime()} | ${instances.getPlayersInAnyWorld().size} player(s) online`
+            `[Game] Player disconnected: ${nickname} | ${formatDateTime()} | session resumable`
           );
         }
       });
@@ -268,6 +357,36 @@ export class WebSocketHandler {
       ws.on('error', (error) => {
         console.error(`[WebSocket] Error on connection ${playerId}:`, error.message);
       });
+    });
+  }
+
+  stop(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+
+    for (const timeout of this.joinTimeoutByPlayer.values()) {
+      clearTimeout(timeout);
+    }
+    this.joinTimeoutByPlayer.clear();
+
+    this.sessionManager.shutdown();
+
+    for (const ws of this.clients.values()) {
+      ws.terminate();
+    }
+    this.clients.clear();
+    this.playerIpById.clear();
+    this.connectionsByIp.clear();
+    this.previousSnapshots.clear();
+    this.forceFullSnapshotFor.clear();
+    this.lastInstanceByPlayer.clear();
+    this.blockedSendStreakByPlayer.clear();
+    this.instances = null;
+
+    return new Promise((resolve) => {
+      this.wss.close(() => resolve());
     });
   }
 
@@ -365,6 +484,26 @@ export class WebSocketHandler {
     }
 
     this.playerIpById.delete(playerId);
+  }
+
+  private rekeyConnection(previousPlayerId: string, nextPlayerId: string, ws: WebSocket): void {
+    if (previousPlayerId === nextPlayerId) {
+      this.clients.set(nextPlayerId, ws);
+      return;
+    }
+
+    const ip = this.playerIpById.get(previousPlayerId);
+    const blockedStreak = this.blockedSendStreakByPlayer.get(previousPlayerId) ?? 0;
+
+    this.clients.delete(previousPlayerId);
+    this.playerIpById.delete(previousPlayerId);
+    this.blockedSendStreakByPlayer.delete(previousPlayerId);
+
+    this.clients.set(nextPlayerId, ws);
+    this.blockedSendStreakByPlayer.set(nextPlayerId, blockedStreak);
+    if (ip) {
+      this.playerIpById.set(nextPlayerId, ip);
+    }
   }
 
   private trySendToPlayer(

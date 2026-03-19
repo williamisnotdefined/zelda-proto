@@ -2,53 +2,81 @@ import type { ClientMessage, ServerMessage } from '@gelehka/shared';
 import {
   createChatMessage,
   createJoinMessage,
+  createResumeSessionMessage,
   parseChatText,
   parseNickname,
 } from '@gelehka/shared/protocol';
 import { ConnectionState, NetworkManager } from './NetworkManager';
 import type { NetworkPerformanceStats } from './NetworkManager';
-import { useGameStore } from '../ui/store';
+import {
+  clearStoredConnectionContext,
+  clearStoredSessionToken,
+  persistNickname,
+  persistSessionToken,
+  readStoredConnectionContext,
+} from './sessionContext';
 
 type MessageHandler = (msg: ServerMessage) => void;
 type ErrorHandler = (error: string) => void;
 type ConnectionStateHandler = (state: ConnectionState) => void;
 
 const networkManager = new NetworkManager();
-let desiredNickname: string | null = null;
+const storedConnectionContext = readStoredConnectionContext();
+let desiredNickname: string | null = storedConnectionContext.nickname;
+let sessionToken: string | null = storedConnectionContext.sessionToken;
 
 networkManager.onConnectionState((state) => {
-  useGameStore.getState().setConnectionState(state);
-  useGameStore.getState().setConnected(state === 'CONNECTED');
-  if (state === 'CONNECTING') {
-    useGameStore.getState().setLastConnectionAttempt(Date.now());
+  if (state !== 'CONNECTED') {
+    return;
   }
 
-  if (state !== 'CONNECTED' || !desiredNickname) {
+  if (sessionToken) {
+    networkManager.send(createResumeSessionMessage(sessionToken));
+    return;
+  }
+
+  if (!desiredNickname) {
     return;
   }
 
   networkManager.send(createJoinMessage(desiredNickname));
 });
 
-networkManager.onError((error) => {
-  useGameStore.getState().setConnectionError(error);
-});
-
 networkManager.onMessage((msg) => {
+  if (msg.type === 'resume_rejected') {
+    if (msg.reason === 'session_in_use') return;
+
+    sessionToken = null;
+    clearStoredSessionToken();
+
+    if (desiredNickname && getConnectionState() === 'CONNECTED') {
+      networkManager.send(createJoinMessage(desiredNickname));
+    }
+    return;
+  }
+
   if (msg.type !== 'welcome') {
     return;
   }
 
-  useGameStore.getState().setLocalPlayerId(msg.id);
-  useGameStore.getState().setConnectionError(null);
+  sessionToken = msg.sessionToken;
+  persistSessionToken(msg.sessionToken);
 });
 
 export function connect(): void {
   networkManager.connect();
 }
 
-export function send(msg: ClientMessage): void {
-  networkManager.send(msg);
+export function restoreConnectionIfNeeded(): void {
+  if (!desiredNickname && !sessionToken) {
+    return;
+  }
+
+  connect();
+}
+
+export function send(msg: ClientMessage): boolean {
+  return networkManager.send(msg);
 }
 
 export function sendJoin(nickname: string): void {
@@ -58,6 +86,9 @@ export function sendJoin(nickname: string): void {
   }
 
   desiredNickname = parsed.value;
+  sessionToken = null;
+  persistNickname(parsed.value);
+  clearStoredSessionToken();
 
   if (getConnectionState() === 'CONNECTED') {
     send(createJoinMessage(parsed.value));
@@ -99,5 +130,15 @@ export function getNetworkStats(): NetworkPerformanceStats {
 
 export function disconnect(): void {
   desiredNickname = null;
+  sessionToken = null;
+  clearStoredConnectionContext();
   networkManager.disconnect();
+}
+
+export function disposeConnection(): void {
+  networkManager.disconnect();
+}
+
+export function hasDesiredNickname(): boolean {
+  return desiredNickname !== null;
 }

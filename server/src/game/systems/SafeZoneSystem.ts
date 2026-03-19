@@ -1,6 +1,6 @@
-import { DragonLord } from '../../entities/DragonLord.js';
 import type { Blob } from '../../entities/Blob.js';
 import type { BossActorEntity } from '../World.js';
+import { getBossRuntimeDefinition } from '../registries/bossRegistry.js';
 
 export interface SafeZoneArea {
   x: number;
@@ -59,9 +59,7 @@ export class SafeZoneSystem {
       if (boss.state === 'dead') continue;
       if (!this.pushPointOutsideSafeZone(boss, safeZone, pushDistance)) continue;
 
-      if (boss instanceof DragonLord) {
-        boss.targetPlayerId = null;
-      }
+      getBossRuntimeDefinition(boss.kind).onSafeZoneExpel?.(boss);
       boss.state = 'idle';
     }
   }

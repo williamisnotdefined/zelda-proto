@@ -1,5 +1,5 @@
 import type { InputMessage, PlayerSnapshot } from '@gelehka/shared';
-import { getDeltaForInput } from './movement';
+import { getDeltaForInput } from './movement.js';
 
 export interface PendingInput {
   input: InputMessage;

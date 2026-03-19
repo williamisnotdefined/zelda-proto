@@ -1,4 +1,10 @@
-import { MAX_CHAT_LENGTH, MAX_NICKNAME_LENGTH, MIN_NICKNAME_LENGTH } from './constants';
+import {
+  MAX_CHAT_LENGTH,
+  MAX_NICKNAME_LENGTH,
+  MAX_SESSION_TOKEN_LENGTH,
+  MIN_NICKNAME_LENGTH,
+  MIN_SESSION_TOKEN_LENGTH,
+} from './constants.js';
 import {
   CLIENT_MESSAGE_TYPES,
   INSTANCE_IDS,
@@ -9,14 +15,17 @@ import {
   type InputMessage,
   type InstanceId,
   type JoinMessage,
+  type ResumeSessionMessage,
   type SnapshotResyncReason,
   type SnapshotResyncRequestMessage,
-} from './types';
+} from './types.js';
 
 const NICKNAME_PATTERN = /^[A-Za-z0-9 ]+$/;
+const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type NicknameValidationReason = 'too_short' | 'too_long' | 'invalid_characters';
 export type ChatTextValidationReason = 'empty' | 'too_long' | 'invalid_characters';
+export type SessionTokenValidationReason = 'too_short' | 'too_long' | 'invalid_characters';
 export type ClientMessageParseFailureReason = 'invalid_message' | 'protocol_mismatch';
 
 export type ParseResult<T, R extends string> = { ok: true; value: T } | { ok: false; reason: R };
@@ -101,6 +110,34 @@ export function createJoinMessage(nickname: string): JoinMessage {
   };
 }
 
+export function parseSessionToken(
+  value: string
+): ParseResult<string, SessionTokenValidationReason> {
+  const normalized = value.trim();
+
+  if (normalized.length < MIN_SESSION_TOKEN_LENGTH) {
+    return { ok: false, reason: 'too_short' };
+  }
+
+  if (normalized.length > MAX_SESSION_TOKEN_LENGTH) {
+    return { ok: false, reason: 'too_long' };
+  }
+
+  if (!SESSION_TOKEN_PATTERN.test(normalized)) {
+    return { ok: false, reason: 'invalid_characters' };
+  }
+
+  return { ok: true, value: normalized };
+}
+
+export function createResumeSessionMessage(sessionToken: string): ResumeSessionMessage {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+    sessionToken,
+  };
+}
+
 export function createChatMessage(text: string): ClientChatMessage {
   return {
     protocolVersion: PROTOCOL_VERSION,
@@ -160,6 +197,19 @@ export function parseClientMessage(
     }
 
     return { ok: true, value: createJoinMessage(nickname.value) };
+  }
+
+  if (raw.type === CLIENT_MESSAGE_TYPES.RESUME_SESSION) {
+    if (typeof raw.sessionToken !== 'string') {
+      return { ok: false, reason: 'invalid_message' };
+    }
+
+    const sessionToken = parseSessionToken(raw.sessionToken);
+    if (!sessionToken.ok) {
+      return { ok: false, reason: 'invalid_message' };
+    }
+
+    return { ok: true, value: createResumeSessionMessage(sessionToken.value) };
   }
 
   if (raw.type === CLIENT_MESSAGE_TYPES.CHAT) {

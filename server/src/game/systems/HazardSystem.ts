@@ -4,15 +4,12 @@ import { nanoid } from 'nanoid';
 import { BLOB_DAMAGE } from '../../entities/Blob.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from '../../entities/Player.js';
 import type { Hazard } from '../World.js';
+import { getHazardRuntimeDefinition } from '../registries/hazardRegistry.js';
 import type { SafeZoneArea } from './SafeZoneSystem.js';
 
-const FIRE_FIELD_DURATION_MS = 1800;
 const FIRE_FIELD_SEGMENTS = 7;
 const FIRE_FIELD_SPACING = 36;
 const FIRE_FIELD_SEGMENT_INTERVAL_MS = 40;
-const FIRE_FIELD_HIT_RADIUS = 18;
-const PURPLE_FIELD_DURATION_MS = 3000;
-const PURPLE_FIELD_HIT_RADIUS = 18;
 const PURPLE_FIELD_BLAST_RADIUS = 80;
 const PURPLE_FIELD_TILE_STEP = 34;
 const PLAYER_HALF_DIAGONAL = Math.hypot(PLAYER_WIDTH / 2, PLAYER_HEIGHT / 2);
@@ -38,6 +35,8 @@ export class HazardSystem {
   private pendingFireFieldLines: PendingFireFieldLine[] = [];
 
   spawnPurpleField(hazards: Map<string, Hazard>, x: number, y: number): void {
+    const definition = getHazardRuntimeDefinition(HAZARD_KINDS.PURPLE_FIELD);
+
     for (
       let offsetY = -PURPLE_FIELD_BLAST_RADIUS;
       offsetY <= PURPLE_FIELD_BLAST_RADIUS;
@@ -50,15 +49,15 @@ export class HazardSystem {
       ) {
         const distSq = offsetX * offsetX + offsetY * offsetY;
         if (distSq > PURPLE_FIELD_BLAST_RADIUS * PURPLE_FIELD_BLAST_RADIUS) continue;
-        const id = `hazard_purple_${nanoid(8)}`;
+        const id = `${definition.idPrefix}_${nanoid(8)}`;
         hazards.set(id, {
           id,
           x: x + offsetX,
           y: y + offsetY,
           kind: HAZARD_KINDS.PURPLE_FIELD,
-          ttlMs: PURPLE_FIELD_DURATION_MS,
+          ttlMs: definition.ttlMs,
           damage: BLOB_DAMAGE,
-          burningTicks: 3,
+          burningTicks: definition.burningTicks,
           hitPlayerIds: new Set<string>(),
         });
       }
@@ -112,23 +111,18 @@ export class HazardSystem {
     kind: HazardKind,
     segmentIndex: number
   ): void {
+    const definition = getHazardRuntimeDefinition(kind);
     const hx = x + dirX * FIRE_FIELD_SPACING * segmentIndex;
     const hy = y + dirY * FIRE_FIELD_SPACING * segmentIndex;
-    const idPrefix =
-      kind === HAZARD_KINDS.PURPLE_FIELD
-        ? 'hazard_purple'
-        : kind === HAZARD_KINDS.BLUE_FLAME
-          ? 'hazard_blue'
-          : 'hazard_fire';
-    const id = `${idPrefix}_${nanoid(8)}`;
+    const id = `${definition.idPrefix}_${nanoid(8)}`;
     hazards.set(id, {
       id,
       x: hx,
       y: hy,
       kind,
-      ttlMs: FIRE_FIELD_DURATION_MS,
+      ttlMs: definition.ttlMs,
       damage: BLOB_DAMAGE,
-      burningTicks: 3,
+      burningTicks: definition.burningTicks,
       hitPlayerIds: new Set<string>(),
     });
   }
@@ -179,10 +173,9 @@ export class HazardSystem {
     const purpleHitThisTick = new Set<string>();
 
     for (const hazard of hazards.values()) {
-      const hitRadius =
-        hazard.kind === HAZARD_KINDS.PURPLE_FIELD ? PURPLE_FIELD_HIT_RADIUS : FIRE_FIELD_HIT_RADIUS;
-      const queryRadius = hitRadius + PLAYER_HALF_DIAGONAL;
-      const hitRadiusSq = hitRadius * hitRadius;
+      const definition = getHazardRuntimeDefinition(hazard.kind);
+      const queryRadius = definition.hitRadius + PLAYER_HALF_DIAGONAL;
+      const hitRadiusSq = definition.hitRadius * definition.hitRadius;
       forEachPlayerInRadius(hazard.x, hazard.y, queryRadius, (player) => {
         if (player.state === 'dead') return;
         if (!players.has(player.id)) return;
@@ -197,13 +190,9 @@ export class HazardSystem {
         if (dx * dx + dy * dy <= hitRadiusSq) {
           player.takeDamage(hazard.damage);
           if (hazard.kind === HAZARD_KINDS.PURPLE_FIELD) {
-            player.applyPurpleBurning(hazard.burningTicks);
             purpleHitThisTick.add(player.id);
-          } else if (hazard.kind === HAZARD_KINDS.BLUE_FLAME) {
-            player.applyBlueBurning(hazard.burningTicks);
-          } else {
-            player.applyBurning(hazard.burningTicks);
           }
+          definition.apply(player);
           hazard.hitPlayerIds.add(player.id);
         }
       });

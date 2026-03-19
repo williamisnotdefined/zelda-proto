@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MAX_NICKNAME_LENGTH } from '@gelehka/shared/constants';
 import { parseNickname, type NicknameValidationReason } from '@gelehka/shared/protocol';
-import { connect, sendJoin } from '../network/socket';
+import { gameConnection } from '../network/gameConnection';
 import { useGameStore } from './store';
 
 export function NicknameModal() {
@@ -35,8 +35,8 @@ export function NicknameModal() {
 
     setNickname(parsed.value);
     hideNicknameModal();
-    sendJoin(parsed.value);
-    connect();
+    gameConnection.sendJoin(parsed.value);
+    gameConnection.connect();
   };
 
   return (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
-import { connect } from '../network/socket';
+import { gameConnection } from '../network/gameConnection';
 import {
   confirmPwaUpdate,
   dismissPwaUpdatePrompt,
@@ -19,6 +19,7 @@ export function HUD() {
   const playerCount = useGameStore((s) => s.playerCount);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
+  const setConnectionError = useGameStore((s) => s.setConnectionError);
   const touchEnabled = useTouchInputStore((s) => s.enabled);
   const [musicMuted, setMusicMuted] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
@@ -66,8 +67,8 @@ export function HUD() {
   }, []);
 
   const handleRetry = () => {
-    useGameStore.getState().setConnectionError(null);
-    connect();
+    setConnectionError(null);
+    gameConnection.connect();
   };
 
   const toggleMusicMute = () => {

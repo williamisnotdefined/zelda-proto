@@ -70,7 +70,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 3 as const;
+export const PROTOCOL_VERSION = 4 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -82,6 +82,7 @@ export const SERVER_MESSAGE_TYPES = {
   SNAPSHOT: 'snapshot',
   SNAPSHOT_DELTA: 'snapshot_delta',
   WELCOME: 'welcome',
+  RESUME_REJECTED: 'resume_rejected',
   CHAT: 'chat',
   LEADERBOARD: 'leaderboard',
 } as const;
@@ -89,9 +90,18 @@ export const SERVER_MESSAGE_TYPES = {
 export const CLIENT_MESSAGE_TYPES = {
   INPUT: 'input',
   JOIN: 'join',
+  RESUME_SESSION: 'resume_session',
   CHAT: 'chat',
   SNAPSHOT_RESYNC: 'snapshot_resync',
 } as const;
+
+export const SESSION_RESUME_REJECT_REASONS = {
+  INVALID_SESSION: 'invalid_session',
+  SESSION_IN_USE: 'session_in_use',
+} as const;
+
+export type SessionResumeRejectReason =
+  (typeof SESSION_RESUME_REJECT_REASONS)[keyof typeof SESSION_RESUME_REJECT_REASONS];
 
 export const SNAPSHOT_RESYNC_REASONS = {
   MISSING_BASE: 'missing_base',
@@ -253,8 +263,15 @@ export interface SnapshotMessage extends ProtocolEnvelope, SnapshotWorldState {
 export interface WelcomeMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.WELCOME;
   id: string;
+  sessionToken: string;
+  resumed: boolean;
   mapWidth: number;
   mapHeight: number;
+}
+
+export interface ResumeRejectedMessage extends ProtocolEnvelope {
+  type: typeof SERVER_MESSAGE_TYPES.RESUME_REJECTED;
+  reason: SessionResumeRejectReason;
 }
 
 export interface ServerChatMessage extends ProtocolEnvelope {
@@ -308,6 +325,7 @@ export type ServerMessage =
   | SnapshotDeltaMessage
   | LeaderboardMessage
   | WelcomeMessage
+  | ResumeRejectedMessage
   | ServerChatMessage;
 
 export interface InputMessage {
@@ -327,6 +345,12 @@ export interface JoinMessage {
   nickname: string;
 }
 
+export interface ResumeSessionMessage {
+  protocolVersion: ProtocolVersion;
+  type: typeof CLIENT_MESSAGE_TYPES.RESUME_SESSION;
+  sessionToken: string;
+}
+
 export interface ClientChatMessage {
   protocolVersion: ProtocolVersion;
   type: typeof CLIENT_MESSAGE_TYPES.CHAT;
@@ -344,5 +368,6 @@ export interface SnapshotResyncRequestMessage {
 export type ClientMessage =
   | InputMessage
   | JoinMessage
+  | ResumeSessionMessage
   | ClientChatMessage
   | SnapshotResyncRequestMessage;

@@ -1,63 +1,33 @@
-import { WORLD_SPAWN_X, WORLD_SPAWN_Y } from '@gelehka/shared/constants';
-import {
-  BOSS_KINDS,
-  DROP_KINDS,
-  INSTANCE_IDS,
-  PACMAN_GHOST_VARIANTS,
-  PORTAL_KINDS,
-} from '@gelehka/shared';
+import { BOSS_KINDS, ENEMY_KINDS, INSTANCE_IDS, PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
 import type { InstanceId, PacmanGhostVariant } from '@gelehka/shared';
 import { nanoid } from 'nanoid';
-import { BLOB_CONFIG, Blob } from '../entities/Blob.js';
-import { BossGelehk } from '../entities/BossGelehk.js';
-import { DragonLord } from '../entities/DragonLord.js';
-import { Hand } from '../entities/Hand.js';
-import { PacmanGhost } from '../entities/PacmanGhost.js';
-import { Phase3Boss } from '../entities/Phase3Boss.js';
-import { Slime } from '../entities/Slime.js';
 import { Player } from '../entities/Player.js';
 import type { InputMessage } from '../network/MessageTypes.js';
 import { World } from './World.js';
 import type { BossActorEntity } from './World.js';
+import { getBossRuntimeDefinition } from './registries/bossRegistry.js';
+import { getEnemyRuntimeDefinition } from './registries/enemyRegistry.js';
+import {
+  INSTANCE_RUNTIME_DEFINITIONS,
+  ORDERED_INSTANCE_IDS,
+  PHASE2_DRAGON_NEARBY_RADIUS,
+  PHASE2_MIN_NEARBY_SLIMES,
+  PHASE2_NEARBY_RADIUS,
+  PHASE2_STARTER_SLIMES,
+  PHASE3_ENTRY_BOSS_SPAWN_DEFS,
+  PHASE4_MIN_NEARBY_PACMAN_GHOSTS,
+  PHASE4_NEARBY_RADIUS,
+  PHASE4_STARTER_PACMAN_GHOSTS,
+  PHASE_SPAWN_POSITIONS,
+} from './registries/instanceRegistry.js';
 import { BossRegionSystem } from './systems/BossRegionSystem.js';
 import { SpawnSystem } from './systems/SpawnSystem.js';
 
-const PHASE1_PORTAL_DURATION_MS = 30000;
-const PHASE2_NEARBY_RADIUS = 900;
-const PHASE2_MIN_NEARBY_SLIMES = 4;
-const PHASE2_STARTER_SLIMES = 8;
-const PHASE2_DRAGON_NEARBY_RADIUS = 1800;
-const PHASE4_NEARBY_RADIUS = 900;
-const PHASE4_MIN_NEARBY_PACMAN_GHOSTS = 12;
-const PHASE4_STARTER_PACMAN_GHOSTS = 14;
-const PHASE4_ENEMIES_PER_CHUNK = 7;
-const PHASE3_RETURN_PORTAL_OFFSET_X = 240;
-const PHASE4_RETURN_PORTAL_OFFSET_X = 240;
 const PACMAN_GHOST_VARIANT_ORDER = [
   PACMAN_GHOST_VARIANTS.RED,
   PACMAN_GHOST_VARIANTS.BLUE,
   PACMAN_GHOST_VARIANTS.ORANGE,
   PACMAN_GHOST_VARIANTS.PINK,
-] as const;
-const PHASE3_ENTRY_BOSS_SPAWN_DEFS = [
-  {
-    id: 'phase3_boss_silverback_entry',
-    kind: BOSS_KINDS.SILVERBACK_WAINER,
-    offsetX: 120,
-    offsetY: -90,
-  },
-  {
-    id: 'phase3_boss_slim_entry',
-    kind: BOSS_KINDS.SLIM_MAIOLI,
-    offsetX: 160,
-    offsetY: 120,
-  },
-  {
-    id: 'phase3_boss_frankly_entry',
-    kind: BOSS_KINDS.FRANKLY_STEIN,
-    offsetX: -120,
-    offsetY: 30,
-  },
 ] as const;
 const DEV_START_PHASE_ENV = 'DEV_START_PHASE';
 const DEV_STRESS_ENEMIES_PER_CHUNK_ENV = 'DEV_STRESS_ENEMIES_PER_CHUNK';
@@ -98,6 +68,13 @@ function selectPacmanGhostVariant(seed: string): PacmanGhostVariant {
   return PACMAN_GHOST_VARIANT_ORDER[(hash >>> 0) % PACMAN_GHOST_VARIANT_ORDER.length];
 }
 
+function hasSpawnPoint(entity: BossActorEntity): entity is BossActorEntity & {
+  spawnX: number;
+  spawnY: number;
+} {
+  return 'spawnX' in entity && 'spawnY' in entity;
+}
+
 export class InstanceManager {
   readonly phase1World: World;
   readonly phase2World: World;
@@ -111,7 +88,7 @@ export class InstanceManager {
   private readonly phase4SpawnY: number;
   private readonly initialInstanceId: InstanceId;
   private readonly worldsByInstance: Record<InstanceId, World>;
-
+  private readonly orderedWorlds: World[];
   private readonly playerInstances: Map<string, InstanceId>;
 
   constructor() {
@@ -121,239 +98,40 @@ export class InstanceManager {
       1,
       400
     );
-    this.phase2SpawnX = WORLD_SPAWN_X + 180;
-    this.phase2SpawnY = WORLD_SPAWN_Y;
-    this.phase3SpawnX = WORLD_SPAWN_X + 360;
-    this.phase3SpawnY = WORLD_SPAWN_Y;
-    this.phase4SpawnX = WORLD_SPAWN_X + 540;
-    this.phase4SpawnY = WORLD_SPAWN_Y;
 
-    const phase1SpawnSystem = new SpawnSystem({
-      enemyPrefix: 'blob',
-      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
-      createEnemy: (id, x, y, chunkKey) =>
-        new Blob(id, x, y, chunkKey, BLOB_CONFIG, DROP_KINDS.HEART_SMALL),
-    });
-
-    const phase2SpawnSystem = new SpawnSystem({
-      enemyPrefix: 'slime',
-      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
-      createEnemy: (id, x, y, chunkKey) => new Slime(id, x, y, chunkKey),
-    });
-
-    const phase3SpawnSystem = new SpawnSystem({
-      enemyPrefix: 'hand',
-      ...(stressEnemiesPerChunk > 0 ? { enemiesPerChunk: stressEnemiesPerChunk } : {}),
-      createEnemy: (id, x, y, chunkKey) => new Hand(id, x, y, chunkKey),
-    });
-
-    const phase4SpawnSystem = new SpawnSystem({
-      enemyPrefix: 'pacman_ghost',
-      enemiesPerChunk: stressEnemiesPerChunk || PHASE4_ENEMIES_PER_CHUNK,
-      createEnemy: (id, x, y, chunkKey) =>
-        new PacmanGhost(id, x, y, chunkKey, selectPacmanGhostVariant(id)),
-    });
-
-    const phase1BossSystem = new BossRegionSystem<BossActorEntity>({
-      regionSize: 2000,
-      activeRange: 2000,
-      despawnTimeMs: 60000,
-      keyPrefix: 'gelehk_region',
-      bossPrefix: 'gelehk',
-      createBoss: (id, x, y) => new BossGelehk(id, x, y),
-      updateBoss: (boss, ctx) => {
-        if (boss instanceof BossGelehk) {
-          boss.update(
-            ctx.dt,
-            ctx.players,
-            (x: number, y: number, _count: number) => {
-              ctx.spawnMinions(x, y);
-            },
-            (x: number, y: number) => {
-              ctx.spawnPurpleField(x, y);
-            },
-            ctx.safeZone,
-            ctx.findNearestPlayerInRadius,
-            ctx.forEachPlayerInRadius
-          );
-        }
-      },
-    });
-
-    const phase2BossSystem = new BossRegionSystem<BossActorEntity>({
-      regionSize: 2600,
-      activeRange: 2200,
-      despawnTimeMs: 60000,
-      keyPrefix: 'dragon_region',
-      bossPrefix: 'dragon_lord',
-      createBoss: (id, x, y) => new DragonLord(id, x, y),
-      updateBoss: (boss, ctx) => {
-        if (boss instanceof DragonLord) {
-          boss.update(
-            ctx.dt,
-            ctx.players,
-            (x: number, y: number, dirX: number, dirY: number) => {
-              ctx.spawnFireLine(x, y, dirX, dirY);
-            },
-            ctx.findNearestPlayerInRadius
-          );
-        }
-      },
-    });
-
-    const phase3BossSystem = new BossRegionSystem<BossActorEntity>({
-      enableRegionSpawns: false,
-      regionSize: 2600,
-      activeRange: 2200,
-      despawnTimeMs: 60000,
-      keyPrefix: 'phase3_boss_region',
-      bossPrefix: 'phase3_boss',
-      createBoss: (id, x, y) => new Phase3Boss(id, x, y, BOSS_KINDS.SILVERBACK_WAINER),
-      updateBoss: (boss, ctx) => {
-        if (boss instanceof Phase3Boss) {
-          boss.update(
-            ctx.dt,
-            ctx.players,
-            (x: number, y: number, dirX: number, dirY: number) => {
-              ctx.spawnFireLine(x, y, dirX, dirY, boss.flameKind);
-            },
-            ctx.findNearestPlayerInRadius
-          );
-        }
-      },
-    });
-
-    const phase4BossSystem = new BossRegionSystem<BossActorEntity>({
-      enableRegionSpawns: false,
-      regionSize: 2600,
-      activeRange: 2200,
-      despawnTimeMs: 60000,
-      keyPrefix: 'phase4_boss_region',
-      bossPrefix: 'phase4_boss',
-      createBoss: () => {
-        throw new Error('Phase4 boss spawning is disabled');
-      },
-      updateBoss: () => {},
-    });
-
-    this.phase1World = new World({
-      instanceId: INSTANCE_IDS.PHASE1,
-      spawnX: WORLD_SPAWN_X,
-      spawnY: WORLD_SPAWN_Y,
-      enemyCollection: 'blobs',
-      spawnSystem: phase1SpawnSystem,
-      bossRegionSystem: phase1BossSystem,
-      onBossDeathPortal: {
-        kind: PORTAL_KINDS.PHASE1_TO_PHASE2,
-        sourceBossKinds: [BOSS_KINDS.GELEHK],
-        toInstanceId: INSTANCE_IDS.PHASE2,
-        targetX: this.phase2SpawnX,
-        targetY: this.phase2SpawnY,
-        activationDelayMs: 500,
-        durationMs: PHASE1_PORTAL_DURATION_MS,
-      },
-    });
-
-    this.phase2World = new World({
-      instanceId: INSTANCE_IDS.PHASE2,
-      spawnX: this.phase2SpawnX,
-      spawnY: this.phase2SpawnY,
-      enemyCollection: 'slimes',
-      spawnSystem: phase2SpawnSystem,
-      bossRegionSystem: phase2BossSystem,
-      onBossDeathPortal: {
-        kind: PORTAL_KINDS.PHASE2_TO_PHASE3,
-        sourceBossKinds: [BOSS_KINDS.DRAGON_LORD],
-        toInstanceId: INSTANCE_IDS.PHASE3,
-        targetX: this.phase3SpawnX,
-        targetY: this.phase3SpawnY,
-        activationDelayMs: 500,
-        durationMs: PHASE1_PORTAL_DURATION_MS,
-      },
-      initialPortals: [
-        {
-          kind: PORTAL_KINDS.PHASE2_TO_PHASE1,
-          x: WORLD_SPAWN_X,
-          y: WORLD_SPAWN_Y,
-          toInstanceId: INSTANCE_IDS.PHASE1,
-          targetX: WORLD_SPAWN_X,
-          targetY: WORLD_SPAWN_Y,
-        },
-      ],
-    });
-
-    this.phase3World = new World({
-      instanceId: INSTANCE_IDS.PHASE3,
-      spawnX: this.phase3SpawnX,
-      spawnY: this.phase3SpawnY,
-      enemyCollection: 'hands',
-      spawnSystem: phase3SpawnSystem,
-      bossRegionSystem: phase3BossSystem,
-      onBossDeathPortal: {
-        kind: PORTAL_KINDS.PHASE3_TO_PHASE4,
-        sourceBossKinds: [
-          BOSS_KINDS.SILVERBACK_WAINER,
-          BOSS_KINDS.SLIM_MAIOLI,
-          BOSS_KINDS.FRANKLY_STEIN,
-        ],
-        toInstanceId: INSTANCE_IDS.PHASE4,
-        targetX: this.phase4SpawnX,
-        targetY: this.phase4SpawnY,
-        activationDelayMs: 500,
-        durationMs: PHASE1_PORTAL_DURATION_MS,
-      },
-      initialPortals: [
-        {
-          kind: PORTAL_KINDS.PHASE3_TO_PHASE2,
-          x: this.phase3SpawnX + PHASE3_RETURN_PORTAL_OFFSET_X,
-          y: this.phase3SpawnY,
-          toInstanceId: INSTANCE_IDS.PHASE2,
-          targetX: this.phase2SpawnX,
-          targetY: this.phase2SpawnY,
-        },
-      ],
-    });
-
-    this.phase4World = new World({
-      instanceId: INSTANCE_IDS.PHASE4,
-      spawnX: this.phase4SpawnX,
-      spawnY: this.phase4SpawnY,
-      enemyCollection: 'pacmanGhosts',
-      spawnSystem: phase4SpawnSystem,
-      bossRegionSystem: phase4BossSystem,
-      initialPortals: [
-        {
-          kind: PORTAL_KINDS.PHASE4_TO_PHASE3,
-          x: this.phase4SpawnX + PHASE4_RETURN_PORTAL_OFFSET_X,
-          y: this.phase4SpawnY,
-          toInstanceId: INSTANCE_IDS.PHASE3,
-          targetX: this.phase3SpawnX,
-          targetY: this.phase3SpawnY,
-        },
-      ],
-    });
+    this.phase2SpawnX = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE2].x;
+    this.phase2SpawnY = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE2].y;
+    this.phase3SpawnX = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE3].x;
+    this.phase3SpawnY = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE3].y;
+    this.phase4SpawnX = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE4].x;
+    this.phase4SpawnY = PHASE_SPAWN_POSITIONS[INSTANCE_IDS.PHASE4].y;
 
     this.worldsByInstance = {
-      [INSTANCE_IDS.PHASE1]: this.phase1World,
-      [INSTANCE_IDS.PHASE2]: this.phase2World,
-      [INSTANCE_IDS.PHASE3]: this.phase3World,
-      [INSTANCE_IDS.PHASE4]: this.phase4World,
+      [INSTANCE_IDS.PHASE1]: this.createWorld(INSTANCE_IDS.PHASE1, stressEnemiesPerChunk),
+      [INSTANCE_IDS.PHASE2]: this.createWorld(INSTANCE_IDS.PHASE2, stressEnemiesPerChunk),
+      [INSTANCE_IDS.PHASE3]: this.createWorld(INSTANCE_IDS.PHASE3, stressEnemiesPerChunk),
+      [INSTANCE_IDS.PHASE4]: this.createWorld(INSTANCE_IDS.PHASE4, stressEnemiesPerChunk),
     };
+    this.phase1World = this.worldsByInstance[INSTANCE_IDS.PHASE1];
+    this.phase2World = this.worldsByInstance[INSTANCE_IDS.PHASE2];
+    this.phase3World = this.worldsByInstance[INSTANCE_IDS.PHASE3];
+    this.phase4World = this.worldsByInstance[INSTANCE_IDS.PHASE4];
+    this.orderedWorlds = ORDERED_INSTANCE_IDS.map(
+      (instanceId) => this.worldsByInstance[instanceId]
+    );
 
     this.seedPhase2StarterContent();
     this.ensurePhase3BossesNear(this.phase3SpawnX, this.phase3SpawnY);
     this.seedPhase4StarterContent();
 
     this.initialInstanceId = this.resolveInitialInstanceId();
-
     this.playerInstances = new Map();
   }
 
   update(dt: number): void {
-    this.phase1World.update(dt);
-    this.phase2World.update(dt);
-    this.phase3World.update(dt);
-    this.phase4World.update(dt);
+    for (const world of this.orderedWorlds) {
+      world.update(dt);
+    }
     this.resolveTransfers();
   }
 
@@ -369,6 +147,15 @@ export class InstanceManager {
     this.playerInstances.delete(id);
   }
 
+  suspendPlayer(id: string): void {
+    const player = this.getPlayerById(id);
+    if (!player) {
+      return;
+    }
+
+    player.suspendForDisconnect();
+  }
+
   handleInput(playerId: string, input: InputMessage): void {
     const instanceId = this.playerInstances.get(playerId);
     if (!instanceId) return;
@@ -382,7 +169,7 @@ export class InstanceManager {
   }
 
   getAllWorlds(): World[] {
-    return Object.values(this.worldsByInstance);
+    return this.orderedWorlds;
   }
 
   getInstanceForPlayer(playerId: string): InstanceId | null {
@@ -403,17 +190,86 @@ export class InstanceManager {
     return out;
   }
 
+  getPlayerById(playerId: string): Player | null {
+    const instanceId = this.playerInstances.get(playerId);
+    if (!instanceId) {
+      return null;
+    }
+
+    return this.getWorld(instanceId).players.get(playerId) ?? null;
+  }
+
+  private createWorld(instanceId: InstanceId, stressEnemiesPerChunk: number): World {
+    const definition = INSTANCE_RUNTIME_DEFINITIONS[instanceId];
+
+    return new World({
+      instanceId: definition.instanceId,
+      spawnX: definition.spawnX,
+      spawnY: definition.spawnY,
+      primaryEnemyKind: definition.primaryEnemyKind,
+      spawnSystem: this.createSpawnSystem(instanceId, stressEnemiesPerChunk),
+      bossRegionSystem: this.createBossRegionSystem(instanceId),
+      onBossDeathPortal: definition.onBossDeathPortal,
+      initialPortals: definition.initialPortals,
+    });
+  }
+
+  private createSpawnSystem(instanceId: InstanceId, stressEnemiesPerChunk: number): SpawnSystem {
+    const definition = INSTANCE_RUNTIME_DEFINITIONS[instanceId];
+    const enemyDefinition = getEnemyRuntimeDefinition(definition.primaryEnemyKind);
+    const enemiesPerChunk =
+      stressEnemiesPerChunk > 0 ? stressEnemiesPerChunk : definition.spawnSystem.enemiesPerChunk;
+
+    return new SpawnSystem({
+      ...definition.spawnSystem,
+      enemyPrefix: enemyDefinition.enemyPrefix,
+      ...(enemiesPerChunk !== undefined ? { enemiesPerChunk } : {}),
+      createEnemy: (id, x, y, chunkKey) =>
+        enemyDefinition.create(
+          id,
+          x,
+          y,
+          chunkKey,
+          definition.primaryEnemyKind === ENEMY_KINDS.PACMAN_GHOST
+            ? { variant: selectPacmanGhostVariant(id) }
+            : undefined
+        ),
+    });
+  }
+
+  private createBossRegionSystem(instanceId: InstanceId): BossRegionSystem<BossActorEntity> {
+    const definition = INSTANCE_RUNTIME_DEFINITIONS[instanceId];
+    const bossRegion = definition.bossRegion;
+    const spawnDefinition = getBossRuntimeDefinition(bossRegion.spawnKind);
+    const spawningDisabled =
+      bossRegion.enableRegionSpawns === false && definition.instanceId === INSTANCE_IDS.PHASE4;
+
+    return new BossRegionSystem<BossActorEntity>({
+      enableRegionSpawns: bossRegion.enableRegionSpawns,
+      regionSize: bossRegion.regionSize,
+      activeRange: bossRegion.activeRange,
+      despawnTimeMs: bossRegion.despawnTimeMs,
+      keyPrefix: bossRegion.keyPrefix,
+      bossPrefix: bossRegion.bossPrefix,
+      createBoss: spawningDisabled
+        ? () => {
+            throw new Error('Phase4 boss spawning is disabled');
+          }
+        : (id, x, y) => spawnDefinition.create(id, x, y),
+      updateBoss: spawningDisabled
+        ? () => {
+            return;
+          }
+        : (boss, context) => {
+            getBossRuntimeDefinition(boss.kind).update(boss, context);
+          },
+    });
+  }
+
   private resolveTransfers(): void {
-    const phase1Transfers = this.phase1World.consumeTransferRequests();
-    const phase2Transfers = this.phase2World.consumeTransferRequests();
-    const phase3Transfers = this.phase3World.consumeTransferRequests();
-    const phase4Transfers = this.phase4World.consumeTransferRequests();
-    for (const transfer of [
-      ...phase1Transfers,
-      ...phase2Transfers,
-      ...phase3Transfers,
-      ...phase4Transfers,
-    ]) {
+    const transfers = this.orderedWorlds.flatMap((world) => world.consumeTransferRequests());
+
+    for (const transfer of transfers) {
       this.transferPlayer(
         transfer.playerId,
         transfer.toInstanceId,
@@ -497,8 +353,11 @@ export class InstanceManager {
   }
 
   private ensurePhase2PopulationNear(x: number, y: number): void {
+    const slimeStore = this.phase2World.getEnemyStore(ENEMY_KINDS.SLIME);
+    const slimeDefinition = getEnemyRuntimeDefinition(ENEMY_KINDS.SLIME);
     let nearbySlimes = 0;
-    for (const slime of this.phase2World.slimes.values()) {
+
+    for (const slime of slimeStore.values()) {
       if (slime.state === 'dead') continue;
       const dx = slime.x - x;
       const dy = slime.y - y;
@@ -514,15 +373,15 @@ export class InstanceManager {
         const radius = 250 + (i % 3) * 90;
         const sx = x + Math.cos(angle) * radius;
         const sy = y + Math.sin(angle) * radius;
-        const slime = new Slime(id, sx, sy, 'phase2_seed', DROP_KINDS.HEART_LARGE);
-        this.phase2World.slimes.set(id, slime);
+        const slime = slimeDefinition.create(id, sx, sy, 'phase2_seed');
+        slimeStore.set(id, slime);
         this.phase2World.add(slime);
       }
     }
 
     let nearbyDragon = false;
     for (const boss of this.phase2World.bosses.values()) {
-      if (!(boss instanceof DragonLord)) continue;
+      if (boss.kind !== BOSS_KINDS.DRAGON_LORD) continue;
       const dx = boss.x - x;
       const dy = boss.y - y;
       if (dx * dx + dy * dy <= PHASE2_DRAGON_NEARBY_RADIUS * PHASE2_DRAGON_NEARBY_RADIUS) {
@@ -533,7 +392,11 @@ export class InstanceManager {
 
     if (!nearbyDragon) {
       const bossId = `dragon_seed_${nanoid(8)}`;
-      const dragon = new DragonLord(bossId, x + 520, y + 160);
+      const dragon = getBossRuntimeDefinition(BOSS_KINDS.DRAGON_LORD).create(
+        bossId,
+        x + 520,
+        y + 160
+      );
       this.phase2World.bosses.set(bossId, dragon);
       this.phase2World.add(dragon);
     }
@@ -552,7 +415,7 @@ export class InstanceManager {
       const bossX = entryX + bossDef.offsetX;
       const bossY = entryY + bossDef.offsetY;
       const existing = this.phase3World.bosses.get(bossDef.id);
-      if (existing && existing instanceof Phase3Boss) {
+      if (existing && existing.kind === bossDef.kind && hasSpawnPoint(existing)) {
         existing.spawnX = bossX;
         existing.spawnY = bossY;
         continue;
@@ -563,15 +426,18 @@ export class InstanceManager {
         this.phase3World.remove(bossDef.id);
       }
 
-      const boss = new Phase3Boss(bossDef.id, bossX, bossY, bossDef.kind);
+      const boss = getBossRuntimeDefinition(bossDef.kind).create(bossDef.id, bossX, bossY);
       this.phase3World.bosses.set(bossDef.id, boss);
       this.phase3World.add(boss);
     }
   }
 
   private ensurePhase4PopulationNear(x: number, y: number): void {
+    const ghostStore = this.phase4World.getEnemyStore(ENEMY_KINDS.PACMAN_GHOST);
+    const ghostDefinition = getEnemyRuntimeDefinition(ENEMY_KINDS.PACMAN_GHOST);
     let nearbyPacmanGhosts = 0;
-    for (const pacmanGhost of this.phase4World.pacmanGhosts.values()) {
+
+    for (const pacmanGhost of ghostStore.values()) {
       if (pacmanGhost.state === 'dead') continue;
       const dx = pacmanGhost.x - x;
       const dy = pacmanGhost.y - y;
@@ -591,8 +457,8 @@ export class InstanceManager {
       const sx = x + Math.cos(angle) * radius;
       const sy = y + Math.sin(angle) * radius;
       const variant = PACMAN_GHOST_VARIANT_ORDER[i % PACMAN_GHOST_VARIANT_ORDER.length];
-      const pacmanGhost = new PacmanGhost(id, sx, sy, 'phase4_seed', variant);
-      this.phase4World.pacmanGhosts.set(id, pacmanGhost);
+      const pacmanGhost = ghostDefinition.create(id, sx, sy, 'phase4_seed', { variant });
+      ghostStore.set(id, pacmanGhost);
       this.phase4World.add(pacmanGhost);
     }
   }

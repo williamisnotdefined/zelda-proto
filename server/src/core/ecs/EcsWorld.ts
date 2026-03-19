@@ -24,6 +24,25 @@ export class EcsWorld {
     return store?.get(entityId);
   }
 
+  hasComponent(entityId: EntityId, componentName: string): boolean {
+    return this.stores.get(componentName)?.has(entityId) ?? false;
+  }
+
+  removeComponent(entityId: EntityId, componentName: string): void {
+    this.stores.get(componentName)?.delete(entityId);
+  }
+
+  removeEntity(entityId: EntityId): void {
+    for (const store of this.stores.values()) {
+      store.delete(entityId);
+    }
+  }
+
+  clear(): void {
+    this.nextEntityId = 1;
+    this.stores.clear();
+  }
+
   query(componentNames: string[]): EntityId[] {
     if (componentNames.length === 0) return [];
     const firstStore = this.stores.get(componentNames[0]);

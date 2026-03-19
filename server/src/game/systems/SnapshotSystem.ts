@@ -10,7 +10,7 @@ import type {
 } from '../../network/MessageTypes.js';
 import type { SnapshotBundle } from '../../network/SnapshotSerializer.js';
 import { World } from '../World.js';
-import { BossGelehk } from '../../entities/BossGelehk.js';
+import { getBossRuntimeDefinition } from '../registries/bossRegistry.js';
 
 const SNAPSHOT_POSITION_PRECISION = 10;
 const ENEMY_SNAPSHOT_RADIUS = 1300;
@@ -30,17 +30,8 @@ export class SnapshotSystem {
     const { iceZones, aoeIndicators } = this.collectBossEffects(world);
 
     const enemies = [] as SnapshotBundle['enemies'];
-    for (const blob of world.blobs.values()) {
-      if (blob.state !== 'dead') enemies.push(blob.toSnapshot());
-    }
-    for (const slime of world.slimes.values()) {
-      if (slime.state !== 'dead') enemies.push(slime.toSnapshot());
-    }
-    for (const hand of world.hands.values()) {
-      if (hand.state !== 'dead') enemies.push(hand.toSnapshot());
-    }
-    for (const pacmanGhost of world.pacmanGhosts.values()) {
-      if (pacmanGhost.state !== 'dead') enemies.push(pacmanGhost.toSnapshot());
+    for (const enemy of world.getAliveEnemies()) {
+      enemies.push(enemy.toSnapshot());
     }
 
     const bosses = [];
@@ -199,18 +190,14 @@ export class SnapshotSystem {
     const iceZones: IceZone[] = [];
     const aoeIndicators: AoeIndicator[] = [];
 
-    for (const boss of world.bosses.values()) {
-      if (boss.state === 'dead') continue;
+    for (const boss of world.getAliveBosses()) {
       if (filterFn && !filterFn(boss.x, boss.y)) continue;
 
-      if (boss instanceof BossGelehk) {
-        for (const zone of boss.iceZones) {
-          iceZones.push(zone);
-        }
+      const effects = getBossRuntimeDefinition(boss.kind).collectSnapshotEffects?.(boss);
+      for (const zone of effects?.iceZones ?? []) {
+        iceZones.push(zone);
       }
-
-      const bossWithAoeIndicators = boss as { aoeIndicators?: AoeIndicator[] };
-      for (const aoe of bossWithAoeIndicators.aoeIndicators ?? []) {
+      for (const aoe of effects?.aoeIndicators ?? []) {
         aoeIndicators.push({
           ownerId: aoe.ownerId,
           x: quantizePosition(aoe.x),

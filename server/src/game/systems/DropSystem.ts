@@ -1,16 +1,12 @@
 import { nanoid } from 'nanoid';
-import { DROP_KINDS } from '@gelehka/shared';
 import { Player } from '../../entities/Player.js';
 import { Blob } from '../../entities/Blob.js';
 import type { Drop } from '../World.js';
+import { getDropRuntimeDefinition } from '../registries/dropRegistry.js';
 
 const DROP_CHANCE = 0.5;
 const PICKUP_RADIUS = 24;
 const PICKUP_RADIUS_SQ = PICKUP_RADIUS * PICKUP_RADIUS;
-const SMALL_HEAL_AMOUNT = 5;
-const LARGE_HEAL_AMOUNT = 10;
-const PACMAN_HEAL_AMOUNT = 20;
-
 type PlayerRadiusQuery = (
   x: number,
   y: number,
@@ -62,13 +58,7 @@ export class DropSystem {
         const dx = player.x - drop.x;
         const dy = player.y - drop.y;
         if (dx * dx + dy * dy < PICKUP_RADIUS_SQ) {
-          const healAmount =
-            drop.kind === DROP_KINDS.HEART_PACMAN
-              ? PACMAN_HEAL_AMOUNT
-              : drop.kind === DROP_KINDS.HEART_LARGE
-                ? LARGE_HEAL_AMOUNT
-                : SMALL_HEAL_AMOUNT;
-          player.hp = Math.min(player.hp + healAmount, player.maxHp);
+          getDropRuntimeDefinition(drop.kind).apply(player);
           drops.delete(dropId);
           pickedUp = true;
         }

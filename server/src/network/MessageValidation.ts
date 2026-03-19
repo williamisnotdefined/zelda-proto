@@ -18,7 +18,10 @@ export function validateClientMessage(raw: unknown, hasJoined: boolean): Validat
     return { ok: false, reason: parsed.reason };
   }
 
-  if (parsed.value.type === CLIENT_MESSAGE_TYPES.JOIN) {
+  if (
+    parsed.value.type === CLIENT_MESSAGE_TYPES.JOIN ||
+    parsed.value.type === CLIENT_MESSAGE_TYPES.RESUME_SESSION
+  ) {
     if (hasJoined) {
       return { ok: false, reason: 'already_joined' };
     }

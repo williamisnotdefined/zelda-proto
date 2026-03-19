@@ -271,6 +271,18 @@ export class Player extends Entity {
     this.resetAttackTracking();
   }
 
+  suspendForDisconnect(): void {
+    this.lastInput = null;
+    this.lastProcessedInputSeq = -1;
+    this.lastReceivedInputSeq = -1;
+
+    if (this.state !== 'dead') {
+      this.attackStateTimer = 0;
+      this.resetAttackTracking();
+      this.transitionTo('idle');
+    }
+  }
+
   applyBurning(ticks: number = BURNING_TICKS): void {
     if (this.state === 'dead') return;
     this.burningTicksRemaining = Math.max(this.burningTicksRemaining, ticks);

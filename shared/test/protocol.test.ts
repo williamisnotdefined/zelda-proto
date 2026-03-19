@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CHAT_LENGTH, MAX_NICKNAME_LENGTH } from '../src/constants';
+import { MAX_CHAT_LENGTH, MAX_NICKNAME_LENGTH, MAX_SESSION_TOKEN_LENGTH } from '../src/constants';
 import {
   createChatMessage,
   createInputMessage,
   createJoinMessage,
+  createResumeSessionMessage,
   createSnapshotResyncMessage,
   parseChatText,
   parseClientMessage,
   parseNickname,
+  parseSessionToken,
 } from '../src/protocol';
 import {
   CLIENT_MESSAGE_TYPES,
@@ -49,6 +51,21 @@ describe('parseChatText', () => {
   });
 });
 
+describe('parseSessionToken', () => {
+  it('trims and accepts canonical session tokens', () => {
+    expect(parseSessionToken('  token_123-abc  ')).toEqual({ ok: true, value: 'token_123-abc' });
+  });
+
+  it('rejects short, long, and invalid session tokens', () => {
+    expect(parseSessionToken(' short ')).toEqual({ ok: false, reason: 'too_short' });
+    expect(parseSessionToken(`a${'b'.repeat(MAX_SESSION_TOKEN_LENGTH)}`)).toEqual({
+      ok: false,
+      reason: 'too_long',
+    });
+    expect(parseSessionToken('token_bad!*')).toEqual({ ok: false, reason: 'invalid_characters' });
+  });
+});
+
 describe('message builders', () => {
   it('creates canonical client envelopes', () => {
     expect(createJoinMessage('Link')).toEqual({
@@ -61,6 +78,12 @@ describe('message builders', () => {
       protocolVersion: PROTOCOL_VERSION,
       type: CLIENT_MESSAGE_TYPES.CHAT,
       text: 'hello',
+    });
+
+    expect(createResumeSessionMessage('resume_token_123')).toEqual({
+      protocolVersion: PROTOCOL_VERSION,
+      type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+      sessionToken: 'resume_token_123',
     });
 
     expect(
@@ -118,6 +141,17 @@ describe('parseClientMessage', () => {
     expect(
       parseClientMessage({
         protocolVersion: PROTOCOL_VERSION,
+        type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+        sessionToken: 'resume_token_123',
+      })
+    ).toEqual({
+      ok: true,
+      value: createResumeSessionMessage('resume_token_123'),
+    });
+
+    expect(
+      parseClientMessage({
+        protocolVersion: PROTOCOL_VERSION,
         type: CLIENT_MESSAGE_TYPES.SNAPSHOT_RESYNC,
         reason: SNAPSHOT_RESYNC_REASONS.INSTANCE_MISMATCH,
         lastTick: 17,
@@ -158,6 +192,13 @@ describe('parseClientMessage', () => {
         left: false,
         right: false,
         attack: false,
+      })
+    ).toEqual({ ok: false, reason: 'invalid_message' });
+    expect(
+      parseClientMessage({
+        protocolVersion: PROTOCOL_VERSION,
+        type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+        sessionToken: 'bad token',
       })
     ).toEqual({ ok: false, reason: 'invalid_message' });
     expect(

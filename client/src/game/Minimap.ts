@@ -1,4 +1,3 @@
-import { PORTAL_KINDS } from '@gelehka/shared';
 import type { EnemySnapshot } from '@gelehka/shared';
 import Phaser from 'phaser';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
@@ -6,6 +5,7 @@ import { BossGelehkEntity } from '../entities/BossGelehk';
 import { BossPhase3Entity } from '../entities/BossPhase3';
 import { PlayerEntity } from '../entities/Player';
 import { PortalEntity } from '../entities/PortalEntity';
+import { getPortalMinimapColor } from './runtime/world/portalRegistry';
 
 type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
 type EnemyRadiusQuery = (
@@ -41,10 +41,10 @@ export class Minimap {
   draw(
     localX: number,
     localY: number,
-    playerEntities: Map<string, PlayerEntity>,
+    playerEntities: ReadonlyMap<string, PlayerEntity>,
     forEachEnemyInRadius: EnemyRadiusQuery,
-    bossEntities: Map<string, BossEntity>,
-    portalEntities: Map<string, PortalEntity>,
+    bossEntities: ReadonlyMap<string, BossEntity>,
+    portalEntities: ReadonlyMap<string, PortalEntity>,
     localPlayerId: string | null
   ): void {
     const g = this.graphics;
@@ -123,11 +123,7 @@ export class Minimap {
 
     // Draw portals (different colors by direction)
     for (const portal of portalEntities.values()) {
-      const isAdvancePortal =
-        portal.kind === PORTAL_KINDS.PHASE1_TO_PHASE2 ||
-        portal.kind === PORTAL_KINDS.PHASE2_TO_PHASE3 ||
-        portal.kind === PORTAL_KINDS.PHASE3_TO_PHASE4;
-      g.fillStyle(isAdvancePortal ? 0xc98a3a : 0x4aa3ff, 0.95);
+      g.fillStyle(getPortalMinimapColor(portal.kind), 0.95);
       this.drawDot(g, localX, localY, portal.x, portal.y, scale, 2.4);
     }
 

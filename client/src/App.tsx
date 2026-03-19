@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type Phaser from 'phaser';
 import { setPhaserGame } from './game/instance';
 import { logError } from './monitoring/errorLogger';
-import { disconnect } from './network/socket';
+import { gameConnection } from './network/gameConnection';
 import { HUD } from './ui/HUD';
 import { TouchControls } from './ui/TouchControls';
 
@@ -41,7 +41,7 @@ export function App() {
 
     return () => {
       cancelled = true;
-      disconnect();
+      gameConnection.dispose();
       gameRef.current?.destroy(true);
       setPhaserGame(null);
       gameRef.current = null;

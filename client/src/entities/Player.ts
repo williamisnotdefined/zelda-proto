@@ -1,37 +1,17 @@
 import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
-import {
-  PLAYER_ATTACK_RANGE_DOWN,
-  PLAYER_ATTACK_RANGE_LEFT,
-  PLAYER_ATTACK_RANGE_RIGHT,
-  PLAYER_ATTACK_RANGE_UP,
-} from '@gelehka/game-core/player';
 import type { PlayerStatusSnapshot } from '@gelehka/shared';
 import Phaser from 'phaser';
-
-const REMOTE_LERP_BASE = 0.3;
-const LOCAL_LERP_BASE = 0.48;
-const SNAP_THRESHOLD = 200; // px – teleport/respawn threshold
-const MAX_LERP_DT_MS = 50;
-// Offset the sprite DOWN so the character body visually centers on the server hitbox
-const SPRITE_Y_OFFSET = -16;
-const BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER = 4;
-const BURNING_OVERLAY_STACK_STEP = 14;
-const BURNING_OVERLAY_ALPHA = 0.52;
-const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
-const PURPLE_FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Purple_Field.gif';
-const BLUE_BURNING_GIF_PATH = '/assets/sprites/fields/Blue_Flame.gif';
-const CONTACT_SHADOW_RADIUS = 24;
-const CONTACT_SHADOW_COLOR = 0x000000;
-const CONTACT_SHADOW_ALPHA = 0.3;
-const ATTACK_SHADOW_COLOR = 0xffa31a;
-const ATTACK_SHADOW_STROKE_COLOR = 0xffe3a1;
-const ATTACK_SHADOW_BASE_ALPHA = 0.42;
-const ATTACK_SHADOW_PULSE_ALPHA = 0.62;
-const ATTACK_SHADOW_STROKE_ALPHA = 0.95;
-const ATTACK_SHADOW_PULSE_DURATION_MS = 140;
-const ATTACK_CONE_RADIUS = 44;
-const ATTACK_CONE_SPAN_DEG = 95;
-const NICKNAME_OFFSET_Y = 36;
+import { PlayerAnimationController } from './player/PlayerAnimationController';
+import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';
+import { PlayerPresentation } from './player/PlayerPresentation';
+import { PlayerStatusOverlays } from './player/PlayerStatusOverlays';
+import {
+  LOCAL_LERP_BASE,
+  MAX_LERP_DT_MS,
+  REMOTE_LERP_BASE,
+  SNAP_THRESHOLD,
+  SPRITE_Y_OFFSET,
+} from './player/playerVisualConfig';
 
 export class PlayerEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -48,15 +28,10 @@ export class PlayerEntity {
   nickname: string;
   statusEffects: PlayerStatusSnapshot;
 
-  private currentAnimKey: string;
-  private deathPlayed: boolean;
-  private contactShadow: Phaser.GameObjects.Arc;
-  private burningOverlay: Phaser.GameObjects.DOMElement;
-  private purpleBurningOverlay: Phaser.GameObjects.DOMElement;
-  private blueBurningOverlay: Phaser.GameObjects.DOMElement;
-  private attackShadow: Phaser.GameObjects.Arc;
-  private attackShadowTween: Phaser.Tweens.Tween | null;
-  private wasAttacking: boolean;
+  private readonly presentation: PlayerPresentation;
+  private readonly statusOverlays: PlayerStatusOverlays;
+  private readonly attackTelegraph: PlayerAttackTelegraph;
+  private readonly animationController: PlayerAnimationController;
 
   constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
@@ -66,111 +41,18 @@ export class PlayerEntity {
     this.serverDirection = 'down';
     this.hp = 100;
     this.maxHp = 100;
-    this.currentAnimKey = '';
-    this.deathPlayed = false;
-    this.attackShadowTween = null;
-    this.wasAttacking = false;
     this.nickname = nickname;
     this.statusEffects = {};
+    this.animationController = new PlayerAnimationController();
     this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
     this.sprite.setDepth(10);
-
-    this.contactShadow = scene.add.circle(
-      x,
-      y,
-      CONTACT_SHADOW_RADIUS,
-      CONTACT_SHADOW_COLOR,
-      CONTACT_SHADOW_ALPHA
-    );
-    this.contactShadow.setDepth(8.5);
-
-    this.hpBarBg = scene.add.rectangle(x, y - 26, 32, 4, 0x333333);
-    this.hpBarBg.setDepth(11);
-
-    this.hpBar = scene.add.rectangle(x, y - 26, 32, 4, 0x44ff44);
-    this.hpBar.setDepth(12);
-
-    this.nicknameLabel = scene.add.text(x, y - NICKNAME_OFFSET_Y, nickname, {
-      fontFamily: 'monospace',
-      fontSize: '11px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 3,
-    });
-    this.nicknameLabel.setOrigin(0.5, 1);
-    this.nicknameLabel.setDepth(14);
-
-    const burningImg = document.createElement('img');
-    burningImg.src = FIRE_FIELD_GIF_PATH;
-    burningImg.alt = 'Burning effect';
-    burningImg.draggable = false;
-    burningImg.style.width = '58px';
-    burningImg.style.height = '58px';
-    burningImg.style.pointerEvents = 'none';
-    burningImg.style.userSelect = 'none';
-    burningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
-
-    this.burningOverlay = scene.add.dom(x, y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER, burningImg);
-    this.burningOverlay.setDepth(13);
-    this.burningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
-    this.burningOverlay.setOrigin(0.5, 0.5);
-    this.burningOverlay.setVisible(false);
-
-    const purpleBurningImg = document.createElement('img');
-    purpleBurningImg.src = PURPLE_FIRE_FIELD_GIF_PATH;
-    purpleBurningImg.alt = 'Purple burning effect';
-    purpleBurningImg.draggable = false;
-    purpleBurningImg.style.width = '58px';
-    purpleBurningImg.style.height = '58px';
-    purpleBurningImg.style.pointerEvents = 'none';
-    purpleBurningImg.style.userSelect = 'none';
-    purpleBurningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
-
-    this.purpleBurningOverlay = scene.add.dom(
-      x,
-      y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER,
-      purpleBurningImg
-    );
-    this.purpleBurningOverlay.setDepth(13.2);
-    this.purpleBurningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
-    this.purpleBurningOverlay.setOrigin(0.5, 0.5);
-    this.purpleBurningOverlay.setVisible(false);
-
-    const blueBurningImg = document.createElement('img');
-    blueBurningImg.src = BLUE_BURNING_GIF_PATH;
-    blueBurningImg.alt = 'Blue burning effect';
-    blueBurningImg.draggable = false;
-    blueBurningImg.style.width = '58px';
-    blueBurningImg.style.height = '58px';
-    blueBurningImg.style.pointerEvents = 'none';
-    blueBurningImg.style.userSelect = 'none';
-    blueBurningImg.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
-
-    this.blueBurningOverlay = scene.add.dom(
-      x,
-      y + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER,
-      blueBurningImg
-    );
-    this.blueBurningOverlay.setDepth(13.1);
-    this.blueBurningOverlay.setAlpha(BURNING_OVERLAY_ALPHA);
-    this.blueBurningOverlay.setOrigin(0.5, 0.5);
-    this.blueBurningOverlay.setVisible(false);
-
-    this.attackShadow = scene.add.arc(
-      x,
-      y,
-      ATTACK_CONE_RADIUS,
-      -ATTACK_CONE_SPAN_DEG / 2,
-      ATTACK_CONE_SPAN_DEG / 2,
-      false,
-      ATTACK_SHADOW_COLOR,
-      ATTACK_SHADOW_BASE_ALPHA
-    );
-    this.attackShadow.setStrokeStyle(2, ATTACK_SHADOW_STROKE_COLOR, ATTACK_SHADOW_STROKE_ALPHA);
-    this.attackShadow.setBlendMode(Phaser.BlendModes.ADD);
-    this.attackShadow.setDepth(9);
-    this.attackShadow.setVisible(false);
+    this.presentation = new PlayerPresentation(scene, x, y, nickname);
+    this.statusOverlays = new PlayerStatusOverlays(scene, x, y);
+    this.attackTelegraph = new PlayerAttackTelegraph(scene, x, y);
+    this.hpBar = this.presentation.hpBar;
+    this.hpBarBg = this.presentation.hpBarBg;
+    this.nicknameLabel = this.presentation.nicknameLabel;
 
     if (isLocal) {
       this.sprite.setTint(0xaaffaa);
@@ -207,185 +89,40 @@ export class PlayerEntity {
     this.statusEffects = statusEffects;
   }
 
-  update(_scene: Phaser.Scene, dt: number): void {
+  update(dt: number): void {
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
+    const lerpBase = this.isLocal ? LOCAL_LERP_BASE : REMOTE_LERP_BASE;
+    const factor = getExponentialInterpolationFactor(lerpBase, dtMs);
+    this.sprite.x += (this.targetX - this.sprite.x) * factor;
+    this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
 
-    if (this.isLocal) {
-      const factor = getExponentialInterpolationFactor(LOCAL_LERP_BASE, dtMs);
-      this.sprite.x += (this.targetX - this.sprite.x) * factor;
-      this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
-    } else {
-      // Remote players: time-based exponential lerp (frame-rate independent)
-      const factor = getExponentialInterpolationFactor(REMOTE_LERP_BASE, dtMs);
-      this.sprite.x += (this.targetX - this.sprite.x) * factor;
-      this.sprite.y += (this.targetY + SPRITE_Y_OFFSET - this.sprite.y) * factor;
-    }
-
-    this.hpBarBg.x = this.sprite.x;
-    this.hpBarBg.y = this.sprite.y - 26;
-    this.contactShadow.x = this.sprite.x;
-    this.contactShadow.y = this.sprite.y - SPRITE_Y_OFFSET;
-    const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
-    this.hpBar.width = 32 * hpRatio;
-    this.hpBar.x = this.sprite.x - (32 - this.hpBar.width) / 2;
-    this.hpBar.y = this.sprite.y - 26;
-    this.hpBar.fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffaa00 : 0xff4444;
-    this.nicknameLabel.x = this.sprite.x;
-    this.nicknameLabel.y = this.sprite.y - NICKNAME_OFFSET_Y;
-
-    const baseBurnY = this.sprite.y - SPRITE_Y_OFFSET + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER;
-    const burnStack: Phaser.GameObjects.DOMElement[] = [];
-    if (this.statusEffects.burning) burnStack.push(this.burningOverlay);
-    if (this.statusEffects.purpleBurning) burnStack.push(this.purpleBurningOverlay);
-    if (this.statusEffects.blueBurning) burnStack.push(this.blueBurningOverlay);
-
-    for (let i = 0; i < burnStack.length; i++) {
-      const overlay = burnStack[i];
-      overlay.x = this.sprite.x;
-      overlay.y = baseBurnY - i * BURNING_OVERLAY_STACK_STEP;
-      overlay.setVisible(true);
-    }
-
-    if (!this.statusEffects.burning) {
-      this.burningOverlay.setVisible(false);
-    }
-    if (!this.statusEffects.purpleBurning) {
-      this.purpleBurningOverlay.setVisible(false);
-    }
-    if (!this.statusEffects.blueBurning) {
-      this.blueBurningOverlay.setVisible(false);
-    }
-    this.contactShadow.setVisible(this.serverState !== 'dead');
-
-    this.updateAttackShadow();
-
-    this.updateAnimation();
-  }
-
-  private updateAttackShadow(): void {
-    const attacking = this.serverState === 'attacking';
-    const alive = this.serverState !== 'dead';
-    const visible = alive && attacking;
-
-    if (!visible) {
-      this.attackShadow.setVisible(false);
-      this.wasAttacking = false;
-      return;
-    }
-
-    const baseX = this.sprite.x;
-    const baseY = this.sprite.y - SPRITE_Y_OFFSET;
-    let hitX = baseX;
-    let hitY = baseY;
-
-    switch (this.serverDirection) {
-      case 'up':
-        hitY -= PLAYER_ATTACK_RANGE_UP;
-        break;
-      case 'down':
-        hitY += PLAYER_ATTACK_RANGE_DOWN;
-        break;
-      case 'left':
-        hitX -= PLAYER_ATTACK_RANGE_LEFT;
-        break;
-      case 'right':
-        hitX += PLAYER_ATTACK_RANGE_RIGHT;
-        break;
-    }
-
-    this.attackShadow.setPosition(hitX, hitY);
-    const rotationDeg =
-      this.serverDirection === 'up'
-        ? -90
-        : this.serverDirection === 'down'
-          ? 90
-          : this.serverDirection === 'left'
-            ? 180
-            : 0;
-    this.attackShadow.setAngle(rotationDeg);
-    this.attackShadow.setVisible(true);
-
-    if (!this.wasAttacking) {
-      this.pulseAttackShadow();
-    }
-    this.wasAttacking = true;
-  }
-
-  private pulseAttackShadow(): void {
-    this.attackShadowTween?.stop();
-    this.attackShadow.setFillStyle(ATTACK_SHADOW_COLOR, ATTACK_SHADOW_PULSE_ALPHA);
-    this.attackShadowTween = this.sprite.scene.tweens.add({
-      targets: this.attackShadow,
-      alpha: ATTACK_SHADOW_BASE_ALPHA,
-      duration: ATTACK_SHADOW_PULSE_DURATION_MS,
-      ease: 'Sine.Out',
-      onComplete: () => {
-        this.attackShadowTween = null;
-      },
-    });
-  }
-
-  private updateAnimation(): void {
-    const dir = this.serverDirection;
-    const state = this.serverState;
-
-    let animKey: string;
-    let flipX = false;
-
-    if (state === 'dead') {
-      animKey = 'player_death';
-      if (!this.deathPlayed) {
-        this.sprite.setAlpha(1);
-        this.sprite.play(animKey);
-        this.deathPlayed = true;
-        this.currentAnimKey = animKey;
-      }
-      return;
-    }
-
-    this.deathPlayed = false;
-    this.sprite.setAlpha(1);
-
-    const dirSuffix = dir === 'left' ? 'right' : dir;
-    flipX = dir === 'left';
-
-    if (state === 'attacking') {
-      animKey = `player_attack_${dirSuffix}`;
-      // Don't restart attack anim if already playing one
-      if (this.currentAnimKey.startsWith('player_attack_') && this.sprite.anims.isPlaying) {
-        this.sprite.setFlipX(flipX);
-        return;
-      }
-    } else if (state === 'moving') {
-      animKey = `player_move_${dirSuffix}`;
-    } else {
-      animKey = `player_idle_${dirSuffix}`;
-    }
-
-    this.sprite.setFlipX(flipX);
-
-    if (this.currentAnimKey !== animKey) {
-      this.sprite.play(animKey);
-      this.currentAnimKey = animKey;
-    }
+    this.presentation.sync(
+      this.sprite.x,
+      this.sprite.y,
+      this.hp,
+      this.maxHp,
+      this.serverState !== 'dead'
+    );
+    this.statusOverlays.sync(this.sprite.x, this.sprite.y, this.statusEffects);
+    this.attackTelegraph.sync(
+      this.sprite.x,
+      this.sprite.y - SPRITE_Y_OFFSET,
+      this.serverState,
+      this.serverDirection
+    );
+    this.animationController.update(this.sprite, this.serverState, this.serverDirection);
   }
 
   setNickname(nickname: string): void {
     if (this.nickname === nickname) return;
     this.nickname = nickname;
-    this.nicknameLabel.setText(nickname);
+    this.presentation.setNickname(nickname);
   }
 
   destroy(): void {
     this.sprite.destroy();
-    this.contactShadow.destroy();
-    this.attackShadowTween?.stop();
-    this.attackShadow.destroy();
-    this.hpBar.destroy();
-    this.hpBarBg.destroy();
-    this.nicknameLabel.destroy();
-    this.burningOverlay.destroy();
-    this.purpleBurningOverlay.destroy();
-    this.blueBurningOverlay.destroy();
+    this.presentation.destroy();
+    this.attackTelegraph.destroy();
+    this.statusOverlays.destroy();
   }
 }

@@ -9,6 +9,9 @@ import type {
   ServerChatMessage,
 } from '@gelehka/shared';
 import { create } from 'zustand';
+import { readStoredConnectionContext } from '../network/sessionContext';
+
+const initialConnectionContext = readStoredConnectionContext();
 
 export interface PlayerData {
   id: string;
@@ -69,6 +72,7 @@ export interface GameStore {
   setPlayerCount: (n: number) => void;
   setNickname: (name: string) => void;
   hideNicknameModal: () => void;
+  openNicknameModal: () => void;
   setConnectionError: (error: string | null) => void;
   setLastConnectionAttempt: (time: number) => void;
   addChatMessage: (msg: ServerChatMessage) => void;
@@ -82,8 +86,8 @@ export const useGameStore = create<GameStore>((set) => ({
   connected: false,
   connectionState: 'DISCONNECTED',
   playerCount: 0,
-  nickname: null,
-  showNicknameModal: true,
+  nickname: initialConnectionContext.nickname,
+  showNicknameModal: initialConnectionContext.nickname === null,
   connectionError: null,
   lastConnectionAttempt: null,
   chatMessages: [],
@@ -96,6 +100,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setPlayerCount: (n) => set({ playerCount: n }),
   setNickname: (name) => set({ nickname: name }),
   hideNicknameModal: () => set({ showNicknameModal: false }),
+  openNicknameModal: () => set({ showNicknameModal: true }),
   setConnectionError: (error) => set({ connectionError: error }),
   setLastConnectionAttempt: (time) => set({ lastConnectionAttempt: time }),
   addChatMessage: (msg) =>

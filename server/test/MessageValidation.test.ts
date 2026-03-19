@@ -72,6 +72,24 @@ describe('validateClientMessage', () => {
       validateClientMessage(
         {
           protocolVersion: PROTOCOL_VERSION,
+          type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+          sessionToken: 'resume_token_123',
+        },
+        false
+      )
+    ).toEqual({
+      ok: true,
+      message: {
+        protocolVersion: PROTOCOL_VERSION,
+        type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+        sessionToken: 'resume_token_123',
+      },
+    });
+
+    expect(
+      validateClientMessage(
+        {
+          protocolVersion: PROTOCOL_VERSION,
           type: CLIENT_MESSAGE_TYPES.INPUT,
           seq: 1,
           up: false,
@@ -96,6 +114,17 @@ describe('validateClientMessage', () => {
         false
       )
     ).toEqual({ ok: false, reason: 'join_required' });
+
+    expect(
+      validateClientMessage(
+        {
+          protocolVersion: PROTOCOL_VERSION,
+          type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
+          sessionToken: 'resume_token_123',
+        },
+        true
+      )
+    ).toEqual({ ok: false, reason: 'already_joined' });
 
     expect(
       validateClientMessage(

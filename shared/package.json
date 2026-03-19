@@ -3,28 +3,34 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
   "exports": {
     ".": {
       "types": "./src/types.ts",
-      "import": "./src/types.ts",
-      "default": "./src/types.ts"
+      "import": "./dist/types.js",
+      "default": "./dist/types.js"
     },
     "./utils": {
       "types": "./src/utils.ts",
-      "import": "./src/utils.ts",
-      "default": "./src/utils.ts"
+      "import": "./dist/utils.js",
+      "default": "./dist/utils.js"
     },
     "./constants": {
       "types": "./src/constants.ts",
-      "import": "./src/constants.ts",
-      "default": "./src/constants.ts"
+      "import": "./dist/constants.js",
+      "default": "./dist/constants.js"
     },
     "./protocol": {
       "types": "./src/protocol.ts",
-      "import": "./src/protocol.ts",
-      "default": "./src/protocol.ts"
+      "import": "./dist/protocol.js",
+      "default": "./dist/protocol.js"
+    },
+    "./definitions": {
+      "types": "./src/definitions.ts",
+      "import": "./dist/definitions.js",
+      "default": "./dist/definitions.js"
     }
   }
 }
