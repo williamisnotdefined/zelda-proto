@@ -30,7 +30,7 @@ export class SnapshotSystem {
     const { iceZones, aoeIndicators } = this.collectBossEffects(world);
 
     const enemies = [] as SnapshotBundle['enemies'];
-    for (const enemy of world.getAliveEnemies()) {
+    for (const enemy of world.getAllEnemies()) {
       enemies.push(enemy.toSnapshot());
     }
 
@@ -105,9 +105,15 @@ export class SnapshotSystem {
     }
 
     const enemies: SnapshotBundle['enemies'] = [];
-    world.forEachEnemyInRadius(vx, vy, ENEMY_SNAPSHOT_RADIUS, (blob) => {
-      enemies.push(blob.toSnapshot());
-    });
+    world.forEachEnemyInRadius(
+      vx,
+      vy,
+      ENEMY_SNAPSHOT_RADIUS,
+      (blob) => {
+        enemies.push(blob.toSnapshot());
+      },
+      { includeDead: true }
+    );
 
     const bosses: SnapshotBundle['bosses'] = [];
     for (const boss of world.queryBossesInRadius(vx, vy, WORLD_VIEW_RADIUS)) {

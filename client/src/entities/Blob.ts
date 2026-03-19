@@ -112,8 +112,8 @@ export class BlobEntity {
     this.sprite.x += (this.targetX - this.sprite.x) * factor;
     this.sprite.y += (this.targetY - this.sprite.y) * factor;
 
-    const alive = this.serverState !== 'dead';
-    const visible = alive && inView;
+    const isDead = this.serverState === 'dead';
+    const visible = inView;
     this.setSpriteVisible(visible);
 
     if (!visible) {
@@ -123,6 +123,11 @@ export class BlobEntity {
         this.isUsingStaticFrame = false;
         this.staticFrameFacing = null;
       }
+      return;
+    }
+
+    if (isDead) {
+      this.updateAnimation();
       return;
     }
 
@@ -147,10 +152,13 @@ export class BlobEntity {
     if (state === 'dead') {
       animKey = 'blob_death';
       if (!this.deathPlayed) {
+        this.sprite.setFlipX(false);
         this.playIfExists(animKey);
         this.deathPlayed = true;
         this.currentAnimKey = animKey;
       }
+      this.isUsingStaticFrame = false;
+      this.staticFrameFacing = null;
       return;
     }
 

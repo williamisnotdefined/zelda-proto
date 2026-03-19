@@ -85,19 +85,19 @@ export function setupAnimations(scene: Phaser.Scene): void {
   //        9=damaged_down, 10=damaged_right, 11=damaged_up
   //        12=death
   createRowAnims(scene, 'blob', 'blob', 7, [
-    { key: 'idle_down', row: 0 },
-    { key: 'idle_right', row: 1 },
-    { key: 'idle_up', row: 2 },
-    { key: 'move_down', row: 3, frameRate: 10 },
-    { key: 'move_right', row: 4, frameRate: 10 },
-    { key: 'move_up', row: 5, frameRate: 10 },
+    { key: 'idle_down', row: 0, frameCount: 4 },
+    { key: 'idle_right', row: 1, frameCount: 4 },
+    { key: 'idle_up', row: 2, frameCount: 4 },
+    { key: 'move_down', row: 3, frameRate: 10, frameCount: 6 },
+    { key: 'move_right', row: 4, frameRate: 10, frameCount: 6 },
+    { key: 'move_up', row: 5, frameRate: 10, frameCount: 6 },
     { key: 'attack_down', row: 6, repeat: 0, frameRate: 12 },
     { key: 'attack_right', row: 7, repeat: 0, frameRate: 12 },
     { key: 'attack_up', row: 8, repeat: 0, frameRate: 12 },
-    { key: 'damaged_down', row: 9, repeat: 0, frameRate: 10 },
-    { key: 'damaged_right', row: 10, repeat: 0, frameRate: 10 },
-    { key: 'damaged_up', row: 11, repeat: 0, frameRate: 10 },
-    { key: 'death', row: 12, repeat: 0, frameRate: 6 },
+    { key: 'damaged_down', row: 9, repeat: 0, frameRate: 10, frameCount: 3 },
+    { key: 'damaged_right', row: 10, repeat: 0, frameRate: 10, frameCount: 3 },
+    { key: 'damaged_up', row: 11, repeat: 0, frameRate: 10, frameCount: 3 },
+    { key: 'death', row: 12, repeat: 0, frameRate: 6, frameCount: 5 },
   ]);
 
   // --- Skeleton / Gelehk (48x48, 6 cols x 13 rows) ---

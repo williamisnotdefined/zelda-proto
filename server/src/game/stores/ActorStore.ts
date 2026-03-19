@@ -467,10 +467,11 @@ export class ActorStore {
     x: number,
     y: number,
     radius: number,
-    callback: (enemy: Blob) => void
+    callback: (enemy: Blob) => void,
+    options?: { includeDead?: boolean }
   ): void {
     this.forEachObjectInRadius(x, y, radius, ENEMY_COMPONENT, callback, (entityId) =>
-      this.matchesRole(entityId, 'enemy')
+      this.matchesRole(entityId, 'enemy', options?.includeDead === true)
     );
   }
 

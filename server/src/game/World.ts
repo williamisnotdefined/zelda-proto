@@ -335,9 +335,10 @@ export class World extends EntityWorld<Entity> {
     x: number,
     y: number,
     radius: number,
-    callback: (enemy: Blob) => void
+    callback: (enemy: Blob) => void,
+    options?: { includeDead?: boolean }
   ): void {
-    this.actorStore.forEachEnemyInRadius(x, y, radius, callback);
+    this.actorStore.forEachEnemyInRadius(x, y, radius, callback, options);
   }
 
   forEachBossInRadius(

@@ -63,6 +63,11 @@ describe('ActorStore', () => {
     ).toEqual([deadPlayer.id, livePlayer.id]);
     expect(store.findNearestPlayerInRadius(12, 10, 10)?.id).toBe(deadPlayer.id);
     expect(store.queryEnemiesInRadius(32, 10, 5).map((enemy) => enemy.id)).toEqual([liveEnemy.id]);
+    const enemiesIncludingDead: string[] = [];
+    store.forEachEnemyInRadius(32, 10, 5, (enemy) => enemiesIncludingDead.push(enemy.id), {
+      includeDead: true,
+    });
+    expect(enemiesIncludingDead.sort()).toEqual([deadEnemy.id, liveEnemy.id]);
     expect(store.queryBossesInRadius(52, 10, 5).map((boss) => boss.id)).toEqual([liveBoss.id]);
     expect(
       store

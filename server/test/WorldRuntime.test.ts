@@ -61,4 +61,34 @@ describe('World runtime facade', () => {
       world.queryBossesInRadius(boss.x, boss.y, 1).some((candidate) => candidate.id === boss.id)
     ).toBe(true);
   });
+
+  it('keeps dead enemies queryable for snapshot-style radius lookups when requested', () => {
+    const instances = new InstanceManager();
+    const world = instances.phase2World;
+    world.update(0);
+    const enemy = world.slimes.values().next().value;
+
+    expect(enemy).toBeDefined();
+    if (!enemy) {
+      throw new Error('Expected a seeded phase2 enemy');
+    }
+
+    enemy.takeDamage(enemy.hp);
+    world.update(0);
+
+    expect(world.getAliveEnemies().some((candidate) => candidate.id === enemy.id)).toBe(false);
+
+    const nearbyEnemyIds: string[] = [];
+    world.forEachEnemyInRadius(
+      enemy.x,
+      enemy.y,
+      1,
+      (candidate) => nearbyEnemyIds.push(candidate.id),
+      {
+        includeDead: true,
+      }
+    );
+
+    expect(nearbyEnemyIds).toContain(enemy.id);
+  });
 });
