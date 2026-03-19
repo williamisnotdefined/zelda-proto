@@ -1,7 +1,12 @@
 import type { BossDefinition } from '@gelehka/shared/definitions';
 import { bossDefinitions } from '@gelehka/shared/definitions';
 import { BOSS_KINDS } from '@gelehka/shared';
-import type { AoeIndicator, BossKind, IceZone } from '../../network/MessageTypes.js';
+import type {
+  AoeIndicator,
+  BossKind,
+  BossWaveIndicator,
+  IceZone,
+} from '../../network/MessageTypes.js';
 import { BossGelehk, BOSS_HEIGHT, BOSS_WIDTH, ICE_ZONE_SLOW } from '../../entities/BossGelehk.js';
 import {
   DragonLord,
@@ -41,6 +46,7 @@ export interface BossRuntimeDefinition<TBoss extends BossRuntimeEntity = BossRun
   collectSnapshotEffects?(boss: TBoss): {
     iceZones?: IceZone[];
     aoeIndicators?: AoeIndicator[];
+    waveIndicators?: BossWaveIndicator[];
   };
 }
 
@@ -116,6 +122,10 @@ const gelehkDefinition: BossRuntimeDefinition<BossGelehk> = {
   collectSnapshotEffects: (boss) => ({
     iceZones: boss.iceZones,
     aoeIndicators: boss.aoeIndicators,
+    waveIndicators: (() => {
+      const wave = boss.getWaveIndicator();
+      return wave ? [wave] : [];
+    })(),
   }),
 };
 

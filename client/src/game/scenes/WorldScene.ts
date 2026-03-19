@@ -119,6 +119,7 @@ export class WorldScene extends Phaser.Scene {
       message.bosses,
       message.iceZones,
       message.aoeIndicators,
+      message.waveIndicators ?? [],
       this.playerRuntime.getLocalWorldPosition()
     );
     this.staticEntityRuntime.syncDrops(message.drops);

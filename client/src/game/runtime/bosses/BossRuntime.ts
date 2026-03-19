@@ -1,4 +1,4 @@
-import type { AoeIndicator, BossSnapshot, IceZone } from '@gelehka/shared';
+import type { AoeIndicator, BossSnapshot, BossWaveIndicator, IceZone } from '@gelehka/shared';
 import Phaser from 'phaser';
 import { bossRegistry, type BossEntity } from './bossRegistry';
 import type { GameUiSink } from '../ui/GameUiSink';
@@ -16,6 +16,7 @@ export class BossRuntime {
     bosses: BossSnapshot[],
     iceZones: IceZone[],
     aoeIndicators: AoeIndicator[],
+    waveIndicators: BossWaveIndicator[],
     localPlayer: { x: number; y: number } | null
   ): void {
     this.bossSnapshotsById.clear();
@@ -23,7 +24,7 @@ export class BossRuntime {
       this.bossSnapshotsById.set(boss.id, boss);
     }
 
-    this.renderBosses(iceZones, aoeIndicators, localPlayer);
+    this.renderBosses(iceZones, aoeIndicators, waveIndicators, localPlayer);
   }
 
   update(delta: number): void {
@@ -52,6 +53,7 @@ export class BossRuntime {
   private renderBosses(
     iceZones: IceZone[],
     aoeIndicators: AoeIndicator[],
+    waveIndicators: BossWaveIndicator[],
     localPlayer: { x: number; y: number } | null
   ): void {
     const seenBossIds = new Set<string>();
@@ -76,6 +78,7 @@ export class BossRuntime {
       bossRegistry[boss.kind].update(entity, boss, {
         iceZones,
         aoeIndicators,
+        waveIndicators,
       });
 
       if (localPlayer) {

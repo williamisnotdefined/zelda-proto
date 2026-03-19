@@ -6,6 +6,8 @@ export type {
   BossKind,
   BossSnapshot,
   BossState,
+  BossWaveIndicator,
+  BossWaveState,
   ClientChatMessage,
   ClientMessage,
   Direction,

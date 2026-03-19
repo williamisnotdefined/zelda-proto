@@ -104,7 +104,17 @@ export class SpawnSystem {
         }
       }
 
-      if (blob.state === 'dead' || !playerNearby) {
+      if (blob.state === 'dead') {
+        if (!blob.hasDropped) {
+          continue;
+        }
+
+        blobs.delete(enemyId);
+        removeEntity(enemyId);
+        continue;
+      }
+
+      if (!playerNearby) {
         blobs.delete(enemyId);
         removeEntity(enemyId);
       }

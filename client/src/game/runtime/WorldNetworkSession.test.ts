@@ -95,6 +95,7 @@ function createSnapshot(): SnapshotMessage {
     bosses: [],
     iceZones: [],
     aoeIndicators: [],
+    waveIndicators: [],
     drops: [],
     portals: [],
     hazards: [],

@@ -22,6 +22,7 @@ export interface SnapshotCache {
   hazards: Map<string, HazardSnapshot>;
   iceZones: SnapshotMessage['iceZones'];
   aoeIndicators: SnapshotMessage['aoeIndicators'];
+  waveIndicators: SnapshotMessage['waveIndicators'];
 }
 
 export interface SnapshotNormalizationState {
@@ -67,6 +68,12 @@ function cloneArrayItems<T extends object>(items: T[]): T[] {
   return items.map((item) => cloneItem(item));
 }
 
+function getWaveIndicators(
+  snapshot: Pick<SnapshotMessage, 'waveIndicators'> | Pick<SnapshotDeltaMessage, 'waveIndicators'>
+): SnapshotMessage['waveIndicators'] {
+  return cloneArrayItems(snapshot.waveIndicators ?? []);
+}
+
 export function createSnapshotNormalizationState(): SnapshotNormalizationState {
   return {
     snapshotCache: null,
@@ -103,6 +110,7 @@ export function toSnapshotCache(snapshot: SnapshotMessage): SnapshotCache {
     hazards: toEntityMap(snapshot.hazards),
     iceZones: cloneArrayItems(snapshot.iceZones),
     aoeIndicators: cloneArrayItems(snapshot.aoeIndicators),
+    waveIndicators: getWaveIndicators(snapshot),
   };
 }
 
@@ -119,6 +127,7 @@ export function toSnapshotMessage(cache: SnapshotCache): SnapshotMessage {
     hazards: Array.from(cache.hazards.values(), (item) => cloneItem(item)),
     iceZones: cloneArrayItems(cache.iceZones),
     aoeIndicators: cloneArrayItems(cache.aoeIndicators),
+    waveIndicators: cloneArrayItems(cache.waveIndicators),
   };
 }
 
@@ -137,6 +146,7 @@ export function applySnapshotDelta(
       hazards: toEntityMap(delta.hazards),
       iceZones: cloneArrayItems(delta.iceZones),
       aoeIndicators: cloneArrayItems(delta.aoeIndicators),
+      waveIndicators: getWaveIndicators(delta),
     };
   }
 
@@ -174,6 +184,7 @@ export function applySnapshotDelta(
   snapshotCache.instanceId = delta.instanceId;
   snapshotCache.iceZones = cloneArrayItems(delta.iceZones);
   snapshotCache.aoeIndicators = cloneArrayItems(delta.aoeIndicators);
+  snapshotCache.waveIndicators = getWaveIndicators(delta);
 
   return snapshotCache;
 }

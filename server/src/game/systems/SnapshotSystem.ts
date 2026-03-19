@@ -2,6 +2,7 @@ import { WORLD_VIEW_RADIUS } from '@gelehka/shared/constants';
 import { PROTOCOL_VERSION, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import type {
   AoeIndicator,
+  BossWaveIndicator,
   IceZone,
   LeaderboardMessage,
   PlayerSnapshot,
@@ -27,7 +28,7 @@ export class SnapshotSystem {
   }
 
   getSnapshotBundle(world: World): SnapshotBundle {
-    const { iceZones, aoeIndicators } = this.collectBossEffects(world);
+    const { iceZones, aoeIndicators, waveIndicators } = this.collectBossEffects(world);
 
     const enemies = [] as SnapshotBundle['enemies'];
     for (const enemy of world.getAllEnemies()) {
@@ -75,6 +76,7 @@ export class SnapshotSystem {
       hazards,
       iceZones,
       aoeIndicators,
+      waveIndicators,
     };
   }
 
@@ -158,7 +160,7 @@ export class SnapshotSystem {
       });
     });
 
-    const { iceZones, aoeIndicators } = this.collectBossEffects(world, inRange);
+    const { iceZones, aoeIndicators, waveIndicators } = this.collectBossEffects(world, inRange);
 
     return {
       instanceId: world.instanceId,
@@ -170,6 +172,7 @@ export class SnapshotSystem {
       hazards,
       iceZones,
       aoeIndicators,
+      waveIndicators,
     };
   }
 
@@ -192,9 +195,10 @@ export class SnapshotSystem {
   private collectBossEffects(
     world: World,
     filterFn?: (x: number, y: number) => boolean
-  ): { iceZones: IceZone[]; aoeIndicators: AoeIndicator[] } {
+  ): { iceZones: IceZone[]; aoeIndicators: AoeIndicator[]; waveIndicators: BossWaveIndicator[] } {
     const iceZones: IceZone[] = [];
     const aoeIndicators: AoeIndicator[] = [];
+    const waveIndicators: BossWaveIndicator[] = [];
 
     for (const boss of world.getAliveBosses()) {
       if (filterFn && !filterFn(boss.x, boss.y)) continue;
@@ -213,8 +217,17 @@ export class SnapshotSystem {
           hit: aoe.hit,
         });
       }
+      for (const wave of effects?.waveIndicators ?? []) {
+        waveIndicators.push({
+          ownerId: wave.ownerId,
+          x: quantizePosition(wave.x),
+          y: quantizePosition(wave.y),
+          radius: Math.round(wave.radius),
+          state: wave.state,
+        });
+      }
     }
 
-    return { iceZones, aoeIndicators };
+    return { iceZones, aoeIndicators, waveIndicators };
   }
 }

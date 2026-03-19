@@ -19,6 +19,17 @@ const CONTACT_SHADOW_OFFSET_Y = 8;
 const EXPULSION_PULSE_ALPHA = 0.55;
 const EXPULSION_PULSE_DISTANCE = 66;
 const EXPULSION_PULSE_DURATION_MS = 140;
+const WAVE_RING_COLOR = 0xc06bff;
+const WAVE_RING_ALPHA = 0.92;
+const WAVE_RING_STROKE_WIDTH = 10;
+const WAVE_CORE_FILL_ALPHA = 0.2;
+const WAVE_CORE_STROKE_ALPHA = 0.75;
+const WAVE_CORE_PULSE_SPEED = 0.012;
+const WAVE_CORE_PULSE_SIZE = 8;
+const WAVE_EDGE_SPRITE_SIZE = 42;
+const WAVE_EDGE_SPRITE_ALPHA = 0.68;
+const WAVE_EDGE_STEP = 92;
+const WAVE_EDGE_MAX_SPRITES = 10;
 
 interface IceZoneData {
   x: number;
@@ -33,6 +44,13 @@ interface AoeData {
   radius: number;
   timer: number;
   hit: boolean;
+}
+
+interface WaveData {
+  x: number;
+  y: number;
+  radius: number;
+  state: 'windup' | 'expanding';
 }
 
 interface AoeTileOverlay {
@@ -62,6 +80,14 @@ export class BossGelehkEntity {
   private iceZoneGraphics: Phaser.GameObjects.Rectangle[];
   private aoeGraphics: Phaser.GameObjects.Arc[];
   private aoeTileOverlays: AoeTileOverlay[];
+  private waveRing: Phaser.GameObjects.Arc;
+  private waveCore: Phaser.GameObjects.Arc;
+  private waveEdgeSprites: Phaser.GameObjects.Image[];
+  private waveState: WaveData['state'] | null;
+  private waveCenterX: number;
+  private waveCenterY: number;
+  private waveRadius: number;
+  private wavePulseTimeMs: number;
   private scene: Phaser.Scene;
   private lastIceZoneCount: number;
   private lastAoeCount: number;
@@ -86,6 +112,12 @@ export class BossGelehkEntity {
     this.lastIceZoneCount = 0;
     this.lastAoeCount = 0;
     this.shadowPulseTween = null;
+    this.waveEdgeSprites = [];
+    this.waveState = null;
+    this.waveCenterX = x;
+    this.waveCenterY = y;
+    this.waveRadius = 0;
+    this.wavePulseTimeMs = 0;
 
     this.sprite = scene.add.sprite(x, y, 'skeleton');
     this.sprite.setScale(BOSS_SCALE);
@@ -99,6 +131,17 @@ export class BossGelehkEntity {
       CONTACT_SHADOW_ALPHA
     );
     this.collisionShadow.setDepth(7.5);
+
+    this.waveRing = scene.add.circle(x, y, 1);
+    this.waveRing.setDepth(4.2);
+    this.waveRing.setFillStyle(WAVE_RING_COLOR, 0);
+    this.waveRing.setStrokeStyle(WAVE_RING_STROKE_WIDTH, WAVE_RING_COLOR, WAVE_RING_ALPHA);
+    this.waveRing.setVisible(false);
+
+    this.waveCore = scene.add.circle(x, y, 1, WAVE_RING_COLOR, WAVE_CORE_FILL_ALPHA);
+    this.waveCore.setDepth(4.1);
+    this.waveCore.setStrokeStyle(3, WAVE_RING_COLOR, WAVE_CORE_STROKE_ALPHA);
+    this.waveCore.setVisible(false);
 
     this.label = scene.add.text(x, y - 56, 'GELEHK', {
       fontSize: '12px',
@@ -132,7 +175,8 @@ export class BossGelehkEntity {
     state: string,
     phase: number,
     iceZones: IceZoneData[],
-    aoeIndicators: AoeData[]
+    aoeIndicators: AoeData[],
+    waveIndicator: WaveData | null
   ): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
@@ -159,6 +203,89 @@ export class BossGelehkEntity {
 
     this.updateIceZones(iceZones);
     this.updateAoeIndicators(aoeIndicators);
+    this.updateWaveIndicator(waveIndicator);
+  }
+
+  private updateWaveIndicator(wave: WaveData | null): void {
+    if (!wave) {
+      this.waveState = null;
+      this.waveCenterX = this.sprite.x;
+      this.waveCenterY = this.sprite.y;
+      this.waveRadius = 0;
+      this.waveRing.setVisible(false);
+      this.waveCore.setVisible(false);
+      this.syncWaveEdgeSprites(0);
+      return;
+    }
+
+    this.waveState = wave.state;
+    this.waveCenterX = wave.x;
+    this.waveCenterY = wave.y;
+    this.waveRadius = wave.radius;
+    this.renderWaveVisuals(this.waveCenterX, this.waveCenterY);
+  }
+
+  private renderWaveVisuals(centerX: number, centerY: number): void {
+    if (!this.waveState) {
+      this.waveRing.setVisible(false);
+      this.waveCore.setVisible(false);
+      this.syncWaveEdgeSprites(0);
+      return;
+    }
+
+    if (this.waveState === 'windup') {
+      this.waveRing.setVisible(false);
+      this.syncWaveEdgeSprites(0);
+      const pulse =
+        1 + Math.sin(this.wavePulseTimeMs * WAVE_CORE_PULSE_SPEED) * WAVE_CORE_PULSE_SIZE;
+      this.waveCore.setPosition(centerX, centerY);
+      this.waveCore.setRadius(Math.max(this.waveRadius + pulse, WAVE_RING_STROKE_WIDTH * 2));
+      this.waveCore.setFillStyle(WAVE_RING_COLOR, WAVE_CORE_FILL_ALPHA);
+      this.waveCore.setStrokeStyle(3, WAVE_RING_COLOR, WAVE_CORE_STROKE_ALPHA);
+      this.waveCore.setVisible(true);
+      return;
+    }
+
+    this.waveCore.setVisible(false);
+    this.waveRing.setPosition(centerX, centerY);
+    this.waveRing.setRadius(Math.max(this.waveRadius, WAVE_RING_STROKE_WIDTH));
+    this.waveRing.setVisible(true);
+
+    const circumference = Math.max(this.waveRadius * Math.PI * 2, WAVE_EDGE_STEP * 4);
+    const spriteCount = Math.max(
+      4,
+      Math.min(WAVE_EDGE_MAX_SPRITES, Math.round(circumference / WAVE_EDGE_STEP))
+    );
+    this.syncWaveEdgeSprites(spriteCount);
+    const angleOffset = (this.waveRadius / 90) % (Math.PI * 2);
+
+    for (let index = 0; index < this.waveEdgeSprites.length; index += 1) {
+      const sprite = this.waveEdgeSprites[index];
+      const angle = angleOffset + (Math.PI * 2 * index) / this.waveEdgeSprites.length;
+      sprite.setPosition(
+        centerX + Math.cos(angle) * this.waveRadius,
+        centerY + Math.sin(angle) * this.waveRadius
+      );
+      sprite.setVisible(true);
+    }
+  }
+
+  private syncWaveEdgeSprites(targetCount: number): void {
+    while (this.waveEdgeSprites.length > targetCount) {
+      this.waveEdgeSprites.pop()?.destroy();
+    }
+
+    while (this.waveEdgeSprites.length < targetCount) {
+      const sprite = this.scene.add.image(this.sprite.x, this.sprite.y, PURPLE_FIELD_TILE_KEY);
+      sprite.setDisplaySize(WAVE_EDGE_SPRITE_SIZE, WAVE_EDGE_SPRITE_SIZE);
+      sprite.setDepth(4.15);
+      sprite.setAlpha(WAVE_EDGE_SPRITE_ALPHA);
+      this.waveEdgeSprites.push(sprite);
+    }
+
+    for (const sprite of this.waveEdgeSprites) {
+      sprite.setVisible(targetCount > 0);
+    }
   }
 
   private pulseCollisionShadow(): void {
@@ -308,6 +435,8 @@ export class BossGelehkEntity {
   }
 
   update(dt: number): void {
+    this.wavePulseTimeMs += dt;
+
     const dx = this.targetX - this.sprite.x;
     const dy = this.targetY - this.sprite.y;
     if (dx * dx + dy * dy > SNAP_DISTANCE * SNAP_DISTANCE) {
@@ -324,6 +453,9 @@ export class BossGelehkEntity {
     this.label.y = this.sprite.y - 56;
     this.collisionShadow.x = this.sprite.x;
     this.collisionShadow.y = this.sprite.y + CONTACT_SHADOW_OFFSET_Y;
+    if (this.waveState) {
+      this.renderWaveVisuals(this.waveCenterX, this.waveCenterY);
+    }
 
     const hpRatio = this.maxHp > 0 ? this.hp / this.maxHp : 0;
     this.hpBarBg.x = this.sprite.x;
@@ -337,6 +469,11 @@ export class BossGelehkEntity {
     this.updateTint();
 
     const alive = this.serverState !== 'dead';
+    this.waveRing.setVisible(alive && this.waveRing.visible);
+    this.waveCore.setVisible(alive && this.waveCore.visible);
+    for (const sprite of this.waveEdgeSprites) {
+      sprite.setVisible(alive && sprite.visible);
+    }
     this.collisionShadow.setVisible(alive);
     this.label.setVisible(alive);
     this.hpBar.setVisible(alive);
@@ -368,7 +505,7 @@ export class BossGelehkEntity {
 
     if (state === 'charging') {
       animKey = `skeleton_attack_${dirSuffix}`;
-    } else if (state === 'jumping' || state === 'targeting') {
+    } else if (state === 'jumping' || state === 'targeting' || state === 'wave_windup') {
       animKey = `skeleton_attack_${dirSuffix}`;
     } else if (state === 'attacking') {
       animKey = `skeleton_attack_${dirSuffix}`;
@@ -410,7 +547,9 @@ export class BossGelehkEntity {
       return;
     }
 
-    if (this.serverState === 'enraged' || this.phase === 3) {
+    if (this.serverState === 'wave_windup') {
+      this.sprite.setTint(0xd67cff);
+    } else if (this.serverState === 'enraged' || this.phase === 3) {
       this.sprite.setTint(0xff6666);
     } else if (this.serverState === 'charging') {
       this.sprite.setTint(0xff8800);
@@ -425,6 +564,9 @@ export class BossGelehkEntity {
     this.sprite.destroy();
     this.shadowPulseTween?.stop();
     this.collisionShadow.destroy();
+    this.waveRing.destroy();
+    this.waveCore.destroy();
+    for (const sprite of this.waveEdgeSprites) sprite.destroy();
     this.label.destroy();
     this.hpBar.destroy();
     this.hpBarBg.destroy();

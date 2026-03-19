@@ -18,6 +18,8 @@ import type {
   BossPhase,
   BossSnapshot,
   BossState,
+  BossWaveIndicator,
+  BossWaveState,
   IceZone,
 } from '../network/MessageTypes.js';
 import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from './Player.js';
@@ -41,9 +43,15 @@ const CHARGE_STOP_DIST = 20;
 const WAVE_DAMAGE = 15;
 const WAVE_MAX_RADIUS = 400;
 const WAVE_SPEED = 200;
+const WAVE_WINDUP_DURATION = 450;
+const WAVE_WINDUP_RADIUS = 44;
+const WAVE_TRAIL_FIRST_RADIUS = 160;
+const WAVE_TRAIL_RADIUS_STEP = 160;
+const WAVE_TRAIL_POINT_COUNT = 3;
 const PHASE1_COOLDOWN = 3000;
 const PHASE2_COOLDOWN = 2500;
-const PHASE3_COOLDOWN = 2000;
+const WAVE_EXPANSION_DURATION = (WAVE_MAX_RADIUS / WAVE_SPEED) * 1000;
+const PHASE3_COOLDOWN = WAVE_WINDUP_DURATION + WAVE_EXPANSION_DURATION + 200;
 const TARGETING_DURATION = 500;
 const JUMPING_DURATION = 400;
 const SPAWNING_DURATION = 500;
@@ -100,6 +108,8 @@ export class BossGelehk extends Entity {
   aoeIndicators: AoeIndicator[];
   private waveRadius: number;
   private waveActive: boolean;
+  private waveState: BossWaveState | null;
+  private waveTrailNextRadius: number;
   deathHandled: boolean;
   private safeZoneX: number;
   private safeZoneY: number;
@@ -131,6 +141,8 @@ export class BossGelehk extends Entity {
     this.aoeIndicators = [];
     this.waveRadius = 0;
     this.waveActive = false;
+    this.waveState = null;
+    this.waveTrailNextRadius = WAVE_TRAIL_FIRST_RADIUS;
     this.deathHandled = false;
     this.safeZoneX = WORLD_SPAWN_X;
     this.safeZoneY = WORLD_SPAWN_Y;
@@ -159,6 +171,8 @@ export class BossGelehk extends Entity {
     this.aoeIndicators = [];
     this.waveRadius = 0;
     this.waveActive = false;
+    this.waveState = null;
+    this.waveTrailNextRadius = WAVE_TRAIL_FIRST_RADIUS;
     this.deathHandled = false;
     this.safeZoneX = WORLD_SPAWN_X;
     this.safeZoneY = WORLD_SPAWN_Y;
@@ -200,7 +214,7 @@ export class BossGelehk extends Entity {
 
     this.updatePhase();
     this.updateAoeIndicators(dt, spawnPurpleField);
-    this.updateWave(dt, players, forEachPlayerInRadius);
+    this.updateWave(dt, players, spawnPurpleField, forEachPlayerInRadius);
 
     if (this.attackTimer > 0) {
       this.attackTimer -= dt;
@@ -218,6 +232,9 @@ export class BossGelehk extends Entity {
         break;
       case 'charging':
         this.handleCharging(dt, players, forEachPlayerInRadius);
+        break;
+      case 'wave_windup':
+        this.handleWaveWindup(dt);
         break;
       case 'spawning_minions':
         this.handleSpawning(dt, spawnMinions);
@@ -283,6 +300,9 @@ export class BossGelehk extends Entity {
         this.stateTimer = TARGETING_DURATION;
         break;
       case 3:
+        if (this.waveState || this.waveActive) {
+          return;
+        }
         this.startWaveAttack();
         this.attackTimer = PHASE3_COOLDOWN;
         break;
@@ -398,19 +418,38 @@ export class BossGelehk extends Entity {
   }
 
   private startWaveAttack(): void {
+    this.waveState = 'windup';
+    this.waveActive = false;
+    this.waveRadius = WAVE_WINDUP_RADIUS;
+    this.waveTrailNextRadius = WAVE_TRAIL_FIRST_RADIUS;
+    this.state = 'wave_windup';
+    this.stateTimer = WAVE_WINDUP_DURATION;
+  }
+
+  private handleWaveWindup(dt: number): void {
+    this.stateTimer -= dt;
+    if (this.stateTimer > 0) {
+      return;
+    }
+
+    this.state = 'idle';
+    this.waveState = 'expanding';
     this.waveActive = true;
     this.waveRadius = 0;
+    this.waveTrailNextRadius = WAVE_TRAIL_FIRST_RADIUS;
   }
 
   private updateWave(
     dt: number,
     players: Map<string, Player>,
+    spawnPurpleField: (x: number, y: number) => void,
     forEachPlayerInRadius?: ForEachPlayerInRadius
   ): void {
     if (!this.waveActive) return;
 
     const prevRadius = this.waveRadius;
     this.waveRadius += WAVE_SPEED * (dt / 1000);
+    this.spawnWaveTrail(prevRadius, spawnPurpleField);
 
     this.forEachPlayerCandidate(
       players,
@@ -431,6 +470,29 @@ export class BossGelehk extends Entity {
     if (this.waveRadius > WAVE_MAX_RADIUS) {
       this.waveActive = false;
       this.waveRadius = 0;
+      this.waveState = null;
+    }
+  }
+
+  private spawnWaveTrail(
+    prevRadius: number,
+    spawnPurpleField: (x: number, y: number) => void
+  ): void {
+    while (this.waveTrailNextRadius > prevRadius && this.waveTrailNextRadius <= this.waveRadius) {
+      const angleOffset =
+        Math.floor(this.waveTrailNextRadius / WAVE_TRAIL_RADIUS_STEP) % 2 === 0
+          ? 0
+          : Math.PI / WAVE_TRAIL_POINT_COUNT;
+
+      for (let index = 0; index < WAVE_TRAIL_POINT_COUNT; index += 1) {
+        const angle = angleOffset + (Math.PI * 2 * index) / WAVE_TRAIL_POINT_COUNT;
+        spawnPurpleField(
+          this.x + Math.cos(angle) * this.waveTrailNextRadius,
+          this.y + Math.sin(angle) * this.waveTrailNextRadius
+        );
+      }
+
+      this.waveTrailNextRadius += WAVE_TRAIL_RADIUS_STEP;
     }
   }
 
@@ -449,6 +511,20 @@ export class BossGelehk extends Entity {
       }
     }
     return false;
+  }
+
+  getWaveIndicator(): BossWaveIndicator | null {
+    if (!this.waveState) {
+      return null;
+    }
+
+    return {
+      ownerId: this.id,
+      x: this.x,
+      y: this.y,
+      radius: this.waveRadius,
+      state: this.waveState,
+    };
   }
 
   private findNearestPlayer(
@@ -509,6 +585,7 @@ export class BossGelehk extends Entity {
       this.iceZones = [];
       this.aoeIndicators = [];
       this.waveActive = false;
+      this.waveState = null;
       this.respawnTimer = BOSS_RESPAWN_TIME;
       this.deathHandled = false;
     }

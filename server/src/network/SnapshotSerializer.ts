@@ -1,6 +1,7 @@
 import type {
   AoeIndicator,
   BossSnapshot,
+  BossWaveIndicator,
   DropSnapshot,
   EnemyStateDelta,
   EnemySnapshot,
@@ -33,6 +34,7 @@ export interface SnapshotBundle {
   hazards: HazardSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
+  waveIndicators: BossWaveIndicator[];
 }
 
 export interface SnapshotState {
@@ -110,6 +112,7 @@ export function toSnapshotMessage(snapshot: SnapshotBundle): SnapshotMessage {
     hazards: snapshot.hazards,
     iceZones: snapshot.iceZones,
     aoeIndicators: snapshot.aoeIndicators,
+    waveIndicators: snapshot.waveIndicators,
   };
 }
 
@@ -321,6 +324,7 @@ export function diffSnapshot(
         removedHazardIds: [],
         iceZones: current.iceZones,
         aoeIndicators: current.aoeIndicators,
+        waveIndicators: current.waveIndicators,
       },
       nextState: currState,
     };
@@ -356,6 +360,7 @@ export function diffSnapshot(
       removedHazardIds: hazardsDiff.removed,
       iceZones: current.iceZones,
       aoeIndicators: current.aoeIndicators,
+      waveIndicators: current.waveIndicators,
     },
     nextState: {
       players: currState.players,

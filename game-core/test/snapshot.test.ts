@@ -61,6 +61,7 @@ function createSnapshot(overrides: Partial<SnapshotMessage> = {}): SnapshotMessa
     bosses: [],
     iceZones: [],
     aoeIndicators: [],
+    waveIndicators: [],
     drops: [],
     portals: [],
     hazards: [],
@@ -93,6 +94,7 @@ function createFullDelta(
     removedHazardIds: [],
     iceZones: [],
     aoeIndicators: [],
+    waveIndicators: [],
     ...overrides,
   };
 }
@@ -122,6 +124,7 @@ function createIncrementalDelta(
     removedHazardIds: [],
     iceZones: [],
     aoeIndicators: [],
+    waveIndicators: [],
     ...overrides,
   };
 }
@@ -192,6 +195,7 @@ describe('normalizeServerMessage', () => {
         hazards: [{ id: 'hazard-1', x: 5, y: 6, kind: 'fire_field', ttlMs: 500 }],
         iceZones: [{ x: 10, y: 20, width: 30, height: 40 }],
         aoeIndicators: [{ ownerId: 'boss-1', x: 50, y: 60, radius: 70, timer: 80, hit: false }],
+        waveIndicators: [{ ownerId: 'boss-1', x: 80, y: 90, radius: 100, state: 'expanding' }],
       }),
       state
     );
@@ -212,6 +216,7 @@ describe('normalizeServerMessage', () => {
         removedHazardIds: ['hazard-1'],
         iceZones: [{ x: 100, y: 200, width: 300, height: 400 }],
         aoeIndicators: [{ x: 15, y: 16, radius: 17, timer: 18, hit: true }],
+        waveIndicators: [{ x: 19, y: 20, radius: 21, state: 'windup' }],
       }),
       state
     );
@@ -225,6 +230,7 @@ describe('normalizeServerMessage', () => {
       hazards: [expect.objectContaining({ id: 'hazard-2' })],
       iceZones: [{ x: 100, y: 200, width: 300, height: 400 }],
       aoeIndicators: [{ x: 15, y: 16, radius: 17, timer: 18, hit: true }],
+      waveIndicators: [{ x: 19, y: 20, radius: 21, state: 'windup' }],
     });
 
     expect((next as SnapshotMessage).players.map((player) => player.id)).toEqual(['player-1']);
@@ -232,6 +238,19 @@ describe('normalizeServerMessage', () => {
     expect((next as SnapshotMessage).drops.map((drop) => drop.id)).toEqual(['drop-2']);
     expect((next as SnapshotMessage).portals.map((portal) => portal.id)).toEqual(['portal-2']);
     expect((next as SnapshotMessage).hazards.map((hazard) => hazard.id)).toEqual(['hazard-2']);
+  });
+
+  it('defaults missing wave indicators when reading older snapshots', () => {
+    const state = createSnapshotNormalizationState();
+
+    const legacySnapshot = {
+      ...createSnapshot(),
+      waveIndicators: undefined,
+    } as unknown as SnapshotMessage;
+
+    const normalized = normalizeServerMessage(legacySnapshot, state) as SnapshotMessage;
+
+    expect(normalized.waveIndicators).toEqual([]);
   });
 
   it('rejects stale or cross-instance incremental deltas', () => {

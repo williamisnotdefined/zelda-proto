@@ -70,7 +70,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 4 as const;
+export const PROTOCOL_VERSION = 6 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -124,9 +124,12 @@ export type BossState =
   | 'targeting'
   | 'jumping'
   | 'charging'
+  | 'wave_windup'
   | 'spawning_minions'
   | 'enraged'
   | 'dead';
+
+export type BossWaveState = 'windup' | 'expanding';
 
 export interface BurningStatus {
   ticksRemaining: number;
@@ -222,6 +225,14 @@ export interface AoeIndicator {
   hit: boolean;
 }
 
+export interface BossWaveIndicator {
+  ownerId?: string;
+  x: number;
+  y: number;
+  radius: number;
+  state: BossWaveState;
+}
+
 export interface DropSnapshot {
   id: string;
   x: number;
@@ -251,6 +262,7 @@ interface SnapshotWorldState {
   bosses: BossSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
+  waveIndicators: BossWaveIndicator[];
   drops: DropSnapshot[];
   portals: PortalSnapshot[];
   hazards: HazardSnapshot[];
