@@ -4,3 +4,11 @@
 - style={{...}} -> usar classes css ou tailwind.
 - coverage alto, 80% +
 - lint, format check com husky (git hooks)
+
+
+
+----
+
+Se quiser, o próximo passo natural é:
+1. unificar ActorStore e StaticEntityStore num único runtime ECS;
+2. mover snapshot/serialização para consultas mais diretas ao ECS;
