@@ -8,6 +8,10 @@
 npm install
 ```
 
+Optional for the Go migration scaffold:
+
+- Go 1.24+
+
 ## Development
 
 ```bash
@@ -18,8 +22,33 @@ npm run dev
 npm run dev:server   # WebSocket server on :3002
 npm run dev:client   # Vite dev server on :5173
 
+# Experimental Go scaffold server
+npm run dev:server:go
+
 DEV_STRESS_ENEMIES_PER_CHUNK=40 DEBUG_GAME_METRICS=1 npm run dev:server
 ```
+
+The Node `server/` remains the default runtime. The Go work in `server_go/` is opt-in until the later cutover phases.
+
+## Go Scaffold
+
+```bash
+# Run the scaffold server
+npm run dev:server:go
+
+# Compile the scaffold server
+npm run build:server:go
+
+# Run Go-only tests
+npm run test:server:go
+```
+
+Current phase-1 scope:
+
+- compatible env loading for the upcoming Go port
+- stub HTTP server with `GET /healthz`
+- future package layout under `server_go/internal/`
+- no WebSocket, gameplay, or static serving yet
 
 ## Production Deployment
 

@@ -32,3 +32,23 @@ jobs:
 
       - name: Test
         run: npm run test
+
+  verify-go:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server_go/go.mod
+
+      - name: Test Go scaffold
+        working-directory: server_go
+        run: go test ./...
+
+      - name: Build Go scaffold
+        working-directory: server_go
+        run: go build -o ./bin/server_go ./cmd/server
