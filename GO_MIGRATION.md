@@ -1,0 +1,103 @@
+Fechei isso em PRs/fases pequenas o bastante para você abrir uma sessão nova e pedir “implemente a fase X” sem misturar escopo. Minha recomendação é começar pela PR00 / Fase 0, porque ela reduz muito o risco das fases de snapshot, sessão e bosses.
+Regras
+- Cada fase precisa ser mergeável sozinha.
+- Até a PR12, o server/ atual continua intacto; todo porte vai para server_go/.
+- O contrato atual do client/server é a spec: shared/src/types.ts, shared/src/protocol.ts, game-core/src/snapshot.ts.
+- Cada fase deve terminar com testes da área tocada; quando fizer sentido, também com smoke test do client via VITE_WS_URL.
+- Não antecipar trabalho de fases futuras; se uma fase pedir stub temporário, tudo bem.
+- O rename server_go -> server fica isolado na última fase.
+Backlog
+- PR00 / Fase 0 - Congelar o comportamento atual
+- Objetivo: transformar o comportamento do Node atual em spec executável antes de criar o porte.
+- Áreas: shared/test, game-core/test, server/test, novo testdata/server-contract/.
+- Entregas: fixtures/goldens de protocolo e snapshot; cobertura de resume_session, snapshot_resync, PortalSystem, HazardSystem, transferências entre instâncias e ordem crítica de World.update().
+- Fora: criar server_go/.
+- Aceite: CI verde; fixtures documentados e reutilizáveis pelo futuro Go.
+- Prompt: implemente a PR00 / Fase 0 da migração para Go, congelando o comportamento atual do server/ em testes e fixtures; não crie server_go ainda.
+- PR01 / Fase 1 - Scaffold do server_go
+- Objetivo: criar a base do projeto Go sem mudar o runtime atual.
+- Áreas: server_go/, scripts raiz, CI, docs mínimas.
+- Entregas: go.mod, cmd/server/main.go, layout internal/..., config/env compatível, scripts tipo dev:server:go, build:server:go, test:server:go, job de CI para Go.
+- Fora: protocolo real, WebSocket real, gameplay.
+- Aceite: go build e go test passam; nada quebra no fluxo Node atual.
+- Prompt: implemente a PR01 / Fase 1, criando o scaffold de server_go e a infra mínima de build/test/CI, sem mexer no comportamento do server/.
+- PR02 / Fase 2 - Protocolo e MessagePack no Go
+- Objetivo: portar o contrato de mensagens e validação canônica.
+- Áreas: server_go/internal/protocol, server_go/internal/codec, testes lendo testdata/server-contract/.
+- Entregas: structs/tipos equivalentes, protocolVersion, encode/decode MessagePack, validação e canonicalização de join, resume_session, input, chat, snapshot_resync.
+- Fora: servidor WS e gameplay.
+- Aceite: fixtures da PR00 passam no Go; shapes e normalização batem com o TS.
+- Prompt: implemente a PR02 / Fase 2, portando o protocolo e os codecs MessagePack para Go com testes contra as fixtures da fase anterior.
+- PR03 / Fase 3 - Casca de WebSocket e sessão resumível
+- Objetivo: subir um server_go conectável, ainda com runtime stub.
+- Áreas: server_go/internal/transport/ws, server_go/internal/session, server_go/internal/policy.
+- Entregas: GET /ws, origin/IP policy, heartbeat, payload limits, rate limits, sessão resumível, welcome, resume_rejected, chat básico, resposta de snapshot full stub e suporte a snapshot_resync.
+- Fora: loop de jogo real e mundo real.
+- Aceite: testes equivalentes a server/test/WebSocketHandler.integration.test.ts passam contra o Go para join/resume/resync.
+- Prompt: implemente a PR03 / Fase 3, criando a casca WS do server_go com sessão resumível e snapshots stub; não avance para gameplay real.
+- PR04 / Fase 4 - Runtime MVP de um mundo
+- Objetivo: trocar o stub por um loop real mínimo.
+- Áreas: server_go/internal/game/core, server_go/internal/game/stores, server_go/internal/game/world, server_go/internal/game/loop.
+- Entregas: Physics, ECS/spatial index, stores, Player, world único phase1, tick loop fixo, movimento e snapshots full reais.
+- Fora: spawn, combate, drops, bosses, transfers, delta snapshots.
+- Aceite: client atual conecta via VITE_WS_URL e recebe snapshots full de um mundo real com movimento funcionando.
+- Prompt: implemente a PR04 / Fase 4, portando o runtime MVP de um mundo com loop real e snapshots full, sem spawn/combat/boss.
+- PR05 / Fase 5 - Combate e regras básicas de mundo
+- Objetivo: alcançar um MVP jogável de combate.
+- Áreas: server_go/internal/game/entities, server_go/internal/game/systems, server_go/internal/game/combat.
+- Entregas: SpawnSystem, SafeZoneSystem, DropSystem, PlayerAttackIntent, PlayerPvpIntent, DamageResolution, DamageApplication, ContactDamage, respawn, inimigos simples (blob, slime, hand, pacman_ghost).
+- Fora: multi-instância, portals, hazards, bosses, delta snapshots.
+- Aceite: equivalentes em Go de PlayerCombatSystems, ContactDamageSystem, SpawnSystem e WorldRuntime passam.
+- Prompt: implemente a PR05 / Fase 5, portando combate, spawn, safe zone, respawn e inimigos simples no server_go, ainda com snapshots full.
+- PR06 / Fase 6 - Delta snapshots, resync e multi-instância base
+- Objetivo: alinhar o comportamento de rede com o client atual.
+- Áreas: server_go/internal/game/snapshot, server_go/internal/game/instances, server_go/internal/transport/ws.
+- Entregas: SnapshotSystem, algoritmo de delta, periodic full snapshot, leaderboard, InstanceManager base com phase1..phase4, semântica de instanceId, resync idêntico ao client.
+- Fora: portals, hazards e bosses.
+- Aceite: client atual aceita snapshots incrementais do Go; testes de resync/leaderboard/ws passam.
+- Prompt: implemente a PR06 / Fase 6, portando delta snapshots, resync, leaderboard e a base multi-instância do server_go.
+- PR07 / Fase 7 - Portais, hazards e transferências
+- Objetivo: fechar a semântica de troca entre fases.
+- Áreas: server_go/internal/game/systems/portal, server_go/internal/game/systems/hazard, server_go/internal/game/instances.
+- Entregas: PortalSystem, HazardSystem, transfer requests, DEV_START_PHASE, portais iniciais, handoff entre instâncias e regras de snapshot após transfer.
+- Fora: AI de bosses.
+- Aceite: testes de portal/hazard/transfer passam; troca de instância não quebra resync nem snapshot base.
+- Prompt: implemente a PR07 / Fase 7, portando portals, hazards e transferências entre instâncias no server_go.
+- PR08 / Fase 8 - Bosses de phase 2 e phase 3
+- Objetivo: portar a primeira metade do conteúdo avançado.
+- Áreas: server_go/internal/game/boss, server_go/internal/game/systems/boss_region.
+- Entregas: BossRegionSystem, DragonLord, Phase3Boss, conteúdo de phase2 e phase3, integrações com hazards/portals já portados.
+- Fora: BossGelehk.
+- Aceite: phase2/phase3 jogáveis no Go; testes equivalentes dos bosses dessas fases passam.
+- Prompt: implemente a PR08 / Fase 8, portando BossRegionSystem, DragonLord e os bosses da phase 3; não mexa ainda no BossGelehk.
+- PR09 / Fase 9 - BossGelehk e efeitos avançados de snapshot
+- Objetivo: portar o boss mais arriscado por último.
+- Áreas: server_go/internal/game/boss/gelehk, snapshot effects.
+- Entregas: BossGelehk, iceZones, aoeIndicators, waveIndicators, minions, purple field e toda a lógica de snapshot associada.
+- Fora: HTTP/static/cutover.
+- Aceite: equivalente em Go de server/test/BossGelehk.test.ts passa; boss funciona no client sem quebrar snapshot.
+- Prompt: implemente a PR09 / Fase 9, portando o BossGelehk e seus efeitos avançados de snapshot para o server_go.
+- PR10 / Fase 10 - HTTP, estáticos e logs
+- Objetivo: tornar o Go capaz de substituir o Node em produção.
+- Áreas: server_go/internal/transport/http, server_go/internal/monitoring.
+- Entregas: servir client/dist, SPA fallback, cache headers, POST /api/logs/client-errors, armazenamento NDJSON, portas/dev-prod compatíveis.
+- Fora: mudar o default da repo ou renomear pastas.
+- Aceite: build do client servido pelo Go; endpoint de logs funciona; smoke de produção passa.
+- Prompt: implemente a PR10 / Fase 10, portando HTTP/static serving e o endpoint /api/logs/client-errors para o server_go.
+- PR11 / Fase 11 - Cutover lógico para Go
+- Objetivo: fazer o Go virar o caminho padrão, ainda sem apagar o Node.
+- Áreas: package.json, .github/workflows/ci.yml, README.md, scripts e docs de deploy.
+- Entregas: npm start/fluxo padrão apontando para o Go, CI usando Go no caminho principal, docs e deploy atualizados; Node antigo mantido só para rollback.
+- Fora: apagar server/ ou renomear server_go.
+- Aceite: fluxo padrão de dev/build/start usa Go; rollback continua possível.
+- Prompt: implemente a PR11 / Fase 11, fazendo o Go virar o default da repo e do CI, mas sem apagar o server/ antigo.
+- PR12 / Fase 12 - Rename final e limpeza
+- Objetivo: concluir a migração física da estrutura.
+- Áreas: rename de pasta, limpeza de scripts/workspaces/referências.
+- Entregas: apagar server/ antigo, renomear server_go para server, remover referências antigas de workspace/lint/format/test/build, ajustar docs finais.
+- Fora: novas features.
+- Aceite: não existe mais server_go/; não existe mais o server/ Node antigo; repo inteira funciona com o novo server/ em Go.
+- Prompt: implemente a PR12 / Fase 12, removendo o server/ antigo, renomeando server_go para server e limpando todas as referências restantes.
+Ordem recomendada
+- Siga PR00 -> PR12 sem pular.
+- Se alguma fase crescer demais, as mais prováveis de dividir são PR06, PR08 e PR09.

@@ -3,9 +3,12 @@ import { pack, unpack } from 'msgpackr';
 import { WebSocket, type RawData } from 'ws';
 import {
   CLIENT_MESSAGE_TYPES,
+  INSTANCE_IDS,
+  SESSION_RESUME_REJECT_REASONS,
   SERVER_MESSAGE_TYPES,
   type ClientMessage,
   type ServerMessage,
+  type ResumeRejectedMessage,
   type SnapshotDeltaMessage,
   type WelcomeMessage,
 } from '@gelehka/shared';
@@ -45,6 +48,35 @@ afterEach(async () => {
 });
 
 describe('WebSocketHandler integration', () => {
+  it('rejects invalid resume tokens', async () => {
+    const { port } = await createHarness();
+    const client = await connectClient(port);
+
+    const rejectedPromise = waitForMessage(client, isResumeRejectedMessage);
+    sendPacked(client, createResumeSessionMessage('missing_token_123'));
+
+    await expect(rejectedPromise).resolves.toMatchObject({
+      reason: SESSION_RESUME_REJECT_REASONS.INVALID_SESSION,
+    });
+  });
+
+  it('rejects resume attempts while the original session is still connected', async () => {
+    const { port } = await createHarness();
+    const firstClient = await connectClient(port);
+
+    const firstWelcomePromise = waitForMessage(firstClient, isWelcomeMessage);
+    sendPacked(firstClient, createJoinMessage('Link'));
+    const firstWelcome = await firstWelcomePromise;
+
+    const secondClient = await connectClient(port);
+    const rejectedPromise = waitForMessage(secondClient, isResumeRejectedMessage);
+    sendPacked(secondClient, createResumeSessionMessage(firstWelcome.sessionToken));
+
+    await expect(rejectedPromise).resolves.toMatchObject({
+      reason: SESSION_RESUME_REJECT_REASONS.SESSION_IN_USE,
+    });
+  });
+
   it('forces a full snapshot after a websocket resync request', async () => {
     const { instances, port, wsHandler } = await createHarness();
     const client = await connectClient(port);
@@ -137,6 +169,59 @@ describe('WebSocketHandler integration', () => {
     wsHandler.broadcastSnapshots(instances);
     const resumedSnapshot = await resumedSnapshotPromise;
     expect(resumedSnapshot.full).toBe(true);
+  });
+
+  it('forces a fresh full baseline after an instance transfer', async () => {
+    const previousDevStartPhase = process.env.DEV_START_PHASE;
+    process.env.DEV_START_PHASE = INSTANCE_IDS.PHASE2;
+
+    try {
+      const { instances, port, wsHandler } = await createHarness();
+      const client = await connectClient(port);
+
+      const welcomePromise = waitForMessage(client, isWelcomeMessage);
+      sendPacked(client, createJoinMessage('Link'));
+      const welcome = await welcomePromise;
+
+      const baselinePromise = waitForMessage(client, isSnapshotDeltaMessage);
+      wsHandler.broadcastSnapshots(instances);
+      const baseline = await baselinePromise;
+      expect(baseline).toMatchObject({
+        full: true,
+        instanceId: INSTANCE_IDS.PHASE2,
+      });
+
+      const player = instances.getPlayerById(welcome.id);
+      const portal = Array.from(instances.phase2World.portals.values())[0];
+
+      expect(player).not.toBeNull();
+      expect(portal).toBeDefined();
+
+      if (!player || !portal) {
+        throw new Error('Expected a phase2 player and initial return portal');
+      }
+
+      player.x = portal.x;
+      player.y = portal.y;
+      instances.update(0);
+
+      expect(instances.getInstanceForPlayer(welcome.id)).toBe(INSTANCE_IDS.PHASE1);
+
+      const transferredSnapshotPromise = waitForMessage(client, isSnapshotDeltaMessage);
+      wsHandler.broadcastSnapshots(instances);
+      const transferredSnapshot = await transferredSnapshotPromise;
+      expect(transferredSnapshot).toMatchObject({
+        full: true,
+        instanceId: INSTANCE_IDS.PHASE1,
+      });
+      expect(transferredSnapshot.tick).toBeGreaterThan(baseline.tick);
+    } finally {
+      if (previousDevStartPhase === undefined) {
+        delete process.env.DEV_START_PHASE;
+      } else {
+        process.env.DEV_START_PHASE = previousDevStartPhase;
+      }
+    }
   });
 });
 
@@ -309,6 +394,10 @@ function decodeMessage(raw: RawData): ServerMessage {
 
 function isWelcomeMessage(message: ServerMessage): message is WelcomeMessage {
   return message.type === SERVER_MESSAGE_TYPES.WELCOME;
+}
+
+function isResumeRejectedMessage(message: ServerMessage): message is ResumeRejectedMessage {
+  return message.type === SERVER_MESSAGE_TYPES.RESUME_REJECTED;
 }
 
 function isSnapshotDeltaMessage(message: ServerMessage): message is SnapshotDeltaMessage {
