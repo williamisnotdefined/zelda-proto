@@ -1,3 +1,3 @@
 package codec
 
-// Package codec will host MessagePack codecs in later migration phases.
+// Package codec hosts the MessagePack codec used by the Go server port.

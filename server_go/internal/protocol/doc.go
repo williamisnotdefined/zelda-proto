@@ -1,3 +1,3 @@
 package protocol
 
-// Package protocol will host message contracts in later migration phases.
+// Package protocol hosts the Go port of the shared client/server contract.

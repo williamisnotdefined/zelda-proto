@@ -15,8 +15,8 @@ import (
 const shutdownTimeout = 5 * time.Second
 
 type App struct {
-	config config.Config
-	logger *log.Logger
+	config  config.Config
+	logger  *log.Logger
 	handler http.Handler
 }
 

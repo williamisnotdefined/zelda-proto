@@ -24,13 +24,13 @@ var truthyValues = map[string]struct{}{
 }
 
 type Config struct {
-	Environment               string
-	Port                      int
-	TrustProxy                bool
-	AllowedWSOrigins          []string
-	DebugGameMetrics          bool
-	DevStartPhase             string
-	DevStressEnemiesPerChunk  int
+	Environment              string
+	Port                     int
+	TrustProxy               bool
+	AllowedWSOrigins         []string
+	DebugGameMetrics         bool
+	DevStartPhase            string
+	DevStressEnemiesPerChunk int
 }
 
 func LoadFromEnv() Config {
