@@ -1,5 +1,5 @@
-import { SESSION_RESUME_REJECT_REASONS, SERVER_MESSAGE_TYPES } from '@gelehka/shared';
 import type { SnapshotMessage, WelcomeMessage } from '@gelehka/shared';
+import { SERVER_MESSAGE_TYPES, SESSION_RESUME_REJECT_REASONS } from '@gelehka/shared';
 import type { GameConnection } from '../../network/gameConnection';
 import type { GameUiSink } from './ui/GameUiSink';
 

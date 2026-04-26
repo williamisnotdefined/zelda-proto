@@ -1,15 +1,15 @@
-import type { InputMessage } from '@gelehka/shared';
 import {
-  PLAYER_ATTACK_SPEED_PENALTY,
-  createInputMessage,
-  hasDirectionalChange,
+    PLAYER_ATTACK_SPEED_PENALTY,
+    createInputMessage,
+    hasDirectionalChange,
 } from '@gelehka/game-core';
+import type { InputMessage } from '@gelehka/shared';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
-import { PredictionController } from '../controllers/PredictionController';
-import type { InputState, PendingInput } from '../controllers/PredictionController';
-import { useTouchInputStore } from '../input/touchInputStore';
 import type { GameConnection } from '../../network/gameConnection';
+import type { InputState, PendingInput } from '../controllers/PredictionController';
+import { PredictionController } from '../controllers/PredictionController';
+import { useTouchInputStore } from '../input/touchInputStore';
 
 const INPUT_SEND_INTERVAL_MS = 33;
 const MAX_PENDING_INPUTS = 128;

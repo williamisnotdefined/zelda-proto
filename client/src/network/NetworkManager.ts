@@ -35,6 +35,7 @@ export interface NetworkPerformanceStats {
 export class NetworkManager {
   private ws: WebSocket | null = null;
   private handlers: MessageHandler[] = [];
+  private lastWelcome: ServerMessage | null = null;
   private errorHandlers: ErrorHandler[] = [];
   private connectionStateHandlers: ConnectionStateHandler[] = [];
   private openCallbacks: (() => void)[] = [];
@@ -152,6 +153,9 @@ export class NetworkManager {
       const normalized = this.normalizeSnapshotMessage(message);
       if (!normalized) {
         return;
+      }
+      if (normalized.type === 'welcome') {
+        this.lastWelcome = normalized;
       }
       for (const handler of this.handlers) {
         handler(normalized);
@@ -278,6 +282,9 @@ export class NetworkManager {
 
   onMessage(handler: MessageHandler): () => void {
     this.handlers.push(handler);
+    if (this.lastWelcome) {
+      handler(this.lastWelcome);
+    }
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
     };
@@ -347,6 +354,7 @@ export class NetworkManager {
     this.snapshotNormalizationState.lastSnapshotInstanceId = null;
     this.snapshotNormalizationState.resyncRequired = false;
     this.snapshotResyncRequested = false;
+    this.lastWelcome = null;
   }
 
   private resetNetworkStats(): void {
