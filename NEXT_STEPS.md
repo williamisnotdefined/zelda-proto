@@ -1,0 +1,9 @@
+- Ficar stacked com bixo em cima não toma dano, precisaria ter turnos de dano depois do primeiro dano
+  - Tomou um dano por contato
+  - contato nao foi desfeito
+  - de X em X tempo -> dano
+- monstros colidem, não passam um por cima do outro
+- move fast on double click OR jump
+- gun / machine gun
+- granade (distance)
+- beserker yelling (throw monsters away with a low damage)
