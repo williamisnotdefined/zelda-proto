@@ -32,7 +32,8 @@
     "lint:fix": "eslint client/src server/src shared/src game-core/src --ext .ts,.tsx --fix",
     "format": "prettier --write \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\"",
     "format:check": "prettier --check \"client/src/**/*.{ts,tsx}\" \"server/src/**/*.ts\" \"shared/src/**/*.ts\" \"game-core/src/**/*.ts\"",
-    "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\""
+    "live:start": "npm run build && concurrently \"npm run start\" \"cloudflared tunnel run wilho\"",
+    "live:start:go": "npm run build:go && concurrently \"npm run start:go\" \"cloudflared tunnel run wilho\""
   },
   "overrides": {
     "react": "19.1.0",
