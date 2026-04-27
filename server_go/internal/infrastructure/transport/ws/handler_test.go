@@ -32,7 +32,7 @@ func TestHandlerAcceptsAndReceivesWelcome(t *testing.T) {
 	sessions := appsess.NewManager(appsess.Options{TokenGenerator: gen})
 	manager := appinst.New(appinst.Config{IDs: ids})
 	dispatcher := wsapi.NewDispatcher(manager, sessions, ids, time.Now)
-	handler := NewHandler(dispatcher, ids, nil, time.Now)
+	handler := NewHandler(dispatcher, ids, nil, nil, time.Now)
 
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
@@ -77,5 +77,46 @@ func TestHandlerAcceptsAndReceivesWelcome(t *testing.T) {
 	v, _ := obj.Lookup("type")
 	if s, _ := v.(string); s != string(protocol.ServerMessageTypeWelcome) {
 		t.Fatalf("expected welcome, got %q", s)
+	}
+}
+
+func TestHandlerClosesOnProtocolMismatch(t *testing.T) {
+	t.Parallel()
+
+	ids := &fakeIDs{}
+	gen := id.NewGenerator(rand.Reader)
+	sessions := appsess.NewManager(appsess.Options{TokenGenerator: gen})
+	manager := appinst.New(appinst.Config{IDs: ids})
+	dispatcher := wsapi.NewDispatcher(manager, sessions, ids, time.Now)
+	handler := NewHandler(dispatcher, ids, nil, nil, time.Now)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.Close(websocket.StatusNormalClosure, "")
+
+	join := codec.Object{
+		{Key: "protocolVersion", Value: int64(protocol.ProtocolVersion - 1)},
+		{Key: "type", Value: string(protocol.ClientMessageTypeJoin)},
+		{Key: "nickname", Value: "alice"},
+	}
+	encoded, err := codec.Marshal(join)
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	if err := c.Write(ctx, websocket.MessageBinary, encoded); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	_, _, err = c.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusProtocolError {
+		t.Fatalf("expected protocol-error close, got %v", err)
 	}
 }

@@ -137,6 +137,37 @@ func TestGelehkAOEIndicatorSpawn(t *testing.T) {
 	}
 }
 
+func TestGelehkAOEImpactSpawnsPurpleFieldAndFlashesHit(t *testing.T) {
+	t.Parallel()
+
+	g := NewGelehk("g1", 0, 0)
+	g.Active = true
+	players := []PlayerView{alive("p1", 100, 0)}
+	purpleSpawns := 0
+	spawnPurple := func(x, y float64) { purpleSpawns++ }
+
+	g.Update(time.Millisecond, players, nil, spawnPurple, nil, nil)
+	g.Update(GelehkAOETelegraph, players, nil, spawnPurple, nil, nil)
+
+	if purpleSpawns != 1 {
+		t.Fatalf("expected one purple-field impact, got %d", purpleSpawns)
+	}
+	if len(g.AOEIndicators) != 1 {
+		t.Fatalf("expected hit flash indicator to remain for one frame, got %d indicators", len(g.AOEIndicators))
+	}
+	if !g.AOEIndicators[0].Hit {
+		t.Fatal("expected indicator hit flag after impact")
+	}
+	if g.AOEIndicators[0].Timer != GelehkAOEHitFlash {
+		t.Fatalf("expected hit flash timer %s, got %s", GelehkAOEHitFlash, g.AOEIndicators[0].Timer)
+	}
+
+	g.Update(GelehkAOEHitFlash, players, nil, spawnPurple, nil, nil)
+	if len(g.AOEIndicators) != 0 {
+		t.Fatalf("expected indicator removed after hit flash, got %d", len(g.AOEIndicators))
+	}
+}
+
 func TestGelehkChargeDamagesPlayers(t *testing.T) {
 	t.Parallel()
 
@@ -146,13 +177,17 @@ func TestGelehkChargeDamagesPlayers(t *testing.T) {
 	g.HP = g.MaxHP / 2 // already in phase2 territory
 	g.State = StateCharging
 	g.chargeDirX = 1
+	g.chargeTargetX = 100
 	g.chargeRemaining = 100 * time.Millisecond
 	hits := map[string]int{}
 	damage := func(id string, amt int) { hits[id] += amt }
-	players := []PlayerView{alive("p1", 30, 0)}
+	players := []PlayerView{alive("p1", 30, 0), alive("p2", 30, 0)}
 	g.Update(20*time.Millisecond, players, nil, nil, damage, nil)
 	if hits["p1"] != GelehkChargeDamage {
 		t.Fatalf("expected charge damage, got %v", hits)
+	}
+	if hits["p2"] != 0 {
+		t.Fatalf("expected charge to damage only one player, got %v", hits)
 	}
 }
 

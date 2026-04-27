@@ -15,20 +15,21 @@ const (
 	GelehkActivateR float64 = 500
 	GelehkRespawn           = 15 * time.Second
 
-	GelehkAOERadius        float64 = 80
-	GelehkAOERange         float64 = 400
-	GelehkAOETelegraph             = 1000 * time.Millisecond
-	GelehkChargeSpeed      float64 = 300
-	GelehkChargeDamage             = 20
-	GelehkChargeDuration           = 1500 * time.Millisecond
-	GelehkChargeStop       float64 = 20
-	GelehkWaveDamage               = 15
-	GelehkWaveMaxRadius    float64 = 400
-	GelehkWaveSpeed        float64 = 200
-	GelehkWaveWindup               = 450 * time.Millisecond
-	GelehkWaveTrailFirst   float64 = 160
-	GelehkWaveTrailStep    float64 = 160
-	GelehkWaveTrailPoints          = 3
+	GelehkAOERadius       float64 = 80
+	GelehkAOERange        float64 = 400
+	GelehkAOETelegraph            = 1000 * time.Millisecond
+	GelehkAOEHitFlash             = 120 * time.Millisecond
+	GelehkChargeSpeed     float64 = 300
+	GelehkChargeDamage            = 20
+	GelehkChargeDuration          = 1500 * time.Millisecond
+	GelehkChargeStop      float64 = 20
+	GelehkWaveDamage              = 15
+	GelehkWaveMaxRadius   float64 = 400
+	GelehkWaveSpeed       float64 = 200
+	GelehkWaveWindup              = 450 * time.Millisecond
+	GelehkWaveTrailFirst  float64 = 160
+	GelehkWaveTrailStep   float64 = 160
+	GelehkWaveTrailPoints         = 3
 
 	GelehkPhase1Cooldown = 3000 * time.Millisecond
 	GelehkPhase2Cooldown = 2500 * time.Millisecond
@@ -87,8 +88,10 @@ type Gelehk struct {
 	AOEIndicators       []AOEIndicator
 	chargeDirX          float64
 	chargeDirY          float64
+	chargeTargetX       float64
+	chargeTargetY       float64
 	chargeRemaining     time.Duration
-	chargeHitPlayers    map[string]struct{}
+	chargeDealtDamage   bool
 	waveActive          bool
 	waveRadius          float64
 	wavePrevRadius      float64
@@ -102,8 +105,7 @@ func NewGelehk(id string, x, y float64) *Gelehk {
 		ID: id, X: x, Y: y, SpawnX: x, SpawnY: y,
 		HP: GelehkMaxHP, MaxHP: GelehkMaxHP, Speed: GelehkSpeed,
 		State: StateIdle, Phase: 1,
-		chargeHitPlayers: make(map[string]struct{}),
-		waveHitPlayers:   make(map[string]struct{}),
+		waveHitPlayers: make(map[string]struct{}),
 	}
 }
 
@@ -123,7 +125,7 @@ func (g *Gelehk) Reset() {
 	g.waveRadius = 0
 	g.wavePrevRadius = 0
 	g.waveTrailNextRadius = 0
-	g.chargeHitPlayers = make(map[string]struct{})
+	g.chargeDealtDamage = false
 	g.waveHitPlayers = make(map[string]struct{})
 }
 
@@ -157,7 +159,7 @@ func (g *Gelehk) Update(
 
 	switch g.Phase {
 	case 1:
-		g.tickPhase1(dt, players, find)
+		g.tickPhase1(dt, players, spawnPurple, find)
 	case 2:
 		g.tickPhase2(dt, players, spawnMinions, damage, find)
 	case 3:
@@ -185,11 +187,8 @@ func (g *Gelehk) transitionPhases(spawnPurple SpawnPurpleField) {
 	}
 }
 
-func (g *Gelehk) tickPhase1(dt time.Duration, players []PlayerView, find FindNearestPlayer) {
-	for i := range g.AOEIndicators {
-		g.AOEIndicators[i].Timer -= dt
-	}
-	g.AOEIndicators = filterAOE(g.AOEIndicators)
+func (g *Gelehk) tickPhase1(dt time.Duration, players []PlayerView, spawnPurple SpawnPurpleField, find FindNearestPlayer) {
+	g.updateAOEIndicators(dt, spawnPurple)
 
 	if g.State == StateIdle && g.AttackTimer <= 0 {
 		t := nearestAlive(players, g.X, g.Y, GelehkActivateR, find)
@@ -204,13 +203,13 @@ func (g *Gelehk) tickPhase1(dt time.Duration, players []PlayerView, find FindNea
 			OwnerID: g.ID, X: t.X, Y: t.Y, Radius: GelehkAOERadius, Timer: GelehkAOETelegraph,
 		})
 		g.State = StateTargeting
-		g.StateTimer = 500 * time.Millisecond
-		g.AttackTimer = GelehkPhase1Cooldown
+		g.StateTimer = GelehkAOETelegraph
 	} else if g.State == StateTargeting && g.StateTimer <= 0 {
 		g.State = StateJumping
 		g.StateTimer = 400 * time.Millisecond
 	} else if g.State == StateJumping && g.StateTimer <= 0 {
 		g.State = StateIdle
+		g.AttackTimer = GelehkPhase1Cooldown
 	}
 }
 
@@ -235,34 +234,37 @@ func (g *Gelehk) tickPhase2(dt time.Duration, players []PlayerView, spawn SpawnM
 		}
 		g.chargeDirX = dx / length
 		g.chargeDirY = dy / length
+		g.chargeTargetX = t.X
+		g.chargeTargetY = t.Y
 		g.State = StateTargeting
 		g.StateTimer = 500 * time.Millisecond
 	}
 	if g.State == StateTargeting && g.StateTimer <= 0 {
 		g.State = StateCharging
 		g.chargeRemaining = GelehkChargeDuration
-		g.chargeHitPlayers = make(map[string]struct{})
+		g.chargeDealtDamage = false
 	}
 	if g.State == StateCharging {
 		step := GelehkChargeSpeed * dt.Seconds()
 		g.X += g.chargeDirX * step
 		g.Y += g.chargeDirY * step
 		g.chargeRemaining -= dt
-		for _, p := range players {
-			if !p.Alive || p.Protected {
-				continue
-			}
-			if _, hit := g.chargeHitPlayers[p.ID]; hit {
-				continue
-			}
-			if physics.DistanceSquared(g.X, g.Y, p.X, p.Y) <= GelehkContactR*GelehkContactR*4 {
-				if damage != nil {
-					damage(p.ID, GelehkChargeDamage)
+		if !g.chargeDealtDamage {
+			for _, p := range players {
+				if !p.Alive || p.Protected {
+					continue
 				}
-				g.chargeHitPlayers[p.ID] = struct{}{}
+				if physics.DistanceSquared(g.X, g.Y, p.X, p.Y) <= GelehkContactR*GelehkContactR*4 {
+					if damage != nil {
+						damage(p.ID, GelehkChargeDamage)
+					}
+					g.chargeDealtDamage = true
+					break
+				}
 			}
 		}
-		if g.chargeRemaining <= 0 {
+		distToTargetSq := physics.DistanceSquared(g.X, g.Y, g.chargeTargetX, g.chargeTargetY)
+		if g.chargeRemaining <= 0 || distToTargetSq < GelehkChargeStop*GelehkChargeStop {
 			g.State = StateIdle
 			g.AttackTimer = GelehkPhase2Cooldown
 		}
@@ -308,13 +310,15 @@ func (g *Gelehk) tickPhase3(dt time.Duration, players []PlayerView, spawn SpawnP
 		}
 		if g.waveRadius >= GelehkWaveMaxRadius {
 			g.waveActive = false
-			g.AttackTimer = GelehkPhase3Cooldown
+			g.waveRadius = 0
+			g.wavePrevRadius = 0
 		}
 		return
 	}
 	if g.State == StateIdle && g.AttackTimer <= 0 {
 		g.State = StateWaveWindup
 		g.StateTimer = GelehkWaveWindup
+		g.AttackTimer = GelehkPhase3Cooldown
 	}
 	if g.State == StateWaveWindup && g.StateTimer <= 0 {
 		g.waveActive = true
@@ -405,4 +409,22 @@ func filterAOE(in []AOEIndicator) []AOEIndicator {
 		}
 	}
 	return out
+}
+
+func (g *Gelehk) updateAOEIndicators(dt time.Duration, spawnPurple SpawnPurpleField) {
+	for i := len(g.AOEIndicators) - 1; i >= 0; i-- {
+		g.AOEIndicators[i].Timer -= dt
+		aoe := &g.AOEIndicators[i]
+		if !aoe.Hit && aoe.Timer <= 0 {
+			if spawnPurple != nil {
+				spawnPurple(aoe.X, aoe.Y)
+			}
+			aoe.Hit = true
+			aoe.Timer = GelehkAOEHitFlash
+			continue
+		}
+		if aoe.Hit && aoe.Timer <= 0 {
+			g.AOEIndicators = append(g.AOEIndicators[:i], g.AOEIndicators[i+1:]...)
+		}
+	}
 }

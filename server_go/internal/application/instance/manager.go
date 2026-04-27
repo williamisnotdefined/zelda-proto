@@ -24,9 +24,10 @@ type Manager struct {
 
 // Config controls Manager construction.
 type Config struct {
-	IDs        appworld.IDFactory
-	StartPhase domworld.InstanceID
-	NowFunc    func() time.Time
+	IDs                   appworld.IDFactory
+	StartPhase            domworld.InstanceID
+	NowFunc               func() time.Time
+	StressEnemiesPerChunk int
 }
 
 // New constructs the manager and seeds each world with starter content.
@@ -40,6 +41,12 @@ func New(cfg Config) *Manager {
 		startPhase:     cfg.StartPhase,
 	}
 	defs := registries.All()
+	if cfg.StressEnemiesPerChunk > 0 {
+		for id, def := range defs {
+			def.SpawnSystem.EnemiesPerChunk = cfg.StressEnemiesPerChunk
+			defs[id] = def
+		}
+	}
 	for _, id := range domworld.AllInstances() {
 		def := defs[id]
 		m.worlds[id] = appworld.New(appworld.Config{
@@ -100,6 +107,18 @@ func (m *Manager) RemovePlayer(id string) {
 	delete(m.playerLocation, id)
 }
 
+// SuspendPlayer clears transient input/combat state for a disconnected player
+// while leaving them resumable in their current world.
+func (m *Manager) SuspendPlayer(id string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	loc, ok := m.playerLocation[id]
+	if !ok {
+		return false
+	}
+	return m.worlds[loc].SuspendPlayer(id)
+}
+
 // LocationOf returns the instance currently hosting a player.
 func (m *Manager) LocationOf(id string) (domworld.InstanceID, bool) {
 	m.mu.Lock()
@@ -129,6 +148,9 @@ func (m *Manager) resolveTransfers() {
 			if p == nil {
 				continue
 			}
+			// Transfers inherit the portal-system cooldown and then extend it to the
+			// post-transfer window used by the legacy server, preventing bounce-backs.
+			p.MarkPhaseTransferCooldown(800 * time.Millisecond)
 			target.AdoptPlayer(p, req.TargetX, req.TargetY)
 			m.playerLocation[req.PlayerID] = req.ToInstance
 			// Per-instance on-enter hooks (mirror InstanceManager.transferPlayer
@@ -162,4 +184,3 @@ func (m *Manager) HandleInput(playerID string, input player.Input) {
 
 // _ = portal.TransferRequest is referenced indirectly via World.
 var _ = portal.TransferRequest{}
-

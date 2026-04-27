@@ -81,19 +81,20 @@ type World struct {
 	pendingFireLines []pendingFireLine
 	tick             uint64
 
-	spawnSystem      *spawn.System
-	bossRegionSystem *bossregion.System
-	def              *registries.InstanceDefinition
-	handledBossDeath map[string]struct{}
-	wasSafeZoneActive bool
+	spawnSystem            *spawn.System
+	bossRegionSystem       *bossregion.System
+	def                    *registries.InstanceDefinition
+	handledBossDeath       map[string]struct{}
+	portalOverlapsByPlayer map[string]map[string]struct{}
+	wasSafeZoneActive      bool
 }
 
 type pendingFireLine struct {
-	x, y      float64
+	x, y       float64
 	dirX, dirY int
-	kind      hazard.Kind
-	nextSeg   int
-	nextSpawn time.Time
+	kind       hazard.Kind
+	nextSeg    int
+	nextSpawn  time.Time
 }
 
 // New constructs a World with empty state.
@@ -105,22 +106,23 @@ func New(cfg Config) *World {
 		cfg.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 	}
 	w := &World{
-		cfg:              cfg,
-		now:              cfg.NowFunc(),
-		players:          make(map[string]*player.Player),
-		enemies:          make(map[string]*enemy.Enemy),
-		dragons:          make(map[string]*boss.DragonLord),
-		gelehks:          make(map[string]*boss.Gelehk),
-		drops:            make(map[string]*drop.Drop),
-		portals:          make(map[string]*portal.Portal),
-		hazards:          make(map[string]*hazard.Hazard),
-		playerIndex:      spatial.New(256),
-		enemyIndex:       spatial.New(256),
-		bossIndex:        spatial.New(256),
-		dropIndex:        spatial.New(128),
-		portalIndex:      spatial.New(128),
-		hazardIndex:      spatial.New(128),
-		handledBossDeath: make(map[string]struct{}),
+		cfg:                    cfg,
+		now:                    cfg.NowFunc(),
+		players:                make(map[string]*player.Player),
+		enemies:                make(map[string]*enemy.Enemy),
+		dragons:                make(map[string]*boss.DragonLord),
+		gelehks:                make(map[string]*boss.Gelehk),
+		drops:                  make(map[string]*drop.Drop),
+		portals:                make(map[string]*portal.Portal),
+		hazards:                make(map[string]*hazard.Hazard),
+		playerIndex:            spatial.New(256),
+		enemyIndex:             spatial.New(256),
+		bossIndex:              spatial.New(256),
+		dropIndex:              spatial.New(128),
+		portalIndex:            spatial.New(128),
+		hazardIndex:            spatial.New(128),
+		handledBossDeath:       make(map[string]struct{}),
+		portalOverlapsByPlayer: make(map[string]map[string]struct{}),
 	}
 	if cfg.Definition != nil {
 		w.def = cfg.Definition
@@ -339,6 +341,9 @@ func (w *World) AddPlayer(id, nickname string, x, y *float64) *player.Player {
 	p := player.New(id, nickname, px, py)
 	w.players[id] = p
 	w.playerIndex.Upsert(id, p.X, p.Y)
+	// Fresh joins inherit spawn protection immediately, so keep the safe zone
+	// clear before the next simulation tick or snapshot.
+	w.expelHostilesFromSafeZone()
 	return p
 }
 
@@ -353,6 +358,7 @@ func (w *World) RemovePlayer(id string) *player.Player {
 	}
 	delete(w.players, id)
 	w.playerIndex.Remove(id)
+	delete(w.portalOverlapsByPlayer, id)
 	return p
 }
 
@@ -362,8 +368,26 @@ func (w *World) AdoptPlayer(p *player.Player, x, y float64) {
 	defer w.mu.Unlock()
 	p.X, p.Y = x, y
 	p.SuspendForDisconnect()
+	p.SafeZoneTimer = player.SafeZoneDuration
 	w.players[p.ID] = p
 	w.playerIndex.Upsert(p.ID, x, y)
+	// Portal transfers should reactivate spawn protection immediately in the
+	// destination world, matching the legacy server's adoptPlayer flow.
+	w.expelHostilesFromSafeZone()
+}
+
+// SuspendPlayer clears transient input/combat state for a disconnected player
+// while keeping them resumable in the world.
+func (w *World) SuspendPlayer(id string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	p, ok := w.players[id]
+	if !ok {
+		return false
+	}
+	p.SuspendForDisconnect()
+	return true
 }
 
 // HandleInput stages a client input for a player.
@@ -512,9 +536,10 @@ func (w *World) ConsumeTransferRequests() []portal.TransferRequest {
 }
 
 // Tick advances the simulation by dt. Order mirrors server/src/game/World.ts:
-//   tickPlayers → respawnPlayers → updateSafeZone → spawnSystem → enemies →
-//   bosses → expel hostiles from safe zone → resolveCombat → drops → portals →
-//   hazards.
+//
+//	tickPlayers → respawnPlayers → updateSafeZone → spawnSystem → enemies →
+//	bosses → expel hostiles from safe zone → resolveCombat → drops → portals →
+//	hazards.
 func (w *World) Tick(dt time.Duration) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -882,6 +907,9 @@ func (w *World) tickPortals() {
 	// Boss-death portal spawning (mirrors PortalSystem.handleBossDeathPortals).
 	w.handleBossDeathPortals()
 
+	nextOverlaps := make(map[string]map[string]struct{}, len(w.portalOverlapsByPlayer))
+	transferredPlayerIDs := make(map[string]struct{})
+
 	for id, pt := range w.portals {
 		if pt.ExpiresAt != nil && !w.now.Before(*pt.ExpiresAt) {
 			delete(w.portals, id)
@@ -892,10 +920,27 @@ func (w *World) tickPortals() {
 			continue
 		}
 		for _, p := range w.players {
-			if p.State == player.StateDead || p.PhaseTransferCooldown > 0 {
+			if p.State == player.StateDead {
 				continue
 			}
 			if physics.DistanceSquared(p.X, p.Y, pt.X, pt.Y) > portal.PortalRadius*portal.PortalRadius {
+				continue
+			}
+			overlaps := nextOverlaps[p.ID]
+			if overlaps == nil {
+				overlaps = make(map[string]struct{})
+				nextOverlaps[p.ID] = overlaps
+			}
+			overlaps[id] = struct{}{}
+			if prev := w.portalOverlapsByPlayer[p.ID]; prev != nil {
+				if _, alreadyOverlapping := prev[id]; alreadyOverlapping {
+					continue
+				}
+			}
+			if p.PhaseTransferCooldown > 0 {
+				continue
+			}
+			if _, alreadyTransferred := transferredPlayerIDs[p.ID]; alreadyTransferred {
 				continue
 			}
 			p.MarkPhaseTransferCooldown(portal.TransferCooldown)
@@ -905,8 +950,10 @@ func (w *World) tickPortals() {
 				TargetX:    pt.TargetX,
 				TargetY:    pt.TargetY,
 			})
+			transferredPlayerIDs[p.ID] = struct{}{}
 		}
 	}
+	w.portalOverlapsByPlayer = nextOverlaps
 }
 
 func (w *World) resolveCombat() {
@@ -984,9 +1031,9 @@ type SnapshotView struct {
 // by the wire layer for telegraph rendering.
 type BossSnapshot struct {
 	boss.Snapshot
-	TargetX     float64
-	TargetY     float64
-	HasTarget   bool
+	TargetX   float64
+	TargetY   float64
+	HasTarget bool
 }
 
 // Snapshot returns the world state as a flat projection.

@@ -83,15 +83,22 @@ func New(cfg config.Config, logger *log.Logger) *App {
 	if !startPhase.IsValid() {
 		startPhase = domworld.InstancePhase1
 	}
-	manager := appinst.New(appinst.Config{IDs: ids, StartPhase: startPhase})
+	manager := appinst.New(appinst.Config{
+		IDs:                   ids,
+		StartPhase:            startPhase,
+		StressEnemiesPerChunk: cfg.DevStressEnemiesPerChunk,
+	})
 	dispatcher := wsapi.NewDispatcher(manager, sessions, ids, time.Now)
+	sessions.SetExpiryHandler(func(playerID string) {
+		dispatcher.HandleSessionExpired(playerID)
+	})
 
 	originValidator := policy.NewOriginValidator(cfg)
 	ipExtractor := policy.NewIPExtractor(cfg)
 	errorStore := monitoring.NewClientErrorLogStore("logs")
 	errorRateLimiter := policy.NewFixedWindowLimiter(time.Minute, map[string]int{httpsrv.ClientErrorRateCategory: 120}, time.Now)
 
-	wsHandler := wsxport.NewHandler(dispatcher, ids, originValidator, time.Now)
+	wsHandler := wsxport.NewHandler(dispatcher, ids, originValidator, ipExtractor, time.Now)
 
 	app := &App{
 		config:     cfg,

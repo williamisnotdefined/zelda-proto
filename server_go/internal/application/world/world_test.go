@@ -117,6 +117,50 @@ func TestPortalQueuesTransferRequest(t *testing.T) {
 	}
 }
 
+func TestPortalTransfersOnlyOnEnter(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := 100.0, 200.0
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+	w.SpawnPortal(&portal.Portal{
+		ID: "pt1", X: 100, Y: 200, Kind: portal.Phase1ToPhase2,
+		ToInstance: domworld.InstancePhase2,
+		TargetX:    300, TargetY: 400,
+		ActiveAt: time.Time{},
+	})
+
+	w.Tick(20 * time.Millisecond)
+	if got := len(w.ConsumeTransferRequests()); got != 1 {
+		t.Fatalf("expected initial transfer on enter, got %d", got)
+	}
+
+	w.Tick(20 * time.Millisecond)
+	if got := len(w.ConsumeTransferRequests()); got != 0 {
+		t.Fatalf("expected no retrigger while still overlapping, got %d", got)
+	}
+
+	p.PhaseTransferCooldown = 0
+	w.Tick(20 * time.Millisecond)
+	if got := len(w.ConsumeTransferRequests()); got != 0 {
+		t.Fatalf("expected no retrigger without leaving portal, got %d", got)
+	}
+
+	p.X, p.Y = 500, 500
+	w.Tick(20 * time.Millisecond)
+	if got := len(w.ConsumeTransferRequests()); got != 0 {
+		t.Fatalf("expected no transfer away from portal, got %d", got)
+	}
+
+	p.PhaseTransferCooldown = 0
+	p.X, p.Y = 100, 200
+	w.Tick(20 * time.Millisecond)
+	if got := len(w.ConsumeTransferRequests()); got != 1 {
+		t.Fatalf("expected transfer after re-entering portal, got %d", got)
+	}
+}
+
 func TestDragonFiresHazardLine(t *testing.T) {
 	t.Parallel()
 
@@ -154,8 +198,25 @@ func TestAdoptPlayer(t *testing.T) {
 
 	w := newWorld(t)
 	p := player.New("p1", "Link", 0, 0)
+	p.SafeZoneTimer = 0
+	e := enemy.New("e1", 200, 200, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e.TargetID = p.ID
+	e.State = enemy.StateChasing
+	w.SpawnEnemy(e)
 	w.AdoptPlayer(p, 100, 100)
 	if w.Players()["p1"] == nil {
 		t.Fatal("expected adoption")
+	}
+	if p.SafeZoneTimer != player.SafeZoneDuration {
+		t.Fatalf("expected safezone rearmed, got %s", p.SafeZoneTimer)
+	}
+	if e.State != enemy.StateIdle {
+		t.Fatalf("expected hostile reset to idle, got %s", e.State)
+	}
+	if e.TargetID != "" {
+		t.Fatalf("expected hostile target cleared, got %q", e.TargetID)
+	}
+	if dx, dy := e.X-200.0, e.Y-200.0; dx*dx+dy*dy <= domworld.SpawnSafeZoneRadius*domworld.SpawnSafeZoneRadius {
+		t.Fatalf("expected hostile expelled from safe zone, got enemy at (%.1f, %.1f)", e.X, e.Y)
 	}
 }

@@ -9,6 +9,8 @@ import (
 
 	appinst "github.com/williamisnotdefined/zelda-proto/server_go/internal/application/instance"
 	appsess "github.com/williamisnotdefined/zelda-proto/server_go/internal/application/session"
+	bossdom "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/boss"
+	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/portal"
 	domworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/world"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/protocol"
 )
@@ -144,4 +146,112 @@ func TestDisconnectCleansUp(t *testing.T) {
 	}
 	d.Disconnect("c1")
 	d.Disconnect("ghost")
+}
+
+func TestDisconnectSuspendsPlayer(t *testing.T) {
+	t.Parallel()
+
+	d, mgr, _ := newDispatcher(t)
+	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
+		t.Fatal(err)
+	}
+	playerID := d.connections["c1"].playerID
+	loc, _ := mgr.LocationOf(playerID)
+	w := mgr.World(loc)
+	startX := w.Players()[playerID].X
+	if err := d.HandleInput("c1", protocol.InputMessage{Seq: 1, Right: true}); err != nil {
+		t.Fatal(err)
+	}
+	d.Disconnect("c1")
+	d.Sim(time.Second)
+	p := w.Players()[playerID]
+	if p == nil {
+		t.Fatal("expected disconnected player to remain resumable in world")
+	}
+	if p.X != startX {
+		t.Fatalf("expected suspended player to stop moving after disconnect, x %.1f -> %.1f", startX, p.X)
+	}
+	if string(p.State) != "idle" {
+		t.Fatalf("expected suspended player to be idle, got %q", p.State)
+	}
+}
+
+func TestChatBroadcastsOnlyWithinInstance(t *testing.T) {
+	t.Parallel()
+
+	d, mgr, conn1 := newDispatcher(t)
+	conn2 := &fakeConn{id: "c2"}
+	d.Register(conn2)
+	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.HandleJoin("c2", protocol.JoinMessage{Nickname: "Zelda"}); err != nil {
+		t.Fatal(err)
+	}
+	player2ID := d.connections["c2"].playerID
+	w := mgr.World(domworld.InstancePhase1)
+	p2 := w.Players()[player2ID]
+	p2.SafeZoneTimer = 0
+	p2.X, p2.Y = 500, 500
+	w.SpawnPortal(&portal.Portal{
+		ID: "pt", X: 500, Y: 500, Kind: portal.Phase1ToPhase2,
+		ToInstance: domworld.InstancePhase2,
+		TargetX:    100, TargetY: 100,
+	})
+	d.Sim(20 * time.Millisecond)
+	if loc, _ := mgr.LocationOf(player2ID); loc != domworld.InstancePhase2 {
+		t.Fatalf("expected second player transferred to phase2, got %s", loc)
+	}
+
+	before1 := len(conn1.snapshot())
+	before2 := len(conn2.snapshot())
+	if err := d.HandleChat("c1", protocol.ChatMessage{Text: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(conn1.snapshot()); got != before1+1 {
+		t.Fatalf("expected sender instance to receive chat, got frames %d -> %d", before1, got)
+	}
+	if got := len(conn2.snapshot()); got != before2 {
+		t.Fatalf("expected other instance to miss chat, got frames %d -> %d", before2, got)
+	}
+}
+
+func TestSessionExpiryRemovesPlayerAfterResumeTTL(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(0, 0)
+	ids := &counterIDs{}
+	manager := appinst.New(appinst.Config{IDs: ids, StartPhase: domworld.InstancePhase1})
+	sessions := appsess.NewManager(appsess.Options{
+		ResumeTTL:      20 * time.Second,
+		Clock:          func() time.Time { return now },
+		TokenGenerator: &tokenGen{},
+	})
+	d := NewDispatcher(manager, sessions, ids, func() time.Time { return now })
+	sessions.SetExpiryHandler(func(playerID string) { d.HandleSessionExpired(playerID) })
+	conn := &fakeConn{id: "c1"}
+	d.Register(conn)
+	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
+		t.Fatal(err)
+	}
+	playerID := d.connections["c1"].playerID
+	d.Disconnect("c1")
+
+	now = now.Add(20*time.Second + time.Millisecond)
+	d.Sim(0)
+	if _, ok := manager.LocationOf(playerID); ok {
+		t.Fatal("expected expired session player removed from manager")
+	}
+}
+
+func TestAOEIndicatorWireUsesTimerField(t *testing.T) {
+	t.Parallel()
+
+	obj := aoeIndicatorObj(bossdom.AOEIndicator{OwnerID: "g1", X: 1, Y: 2, Radius: 80, Timer: 123 * time.Millisecond})
+	if _, ok := obj.Lookup("timer"); !ok {
+		t.Fatal("expected timer field on AOE indicator wire object")
+	}
+	if _, ok := obj.Lookup("remainingMs"); ok {
+		t.Fatal("did not expect legacy remainingMs field on AOE indicator wire object")
+	}
 }

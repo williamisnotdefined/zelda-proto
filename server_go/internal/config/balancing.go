@@ -83,7 +83,7 @@ type Balancing struct {
 // DefaultBalancing reflects the legacy TypeScript server values. Tune here.
 var DefaultBalancing = Balancing{
 	DefaultEnemiesPerChunk: 4,
-	Phase4EnemiesPerChunk:  7,
+	Phase4EnemiesPerChunk:  28, // 7,
 	SpawnChunkSize:         512,
 	SpawnActiveRange:       1024,
 	SpawnDespawnTimeMS:     30000,
@@ -93,10 +93,10 @@ var DefaultBalancing = Balancing{
 	Phase2NearbyRadius:        900,
 	Phase2MinNearbySlimes:     4,
 	Phase2DragonNearbyRadius:  1800,
-	Phase4StarterPacmans:      14,
+	Phase4StarterPacmans:      56, // 14,
 	Phase4StarterPacmanRadius: 600,
 	Phase4NearbyRadius:        900,
-	Phase4MinNearbyPacmans:    12,
+	Phase4MinNearbyPacmans:    48, // 12,
 
 	Phase1BossRegionSize:    2000,
 	Phase1BossActiveRange:   2000,

@@ -55,10 +55,10 @@ type Dispatcher struct {
 	builder   *appsnap.Builder
 	now       func() time.Time
 
-	connections   map[string]*connState
-	snapshotTick  uint64
-	forceFullFor  map[string]bool
-	lastInstance  map[string]domworld.InstanceID
+	connections  map[string]*connState
+	snapshotTick uint64
+	forceFullFor map[string]bool
+	lastInstance map[string]domworld.InstanceID
 }
 
 type connState struct {
@@ -105,11 +105,34 @@ func (d *Dispatcher) Disconnect(connID string) {
 
 	if state.playerID != "" {
 		d.builder.Forget(state.playerID)
+		d.manager.SuspendPlayer(state.playerID)
 		_, _ = d.sessions.MarkDisconnected(state.playerID)
 	}
 	d.mu.Lock()
 	delete(d.forceFullFor, state.playerID)
 	delete(d.lastInstance, state.playerID)
+	d.mu.Unlock()
+}
+
+// HasJoined reports whether connID has already completed join/resume.
+func (d *Dispatcher) HasJoined(connID string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	state, ok := d.connections[connID]
+	return ok && state.joined
+}
+
+// HandleSessionExpired removes the disconnected player whose resume window ran
+// out and clears dispatcher-side snapshot bookkeeping.
+func (d *Dispatcher) HandleSessionExpired(playerID string) {
+	if playerID == "" {
+		return
+	}
+	d.manager.RemovePlayer(playerID)
+	d.builder.Forget(playerID)
+	d.mu.Lock()
+	delete(d.forceFullFor, playerID)
+	delete(d.lastInstance, playerID)
 	d.mu.Unlock()
 }
 
@@ -152,6 +175,10 @@ func (d *Dispatcher) HandleResume(connID string, msg protocol.ResumeSessionMessa
 		d.mu.Unlock()
 		return errors.New("wsapi: unknown connection")
 	}
+	if state.joined {
+		d.mu.Unlock()
+		return errors.New("wsapi: already joined")
+	}
 	d.mu.Unlock()
 
 	res := d.sessions.TryResume(msg.SessionToken)
@@ -160,10 +187,12 @@ func (d *Dispatcher) HandleResume(connID string, msg protocol.ResumeSessionMessa
 	}
 	loc, ok := d.manager.LocationOf(res.Record.PlayerID)
 	if !ok {
+		d.sessions.InvalidatePlayer(res.Record.PlayerID)
 		return d.send(state.conn, protocol.BuildResumeRejected(protocol.ResumeRejectedReasonInvalidSession))
 	}
 	pl := d.manager.World(loc).Players()[res.Record.PlayerID]
 	if pl == nil {
+		d.sessions.InvalidatePlayer(res.Record.PlayerID)
 		return d.send(state.conn, protocol.BuildResumeRejected(protocol.ResumeRejectedReasonInvalidSession))
 	}
 
@@ -194,7 +223,8 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 	return nil
 }
 
-// HandleChat forwards a chat broadcast to every connected player.
+// HandleChat forwards a chat broadcast to every connected player in the same
+// authoritative instance as the sender.
 func (d *Dispatcher) HandleChat(connID string, msg protocol.ChatMessage) error {
 	state, ok := d.lookup(connID)
 	if !ok || !state.joined {
@@ -206,12 +236,15 @@ func (d *Dispatcher) HandleChat(connID string, msg protocol.ChatMessage) error {
 		return ErrNotJoined
 	}
 	envelope := protocol.BuildChatBroadcast(state.playerID, pl.Nickname, msg.Text, d.now().UnixMilli())
-	d.broadcast(envelope)
+	d.broadcastToInstance(loc, envelope)
 	return nil
 }
 
 // Sim drives a simulation tick (loop.Tickable).
-func (d *Dispatcher) Sim(dt time.Duration) { d.manager.Tick(dt) }
+func (d *Dispatcher) Sim(dt time.Duration) {
+	d.manager.Tick(dt)
+	d.sessions.Tick()
+}
 
 // Broadcast pushes a per-player snapshot to every joined connection. Uses
 // snapshot_delta envelopes (full=true on first send / after Forget,
@@ -344,6 +377,24 @@ func (d *Dispatcher) broadcast(envelope codec.Object) {
 	}
 }
 
+func (d *Dispatcher) broadcastToInstance(instance domworld.InstanceID, envelope codec.Object) {
+	d.mu.Lock()
+	conns := make([]*connState, 0, len(d.connections))
+	for _, s := range d.connections {
+		if s.joined {
+			conns = append(conns, s)
+		}
+	}
+	d.mu.Unlock()
+	for _, c := range conns {
+		loc, ok := d.manager.LocationOf(c.playerID)
+		if !ok || loc != instance {
+			continue
+		}
+		_ = d.send(c.conn, envelope)
+	}
+}
+
 func (d *Dispatcher) send(conn Conn, envelope codec.Object) error {
 	data, err := codec.Marshal(envelope)
 	if err != nil {
@@ -461,7 +512,7 @@ func aoeIndicatorObj(a bossdom.AOEIndicator) codec.Object {
 		{Key: "ownerId", Value: a.OwnerID},
 		{Key: "x", Value: a.X}, {Key: "y", Value: a.Y},
 		{Key: "radius", Value: a.Radius},
-		{Key: "remainingMs", Value: int64(a.Timer.Milliseconds())},
+		{Key: "timer", Value: int64(a.Timer.Milliseconds())},
 		{Key: "hit", Value: a.Hit},
 	}
 }

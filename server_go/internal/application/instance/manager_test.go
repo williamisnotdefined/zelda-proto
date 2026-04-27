@@ -62,6 +62,7 @@ func TestTickResolvesPortalTransfer(t *testing.T) {
 	x, y := 500.0, 500.0
 	w := m.World(domworld.InstancePhase1)
 	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
 	m.playerLocation["p1"] = domworld.InstancePhase1
 	w.SpawnPortal(&portal.Portal{
 		ID: "pt", X: 500, Y: 500, Kind: portal.Phase1ToPhase2,
@@ -78,6 +79,12 @@ func TestTickResolvesPortalTransfer(t *testing.T) {
 	}
 	if m.World(domworld.InstancePhase2).Players()["p1"] != p {
 		t.Fatal("expected adoption at destination")
+	}
+	if p.SafeZoneTimer != player.SafeZoneDuration {
+		t.Fatalf("expected safezone rearmed on transfer, got %s", p.SafeZoneTimer)
+	}
+	if p.PhaseTransferCooldown != 800*time.Millisecond {
+		t.Fatalf("expected 800ms post-transfer cooldown, got %s", p.PhaseTransferCooldown)
 	}
 }
 

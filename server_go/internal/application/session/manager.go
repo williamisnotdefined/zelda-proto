@@ -61,9 +61,9 @@ type sessionEntry struct {
 
 // Options customise a Manager.
 type Options struct {
-	ResumeTTL     time.Duration
-	Clock         Clock
-	OnExpired     ExpiryHandler
+	ResumeTTL      time.Duration
+	Clock          Clock
+	OnExpired      ExpiryHandler
 	TokenGenerator TokenGenerator
 }
 
@@ -74,9 +74,9 @@ type Manager struct {
 	onExpire  ExpiryHandler
 	generator TokenGenerator
 
-	mu               sync.Mutex
-	byToken          map[string]*sessionEntry
-	tokenByPlayerID  map[string]string
+	mu              sync.Mutex
+	byToken         map[string]*sessionEntry
+	tokenByPlayerID map[string]string
 }
 
 // NewManager builds a Manager. A nil generator panics on first CreateSession.
@@ -212,6 +212,14 @@ func (m *Manager) Tick() {
 	defer m.mu.Unlock()
 
 	m.purgeExpiredLocked()
+}
+
+// SetExpiryHandler replaces the callback invoked when a disconnected session
+// ages out of its resume TTL.
+func (m *Manager) SetExpiryHandler(handler ExpiryHandler) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.onExpire = handler
 }
 
 // Shutdown clears every session without firing expiry callbacks.

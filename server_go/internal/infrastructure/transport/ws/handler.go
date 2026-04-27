@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/codec"
+	"github.com/williamisnotdefined/zelda-proto/server_go/internal/infrastructure/policy"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/interfaces/wsapi"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/protocol"
 	"nhooyr.io/websocket"
@@ -18,9 +19,17 @@ import (
 
 // Constants mirror the legacy server's safety budgets.
 const (
-	ReadLimit         = 1024
-	HeartbeatInterval = 25 * time.Second
-	HeartbeatTimeout  = 35 * time.Second
+	ReadLimit           = 1024
+	HeartbeatInterval   = 25 * time.Second
+	HeartbeatTimeout    = 35 * time.Second
+	JoinTimeout         = 5 * time.Second
+	RateWindow          = time.Second
+	MaxConnections      = 200
+	MaxConnectionsPerIP = 12
+	InputRateLimit      = 65
+	ChatRateLimit       = 5
+	MaxRateViolations   = 15
+	MaxInvalidMessages  = 8
 )
 
 // ConnectionIDFactory mints unique connection ids.
@@ -33,20 +42,34 @@ type OriginValidator interface {
 	Allow(req *http.Request) bool
 }
 
+// IPExtractor determines the client IP for connection-level policy checks.
+type IPExtractor interface {
+	Extract(req *http.Request) string
+}
+
 // Handler is the http.Handler that upgrades to WebSocket and pumps frames.
 type Handler struct {
-	dispatcher *wsapi.Dispatcher
-	ids        ConnectionIDFactory
-	origins    OriginValidator
-	now        func() time.Time
+	dispatcher  *wsapi.Dispatcher
+	ids         ConnectionIDFactory
+	origins     OriginValidator
+	ips         IPExtractor
+	connections *policy.IPConnectionTracker
+	now         func() time.Time
 }
 
 // NewHandler constructs the handler.
-func NewHandler(dispatcher *wsapi.Dispatcher, ids ConnectionIDFactory, origins OriginValidator, now func() time.Time) *Handler {
+func NewHandler(dispatcher *wsapi.Dispatcher, ids ConnectionIDFactory, origins OriginValidator, ips IPExtractor, now func() time.Time) *Handler {
 	if now == nil {
 		now = time.Now
 	}
-	return &Handler{dispatcher: dispatcher, ids: ids, origins: origins, now: now}
+	return &Handler{
+		dispatcher:  dispatcher,
+		ids:         ids,
+		origins:     origins,
+		ips:         ips,
+		connections: policy.NewIPConnectionTracker(MaxConnections, MaxConnectionsPerIP),
+		now:         now,
+	}
 }
 
 // ServeHTTP upgrades the request and runs the per-connection loop.
@@ -55,6 +78,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
+
+	ip := "unknown"
+	if h.ips != nil {
+		ip = h.ips.Extract(r)
+	}
+	if h.connections != nil && !h.connections.Acquire(ip) {
+		if h.connections.Count(ip) >= MaxConnectionsPerIP {
+			http.Error(w, "too many connections from IP", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "server full", http.StatusServiceUnavailable)
+		return
+	}
+	defer func() {
+		if h.connections != nil {
+			h.connections.Release(ip)
+		}
+	}()
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: h.origins == nil,
@@ -71,6 +112,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	defer h.dispatcher.Disconnect(id)
+	go h.enforceJoinTimeout(ctx, c)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -84,50 +126,114 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) readLoop(ctx context.Context, c *Connection) {
+	rateWindowStart := h.now()
+	inputCount := 0
+	chatCount := 0
+	rateViolations := 0
+	invalidMessages := 0
+
+	resetWindow := func(now time.Time) {
+		if now.Sub(rateWindowStart) <= RateWindow {
+			return
+		}
+		inputCount = 0
+		chatCount = 0
+		rateViolations = 0
+		invalidMessages = 0
+		rateWindowStart = now
+	}
+	registerInvalidMessage := func() bool {
+		invalidMessages += 1
+		if invalidMessages > MaxInvalidMessages {
+			c.closeWithStatus(websocket.StatusPolicyViolation, "Too many invalid messages")
+			return false
+		}
+		return true
+	}
+	registerRateViolation := func() bool {
+		rateViolations += 1
+		if rateViolations > MaxRateViolations {
+			c.closeWithStatus(websocket.StatusPolicyViolation, "Rate limit exceeded")
+			return false
+		}
+		return true
+	}
+
 	for {
 		typ, data, err := c.conn.Read(ctx)
 		if err != nil {
 			return
 		}
+		resetWindow(h.now())
 		if typ != websocket.MessageBinary {
 			continue
 		}
 		decoded, err := codec.Decode(data)
 		if err != nil {
+			if !registerInvalidMessage() {
+				return
+			}
 			continue
 		}
-		obj, ok := decoded.(codec.Object)
-		if !ok {
+		validation := protocol.ValidateClientMessage(decoded, h.dispatcher.HasJoined(c.id))
+		if !validation.OK {
+			if validation.Reason == protocol.ValidationFailureReasonProtocolMismatch {
+				c.closeWithStatus(websocket.StatusProtocolError, "Protocol version mismatch")
+				return
+			}
+			if !registerInvalidMessage() {
+				return
+			}
 			continue
 		}
-		raw, _ := obj.Lookup("type")
-		t, _ := raw.(string)
-		switch protocol.ClientMessageType(t) {
-		case protocol.ClientMessageTypeJoin:
-			msg, ok := decodeJoin(obj)
-			if ok {
-				_ = h.dispatcher.HandleJoin(c.id, msg)
+		switch msg := validation.Message.(type) {
+		case protocol.JoinMessage:
+			if err := h.dispatcher.HandleJoin(c.id, msg); err != nil && !registerInvalidMessage() {
+				return
 			}
-		case protocol.ClientMessageTypeResumeSession:
-			msg, ok := decodeResume(obj)
-			if ok {
-				_ = h.dispatcher.HandleResume(c.id, msg)
+		case protocol.ResumeSessionMessage:
+			if err := h.dispatcher.HandleResume(c.id, msg); err != nil && !registerInvalidMessage() {
+				return
 			}
-		case protocol.ClientMessageTypeInput:
-			msg, ok := decodeInput(obj)
-			if ok {
-				_ = h.dispatcher.HandleInput(c.id, msg)
+		case protocol.InputMessage:
+			inputCount += 1
+			if inputCount > InputRateLimit {
+				if !registerRateViolation() {
+					return
+				}
+				continue
 			}
-		case protocol.ClientMessageTypeChat:
-			msg, ok := decodeChat(obj)
-			if ok {
-				_ = h.dispatcher.HandleChat(c.id, msg)
+			if err := h.dispatcher.HandleInput(c.id, msg); err != nil && !registerInvalidMessage() {
+				return
 			}
-		case protocol.ClientMessageTypeSnapshotResync:
-			msg, ok := decodeSnapshotResync(obj)
-			if ok {
-				_ = h.dispatcher.HandleSnapshotResync(c.id, msg)
+		case protocol.ChatMessage:
+			chatCount += 1
+			if chatCount > ChatRateLimit {
+				if !registerRateViolation() {
+					return
+				}
+				continue
 			}
+			if err := h.dispatcher.HandleChat(c.id, msg); err != nil && !registerInvalidMessage() {
+				return
+			}
+		case protocol.SnapshotResyncMessage:
+			if err := h.dispatcher.HandleSnapshotResync(c.id, msg); err != nil && !registerInvalidMessage() {
+				return
+			}
+		}
+	}
+}
+
+func (h *Handler) enforceJoinTimeout(ctx context.Context, c *Connection) {
+	timer := time.NewTimer(JoinTimeout)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+		if !h.dispatcher.HasJoined(c.id) {
+			c.closeWithStatus(websocket.StatusPolicyViolation, "Join timeout")
 		}
 	}
 }
@@ -196,94 +302,12 @@ func (c *Connection) pingLoop(ctx context.Context) {
 }
 
 func (c *Connection) close() {
+	c.closeWithStatus(websocket.StatusNormalClosure, "")
+}
+
+func (c *Connection) closeWithStatus(code websocket.StatusCode, reason string) {
 	if c.closed.CompareAndSwap(false, true) {
 		close(c.closeCh)
-		_ = c.conn.Close(websocket.StatusNormalClosure, "")
+		_ = c.conn.Close(code, reason)
 	}
-}
-
-func decodeJoin(o codec.Object) (protocol.JoinMessage, bool) {
-	pv, _ := lookupInt(o, "protocolVersion")
-	nick, _ := lookupString(o, "nickname")
-	return protocol.JoinMessage{ProtocolVersion: pv, Type: protocol.ClientMessageTypeJoin, Nickname: nick}, true
-}
-
-func decodeResume(o codec.Object) (protocol.ResumeSessionMessage, bool) {
-	pv, _ := lookupInt(o, "protocolVersion")
-	tok, _ := lookupString(o, "sessionToken")
-	return protocol.ResumeSessionMessage{ProtocolVersion: pv, Type: protocol.ClientMessageTypeResumeSession, SessionToken: tok}, true
-}
-
-func decodeInput(o codec.Object) (protocol.InputMessage, bool) {
-	pv, _ := lookupInt(o, "protocolVersion")
-	seq, _ := lookupInt(o, "seq")
-	up, _ := lookupBool(o, "up")
-	dn, _ := lookupBool(o, "down")
-	lf, _ := lookupBool(o, "left")
-	rt, _ := lookupBool(o, "right")
-	at, _ := lookupBool(o, "attack")
-	return protocol.InputMessage{
-		ProtocolVersion: pv, Type: protocol.ClientMessageTypeInput,
-		Seq: seq, Up: up, Down: dn, Left: lf, Right: rt, Attack: at,
-	}, true
-}
-
-func decodeChat(o codec.Object) (protocol.ChatMessage, bool) {
-	pv, _ := lookupInt(o, "protocolVersion")
-	txt, _ := lookupString(o, "text")
-	return protocol.ChatMessage{ProtocolVersion: pv, Type: protocol.ClientMessageTypeChat, Text: txt}, true
-}
-
-func decodeSnapshotResync(o codec.Object) (protocol.SnapshotResyncMessage, bool) {
-	pv, _ := lookupInt(o, "protocolVersion")
-	reason, _ := lookupString(o, "reason")
-	last, _ := lookupInt(o, "lastTick")
-	inst, _ := lookupString(o, "instanceId")
-	msg := protocol.SnapshotResyncMessage{
-		ProtocolVersion: pv,
-		Type:            protocol.ClientMessageTypeSnapshotResync,
-		Reason:          protocol.SnapshotResyncReason(reason),
-		LastTick:        last,
-	}
-	if inst != "" {
-		id := protocol.InstanceID(inst)
-		msg.InstanceID = &id
-	}
-	return msg, true
-}
-
-func lookupInt(o codec.Object, key string) (int64, bool) {
-	v, ok := o.Lookup(key)
-	if !ok {
-		return 0, false
-	}
-	switch x := v.(type) {
-	case int64:
-		return x, true
-	case uint64:
-		return int64(x), true
-	case int:
-		return int64(x), true
-	case float64:
-		return int64(x), true
-	}
-	return 0, false
-}
-
-func lookupString(o codec.Object, key string) (string, bool) {
-	v, ok := o.Lookup(key)
-	if !ok {
-		return "", false
-	}
-	s, ok := v.(string)
-	return s, ok
-}
-
-func lookupBool(o codec.Object, key string) (bool, bool) {
-	v, ok := o.Lookup(key)
-	if !ok {
-		return false, false
-	}
-	b, ok := v.(bool)
-	return b, ok
 }
