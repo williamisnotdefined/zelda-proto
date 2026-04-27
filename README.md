@@ -8,7 +8,7 @@
 npm install
 ```
 
-Optional for the Go migration scaffold:
+Required for the current server runtime:
 
 - Go 1.24+
 
@@ -18,48 +18,59 @@ Optional for the Go migration scaffold:
 # Run both client and server
 npm run dev
 
-# Or separately
-npm run dev:server   # WebSocket server on :3002
-npm run dev:client   # Vite dev server on :5173
+# Go stack separately
+npm run dev:server   # Go server on :3003
+npm run dev:client   # Vite dev server on :5174, proxying to :3003
 
-# Experimental Go scaffold server
-npm run dev:server:go
+# Legacy Node stack
+npm run dev:node
+npm run dev:server:node   # Node server on :3002
+npm run dev:client:node   # Vite dev server on :5173, proxying to :3002
 
 DEV_STRESS_ENEMIES_PER_CHUNK=40 DEBUG_GAME_METRICS=1 npm run dev:server
 ```
 
-The Node `server/` remains the default runtime. The Go work in `server_go/` is opt-in until the later cutover phases.
+The Go server in `server_go/` is now the default runtime. The Node server in `server/` remains available as `:node`.
 
-## Go Scaffold
+## Server Runtimes
 
 ```bash
-# Run the scaffold server
-npm run dev:server:go
+# Go server
+npm run dev:server
+npm run build:server
+npm run test:server
 
-# Compile the scaffold server
-npm run build:server:go
-
-# Run Go-only tests
-npm run test:server:go
+# Legacy Node server
+npm run dev:server:node
+npm run build:server:node
+npm run test:server:node
 ```
 
-Current phase-1 scope:
+Default development ports:
 
-- compatible env loading for the upcoming Go port
-- stub HTTP server with `GET /healthz`
-- future package layout under `server_go/internal/`
-- no WebSocket, gameplay, or static serving yet
+- Go server: `3003`
+- Go client: `5174`
+- Node server: `3002`
+- Node client: `5173`
 
 ## Production Deployment
 
 ### Building
 
 ```bash
-# Build both client and server
+# Build both client and server with the Go backend
 npm run build
 
 # Start production server
 npm start  # Server on port 3001 (serves client + WebSocket)
+
+# Open Cloudflare tunnel after build/start
+npm run live:start
+
+# Legacy Node production flow
+npm run build:node
+npm run start:node
+npm run live:start:node
 ```
 
 ### Cloudflare Tunnel Setup
@@ -118,8 +129,8 @@ If users get stuck on "Connecting..." in production:
 
 4. **Verify Server is Running**
    ```bash
-   # Check server process
-   ps aux | grep node
+    # Check server process
+    ps aux | grep server_go
    
    # Check server is listening on port 3001
    lsof -i :3001
@@ -163,7 +174,7 @@ DEV_START_PHASE=2 npm run dev:server
 
 ## Architecture
 
-- **Server** (Node.js + ws): Authoritative simulation at 60Hz with separate 20Hz network snapshots
+- **Server** (Go): Authoritative simulation at 60Hz with separate 20Hz network snapshots
 - **Client** (Vite + React + Phaser 3): Rendering, interpolation, prediction/reconciliation, and HUD
 - Communication via MessagePack over WebSocket with snapshot delta replication
 

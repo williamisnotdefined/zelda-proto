@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 const isProd = process.env.NODE_ENV === 'production';
 const appRelease = process.env.GIT_COMMIT_SHA || process.env.VITE_APP_RELEASE || 'dev';
+const devPort = Number(process.env.VITE_DEV_PORT || 5173);
+const serverPort = Number(process.env.VITE_SERVER_PORT || 3002);
 const clientPackageJson = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8')
 ) as {
@@ -82,7 +84,7 @@ export default defineConfig({
   ],
   server: {
     host: true,
-    port: 5173,
+    port: devPort,
     strictPort: true,
     allowedHosts: ['wilho.com.br'],
     hmr: isProd
@@ -93,10 +95,10 @@ export default defineConfig({
       : true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: `http://localhost:${serverPort}`,
       },
       '/ws': {
-        target: 'ws://localhost:3002',
+        target: `ws://localhost:${serverPort}`,
         ws: true,
       },
     },
