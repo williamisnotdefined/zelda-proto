@@ -22,7 +22,6 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'prompt',
-      includeAssets: ['assets/favicon.png', 'assets/icon-192.png', 'assets/icon-512.png'],
       manifest: {
         name: 'Legends of Gelehk',
         short_name: 'Gelehk',

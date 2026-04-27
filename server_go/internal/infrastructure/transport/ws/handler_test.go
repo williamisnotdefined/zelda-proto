@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"crypto/rand"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
@@ -20,9 +21,12 @@ import (
 
 type fakeIDs struct{ n atomic.Int64 }
 
+type allowAllOrigins struct{}
+
 func (f *fakeIDs) NewID(prefix string) string { return prefix }
 func (f *fakeIDs) NewPlayerID() string        { f.n.Add(1); return "player_x" }
 func (f *fakeIDs) NewConnectionID() string    { f.n.Add(1); return "conn_x" }
+func (allowAllOrigins) Allow(*http.Request) bool { return true }
 
 func TestHandlerAcceptsAndReceivesWelcome(t *testing.T) {
 	t.Parallel()
@@ -119,4 +123,29 @@ func TestHandlerClosesOnProtocolMismatch(t *testing.T) {
 	if websocket.CloseStatus(err) != websocket.StatusProtocolError {
 		t.Fatalf("expected protocol-error close, got %v", err)
 	}
+}
+
+func TestHandlerAcceptsAllowedOriginBehindProxyHostMismatch(t *testing.T) {
+	t.Parallel()
+
+	ids := &fakeIDs{}
+	gen := id.NewGenerator(rand.Reader)
+	sessions := appsess.NewManager(appsess.Options{TokenGenerator: gen})
+	manager := appinst.New(appinst.Config{IDs: ids})
+	dispatcher := wsapi.NewDispatcher(manager, sessions, ids, time.Now)
+	handler := NewHandler(dispatcher, ids, allowAllOrigins{}, nil, time.Now)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Origin": []string{"https://wilho.com.br"}},
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer c.Close(websocket.StatusNormalClosure, "")
 }

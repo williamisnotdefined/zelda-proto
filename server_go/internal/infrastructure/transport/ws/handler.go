@@ -98,7 +98,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: h.origins == nil,
+		// Origin policy is enforced above so the websocket library should not
+		// apply its own Host-vs-Origin check, which breaks proxied production
+		// traffic where the origin host differs from the local upstream host.
+		InsecureSkipVerify: true,
 	})
 	if err != nil {
 		return

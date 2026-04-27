@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -68,5 +70,27 @@ func TestRunHonorsContextShutdown(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not stop after context cancellation")
+	}
+}
+
+func TestResolveStaticRootDefaultsToClientDist(t *testing.T) {
+	t.Setenv("CLIENT_DIST_DIR", "")
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	rootDir := filepath.Clean(filepath.Join(wd, "..", "..", ".."))
+	if err := os.Chdir(rootDir); err != nil {
+		t.Fatalf("chdir root: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	}()
+
+	if got := resolveStaticRoot(); got != filepath.Join("client", "dist") {
+		t.Fatalf("expected default static root, got %q", got)
 	}
 }

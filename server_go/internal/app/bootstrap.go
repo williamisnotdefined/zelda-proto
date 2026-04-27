@@ -7,10 +7,12 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -111,7 +113,7 @@ func New(cfg config.Config, logger *log.Logger) *App {
 
 	healthHandler := http.HandlerFunc(app.handleHealthz)
 	app.httpMux = httpsrv.NewMux(httpsrv.Config{
-		StaticRoot:       os.Getenv("CLIENT_DIST_DIR"),
+		StaticRoot:       resolveStaticRoot(),
 		HealthHandler:    healthHandler,
 		WSHandler:        wsHandler,
 		ErrorStore:       errorStore,
@@ -121,6 +123,27 @@ func New(cfg config.Config, logger *log.Logger) *App {
 	})
 
 	return app
+}
+
+func resolveStaticRoot() string {
+	if staticRoot := os.Getenv("CLIENT_DIST_DIR"); staticRoot != "" {
+		return staticRoot
+	}
+
+	defaultRoot := filepath.Join("client", "dist")
+	info, err := os.Stat(defaultRoot)
+	if err != nil || !info.IsDir() {
+		return ""
+	}
+
+	if _, err := os.Stat(filepath.Join(defaultRoot, "index.html")); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return ""
+		}
+		return ""
+	}
+
+	return defaultRoot
 }
 
 // Handler returns the HTTP mux (exposed for tests).
