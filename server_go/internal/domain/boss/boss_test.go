@@ -60,6 +60,23 @@ func TestDragonLordContactCooldown(t *testing.T) {
 	}
 }
 
+func TestGelehkContactCooldown(t *testing.T) {
+	t.Parallel()
+
+	g := NewGelehk("g1", 0, 0)
+	if !g.CanDealContactDamageTo("p1") {
+		t.Fatal("expected ready")
+	}
+	g.MarkContactDamageDealt("p1")
+	if g.CanDealContactDamageTo("p1") {
+		t.Fatal("expected blocked")
+	}
+	g.Update(GelehkContactCD+time.Millisecond, nil, nil, nil, nil, nil)
+	if !g.CanDealContactDamageTo("p1") {
+		t.Fatal("expected cooldown to expire")
+	}
+}
+
 func TestDragonLordTakeDamageAndRespawn(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +205,21 @@ func TestGelehkChargeDamagesPlayers(t *testing.T) {
 	}
 	if hits["p2"] != 0 {
 		t.Fatalf("expected charge to damage only one player, got %v", hits)
+	}
+}
+
+func TestGelehkStopChargeOnCollision(t *testing.T) {
+	t.Parallel()
+
+	g := NewGelehk("g1", 0, 0)
+	g.State = StateCharging
+	g.AttackTimer = 0
+	g.StopChargeOnCollision()
+	if g.State != StateIdle {
+		t.Fatalf("expected idle after collision stop, got %s", g.State)
+	}
+	if g.AttackTimer != GelehkPhase2Cooldown {
+		t.Fatalf("expected charge cooldown after stop, got %s", g.AttackTimer)
 	}
 }
 

@@ -10,12 +10,16 @@
 package combat
 
 import (
+	"math"
+
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/application/safezone"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/boss"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/enemy"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/physics"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/player"
 )
+
+const contactTouchMargin = 2.0
 
 // PlayerMeleeSystem resolves player melee swings against enemies and bosses.
 // Mirrors server/src/game/combat/PlayerAttackIntentSystem.ts (the TS server
@@ -144,25 +148,33 @@ func (ContactDamageSystem) Resolve(
 	players map[string]*player.Player,
 	enemies map[string]*enemy.Enemy,
 	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
 	zone safezone.Zone,
 ) {
-	// Enemies — one player per enemy per tick (break after first hit).
+	// Enemies — one player per enemy per tick. Choose the nearest touched player
+	// deterministically rather than relying on map iteration order.
 	for _, e := range enemies {
 		if e.State == enemy.StateDead || e.DamageCooldown > 0 {
 			continue
 		}
-		ec := physics.EntityCircle(e.X, e.Y, e.Config.ContactRadius)
+		var target *player.Player
+		bestSq := math.MaxFloat64
 		for _, p := range players {
 			if p.State == player.StateDead || zone.Protects(p) {
 				continue
 			}
-			pb := physics.EntityAABB(p.X, p.Y, enemy.PlayerWidth, enemy.PlayerHeight)
-			if !physics.CircleAABBOverlap(ec, pb) {
+			if !playerTouchesHostileBody(p, e.X, e.Y, e.CollisionRadius()) {
 				continue
 			}
-			p.TakeDamage(e.Config.Damage)
+			dsq := physics.DistanceSquared(e.X, e.Y, p.X, p.Y)
+			if dsq < bestSq {
+				bestSq = dsq
+				target = p
+			}
+		}
+		if target != nil {
+			target.TakeDamage(e.Config.Damage)
 			e.MarkContactDamageDealt()
-			break
 		}
 	}
 	// DragonLord-family bosses — per-target cooldown tracked on the boss.
@@ -170,7 +182,6 @@ func (ContactDamageSystem) Resolve(
 		if d.State == boss.StateDead {
 			continue
 		}
-		c := physics.EntityCircle(d.X, d.Y, d.ContactRadius())
 		for _, p := range players {
 			if p.State == player.StateDead || zone.Protects(p) {
 				continue
@@ -178,12 +189,35 @@ func (ContactDamageSystem) Resolve(
 			if !d.CanDealContactDamageTo(p.ID) {
 				continue
 			}
-			pb := physics.EntityAABB(p.X, p.Y, enemy.PlayerWidth, enemy.PlayerHeight)
-			if !physics.CircleAABBOverlap(c, pb) {
+			if !playerTouchesHostileBody(p, d.X, d.Y, d.ContactRadius()) {
 				continue
 			}
 			p.TakeDamage(d.Damage)
 			d.MarkContactDamageDealt(p.ID)
 		}
 	}
+	// Gelehk — per-target cooldown tracked on the boss body just like dragons.
+	for _, g := range gelehks {
+		if g.State == boss.StateDead {
+			continue
+		}
+		for _, p := range players {
+			if p.State == player.StateDead || zone.Protects(p) {
+				continue
+			}
+			if !g.CanDealContactDamageTo(p.ID) {
+				continue
+			}
+			if !playerTouchesHostileBody(p, g.X, g.Y, g.ContactRadius()) {
+				continue
+			}
+			p.TakeDamage(boss.GelehkContactDamage)
+			g.MarkContactDamageDealt(p.ID)
+		}
+	}
+}
+
+func playerTouchesHostileBody(p *player.Player, hx, hy, hostileRadius float64) bool {
+	r := hostileRadius + player.Width/2 + contactTouchMargin
+	return physics.DistanceSquared(hx, hy, p.X, p.Y) <= r*r
 }

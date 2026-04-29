@@ -85,7 +85,7 @@ var (
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	PacmanGhostConfig = Config{
-		Kind: KindPacmanGhost, MaxHP: 38, Speed: 90, Damage: 5,
+		Kind: KindPacmanGhost, MaxHP: 10, Speed: 90, Damage: 5,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
@@ -126,10 +126,10 @@ func New(id string, x, y float64, chunkKey string, cfg Config, dropKind drop.Kin
 	return &Enemy{
 		ID: id, Kind: cfg.Kind, Config: cfg,
 		X: x, Y: y, SpawnX: x, SpawnY: y,
-		ChunkKey: chunkKey,
-		HP:       cfg.MaxHP,
-		State:    StateIdle,
-		DropKind: dropKind,
+		ChunkKey:        chunkKey,
+		HP:              cfg.MaxHP,
+		State:           StateIdle,
+		DropKind:        dropKind,
 		RespawnEnabled:  true,
 		reacquireOffset: hashOffset(id),
 	}
@@ -241,9 +241,15 @@ func (e *Enemy) lookupTarget(players []PlayerView) *PlayerView {
 }
 
 func (e *Enemy) overlapsTarget(target *PlayerView) bool {
-	box := physics.EntityAABB(target.X, target.Y, PlayerWidth, PlayerHeight)
-	circ := physics.EntityCircle(e.X, e.Y, e.Config.ContactRadius)
-	return physics.CircleAABBOverlap(circ, box)
+	r := e.CollisionRadius() + PlayerWidth/2
+	return physics.DistanceSquared(e.X, e.Y, target.X, target.Y) <= r*r
+}
+
+// CollisionRadius returns the solid body radius used for actor-vs-actor
+// blocking. This is intentionally wider than some contact-damage radii so the
+// visual sprite body cannot pass through other solid actors.
+func (e *Enemy) CollisionRadius() float64 {
+	return math.Max(e.Config.Width, e.Config.Height) / 2
 }
 
 // MarkContactDamageDealt sets the global damage cooldown.

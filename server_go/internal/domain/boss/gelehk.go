@@ -9,11 +9,13 @@ import (
 
 // Gelehk constants (mirrors BossGelehk.ts).
 const (
-	GelehkMaxHP             = 80
-	GelehkSpeed     float64 = 80
-	GelehkContactR  float64 = 36
-	GelehkActivateR float64 = 500
-	GelehkRespawn           = 15 * time.Second
+	GelehkMaxHP                 = 80
+	GelehkSpeed         float64 = 80
+	GelehkContactR      float64 = 36
+	GelehkContactDamage         = 10
+	GelehkContactCD             = 1000 * time.Millisecond
+	GelehkActivateR     float64 = 500
+	GelehkRespawn               = 15 * time.Second
 
 	GelehkAOERadius       float64 = 80
 	GelehkAOERange        float64 = 400
@@ -97,6 +99,7 @@ type Gelehk struct {
 	wavePrevRadius      float64
 	waveTrailNextRadius float64
 	waveHitPlayers      map[string]struct{}
+	contactCDByPlayer   map[string]time.Duration
 }
 
 // NewGelehk constructs the gelehk boss at (x, y).
@@ -105,7 +108,8 @@ func NewGelehk(id string, x, y float64) *Gelehk {
 		ID: id, X: x, Y: y, SpawnX: x, SpawnY: y,
 		HP: GelehkMaxHP, MaxHP: GelehkMaxHP, Speed: GelehkSpeed,
 		State: StateIdle, Phase: 1,
-		waveHitPlayers: make(map[string]struct{}),
+		waveHitPlayers:    make(map[string]struct{}),
+		contactCDByPlayer: make(map[string]time.Duration),
 	}
 }
 
@@ -127,6 +131,7 @@ func (g *Gelehk) Reset() {
 	g.waveTrailNextRadius = 0
 	g.chargeDealtDamage = false
 	g.waveHitPlayers = make(map[string]struct{})
+	g.contactCDByPlayer = make(map[string]time.Duration)
 }
 
 // Update advances the gelehk AI for dt.
@@ -138,6 +143,14 @@ func (g *Gelehk) Update(
 	damage DamagePlayer,
 	find FindNearestPlayer,
 ) {
+	for id, cd := range g.contactCDByPlayer {
+		cd -= dt
+		if cd <= 0 {
+			delete(g.contactCDByPlayer, id)
+		} else {
+			g.contactCDByPlayer[id] = cd
+		}
+	}
 	if g.State == StateDead {
 		return
 	}
@@ -257,6 +270,7 @@ func (g *Gelehk) tickPhase2(dt time.Duration, players []PlayerView, spawn SpawnM
 				if physics.DistanceSquared(g.X, g.Y, p.X, p.Y) <= GelehkContactR*GelehkContactR*4 {
 					if damage != nil {
 						damage(p.ID, GelehkChargeDamage)
+						g.MarkContactDamageDealt(p.ID)
 					}
 					g.chargeDealtDamage = true
 					break
@@ -328,6 +342,29 @@ func (g *Gelehk) tickPhase3(dt time.Duration, players []PlayerView, spawn SpawnP
 		g.waveHitPlayers = make(map[string]struct{})
 		g.State = StateIdle
 	}
+}
+
+// CanDealContactDamageTo reports whether the gelehk's per-player body-contact
+// cooldown is expired for playerID.
+func (g *Gelehk) CanDealContactDamageTo(playerID string) bool {
+	_, blocked := g.contactCDByPlayer[playerID]
+	return !blocked
+}
+
+// MarkContactDamageDealt arms the gelehk's per-player body-contact cooldown.
+func (g *Gelehk) MarkContactDamageDealt(playerID string) {
+	g.contactCDByPlayer[playerID] = GelehkContactCD
+}
+
+// StopChargeOnCollision cancels the phase-2 charge when the boss body hits a
+// solid actor. The cooldown mirrors the normal end-of-charge path.
+func (g *Gelehk) StopChargeOnCollision() {
+	if g.State != StateCharging {
+		return
+	}
+	g.chargeRemaining = 0
+	g.State = StateIdle
+	g.AttackTimer = GelehkPhase2Cooldown
 }
 
 // IsInIceZone reports whether (x, y) lies in any active ice zone.

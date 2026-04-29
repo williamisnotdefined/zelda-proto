@@ -32,13 +32,38 @@ func TestContactDamageRespectsSafezone(t *testing.T) {
 		"e2": enemy.New("e2", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindHeartSmall),
 	}
 
-	ContactDamageSystem{}.Resolve(players, enemies, nil, zone)
+	ContactDamageSystem{}.Resolve(players, enemies, nil, nil, zone)
 
 	if protected.HP != player.MaxHP {
 		t.Errorf("safezone-protected player took contact damage: %d", protected.HP)
 	}
 	if unprotected.HP >= player.MaxHP {
 		t.Errorf("unprotected player must have taken contact damage, got HP=%d", unprotected.HP)
+	}
+}
+
+func TestGelehkContactDamageRepeatsEverySecondWhileTouching(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 100, Y: 100, Radius: 10}
+	target := newPlayerOutsideSafezone("p1", 0, 0)
+	players := map[string]*player.Player{"p1": target}
+	gelehks := map[string]*boss.Gelehk{"g1": boss.NewGelehk("g1", 0, 0)}
+
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	if got, want := target.HP, player.MaxHP-boss.GelehkContactDamage; got != want {
+		t.Fatalf("expected first body-contact hit HP=%d, got %d", want, got)
+	}
+
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	if got, want := target.HP, player.MaxHP-boss.GelehkContactDamage; got != want {
+		t.Fatalf("expected cooldown to block immediate retrigger, want HP=%d got %d", want, got)
+	}
+
+	gelehks["g1"].Update(boss.GelehkContactCD, nil, nil, nil, nil, nil)
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	if got, want := target.HP, player.MaxHP-(2*boss.GelehkContactDamage); got != want {
+		t.Fatalf("expected repeated body-contact hit after 1s, want HP=%d got %d", want, got)
 	}
 }
 

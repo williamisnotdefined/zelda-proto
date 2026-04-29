@@ -164,6 +164,7 @@ func (w *World) SeedStarterEnemies() {
 		w.def.SpawnX, w.def.SpawnY, w.def.StarterEnemies, w.def.StarterEnemyRadius,
 		w.enemies, func(e *enemy.Enemy) { w.enemyIndex.Upsert(e.ID, e.X, e.Y) },
 	)
+	w.resolveBodyCollisionsLocked()
 }
 
 // SeedPhase3Bosses spawns the Phase 3 entry bosses defined in the registry.
@@ -227,6 +228,7 @@ func (w *World) EnsurePhase3BossesNear(entryX, entryY float64) {
 		w.dragons[d.ID] = d
 		w.bossIndex.Upsert(d.ID, d.X, d.Y)
 	}
+	w.resolveBodyCollisionsLocked()
 }
 
 // EnsurePhase2PopulationNear tops up the Phase 2 starter slime ring around
@@ -283,6 +285,7 @@ func (w *World) EnsurePhase2PopulationNear(entryX, entryY float64) {
 		w.dragons[d.ID] = d
 		w.bossIndex.Upsert(d.ID, d.X, d.Y)
 	}
+	w.resolveBodyCollisionsLocked()
 }
 
 // EnsurePhase4PopulationNear tops up the Phase 4 starter pacman ghost ring
@@ -320,6 +323,7 @@ func (w *World) EnsurePhase4PopulationNear(entryX, entryY float64) {
 		entryX, entryY, b.Phase4StarterPacmans, b.Phase4StarterPacmanRadius,
 		w.enemies, func(e *enemy.Enemy) { w.enemyIndex.Upsert(e.ID, e.X, e.Y) },
 	)
+	w.resolveBodyCollisionsLocked()
 }
 
 // InstanceID returns the instance this world represents.
@@ -344,6 +348,7 @@ func (w *World) AddPlayer(id, nickname string, x, y *float64) *player.Player {
 	// Fresh joins inherit spawn protection immediately, so keep the safe zone
 	// clear before the next simulation tick or snapshot.
 	w.expelHostilesFromSafeZone()
+	w.resolveBodyCollisionsLocked()
 	return p
 }
 
@@ -374,6 +379,7 @@ func (w *World) AdoptPlayer(p *player.Player, x, y float64) {
 	// Portal transfers should reactivate spawn protection immediately in the
 	// destination world, matching the legacy server's adoptPlayer flow.
 	w.expelHostilesFromSafeZone()
+	w.resolveBodyCollisionsLocked()
 }
 
 // SuspendPlayer clears transient input/combat state for a disconnected player
@@ -538,8 +544,8 @@ func (w *World) ConsumeTransferRequests() []portal.TransferRequest {
 // Tick advances the simulation by dt. Order mirrors server/src/game/World.ts:
 //
 //	tickPlayers → respawnPlayers → updateSafeZone → spawnSystem → enemies →
-//	bosses → expel hostiles from safe zone → resolveCombat → drops → portals →
-//	hazards.
+//	bosses → expel hostiles from safe zone → resolveBodyCollisions →
+//	resolveCombat → drops → portals → hazards.
 func (w *World) Tick(dt time.Duration) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -563,6 +569,7 @@ func (w *World) Tick(dt time.Duration) {
 	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
 		w.expelHostilesFromSafeZone()
 	}
+	w.resolveBodyCollisionsLocked()
 	w.wasSafeZoneActive = safeZoneActive
 	w.resolveCombat()
 	w.tickDrops()
@@ -962,7 +969,7 @@ func (w *World) resolveCombat() {
 	// reads/mutates only the slices it needs.
 	appcombat.PlayerMeleeSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks)
 	appcombat.PvPSystem{}.Resolve(w.players, w.safeZone())
-	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.safeZone())
+	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.safeZone())
 }
 
 // playerViews builds a snapshot slice of players for AI consumption.
