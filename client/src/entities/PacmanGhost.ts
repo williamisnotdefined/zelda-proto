@@ -1,12 +1,15 @@
 import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
 import type { PacmanGhostVariant } from '@gelehka/shared';
 import Phaser from 'phaser';
+import { EnemyHealthBar } from './EnemyHealthBar';
 
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 const PACMAN_GHOST_SCALE = 0.35;
 const PACMAN_GHOST_HP = 38;
+const HP_BAR_WIDTH = 24;
+const HP_BAR_OFFSET_Y = 16;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -39,6 +42,7 @@ export class PacmanGhostEntity {
   private staticFrameFacing: FacingDirection | null;
   private spriteVisible: boolean;
   private animationTimeScale: number;
+  private readonly healthBar: EnemyHealthBar;
 
   constructor(scene: Phaser.Scene, x: number, y: number, variant: PacmanGhostVariant) {
     this.targetX = x;
@@ -60,6 +64,10 @@ export class PacmanGhostEntity {
     this.sprite = scene.add.sprite(x, y, this.animPrefix);
     this.sprite.setDepth(8);
     this.sprite.setScale(PACMAN_GHOST_SCALE);
+    this.healthBar = new EnemyHealthBar(scene, x, y, {
+      width: HP_BAR_WIDTH,
+      offsetY: HP_BAR_OFFSET_Y,
+    });
   }
 
   get x(): number {
@@ -103,12 +111,14 @@ export class PacmanGhostEntity {
     this.sprite.y = y;
     this.setSpriteVisible(true);
     this.animationTimeScale = 1;
+    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, this.serverState !== 'dead');
   }
 
   setDormant(): void {
     this.resetVisualState();
     this.sprite.setVisible(false);
     this.spriteVisible = false;
+    this.healthBar.setVisible(false);
   }
 
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void {
@@ -135,6 +145,7 @@ export class PacmanGhostEntity {
     const alive = this.serverState !== 'dead';
     const visible = alive && inView;
     this.setSpriteVisible(visible);
+    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, visible);
 
     if (!visible) {
       if (this.currentAnimKey !== '' || this.isUsingStaticFrame || this.sprite.anims.isPlaying) {
@@ -214,6 +225,7 @@ export class PacmanGhostEntity {
   }
 
   destroy(): void {
+    this.healthBar.destroy();
     this.sprite.destroy();
   }
 }

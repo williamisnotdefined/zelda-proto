@@ -1,10 +1,13 @@
 import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
 import Phaser from 'phaser';
+import { EnemyHealthBar } from './EnemyHealthBar';
 
 const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 const HAND_SCALE = 1.24;
+const HP_BAR_WIDTH = 28;
+const HP_BAR_OFFSET_Y = 20;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -35,6 +38,7 @@ export class HandEntity {
   private staticFrameFacing: FacingDirection | null;
   private spriteVisible: boolean;
   private animationTimeScale: number;
+  private readonly healthBar: EnemyHealthBar;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
@@ -54,6 +58,10 @@ export class HandEntity {
     this.sprite = scene.add.sprite(x, y, 'hand');
     this.sprite.setDepth(8);
     this.sprite.setScale(HAND_SCALE);
+    this.healthBar = new EnemyHealthBar(scene, x, y, {
+      width: HP_BAR_WIDTH,
+      offsetY: HP_BAR_OFFSET_Y,
+    });
   }
 
   get x(): number {
@@ -97,12 +105,14 @@ export class HandEntity {
     this.sprite.y = y;
     this.setSpriteVisible(true);
     this.animationTimeScale = 1;
+    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, this.serverState !== 'dead');
   }
 
   setDormant(): void {
     this.resetVisualState();
     this.sprite.setVisible(false);
     this.spriteVisible = false;
+    this.healthBar.setVisible(false);
   }
 
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void {
@@ -129,6 +139,7 @@ export class HandEntity {
     const alive = this.serverState !== 'dead';
     const visible = alive && inView;
     this.setSpriteVisible(visible);
+    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, visible);
 
     if (!visible) {
       if (this.currentAnimKey !== '' || this.isUsingStaticFrame || this.sprite.anims.isPlaying) {
@@ -206,6 +217,7 @@ export class HandEntity {
   }
 
   destroy(): void {
+    this.healthBar.destroy();
     this.sprite.destroy();
   }
 }
