@@ -1,6 +1,8 @@
 // Package drop defines pickup items that grant healing to players.
 package drop
 
+import "time"
+
 // Kind identifies a drop variant.
 type Kind string
 
@@ -32,11 +34,22 @@ const DropChance float64 = 0.5
 
 // Drop is the runtime entity stored by the world.
 type Drop struct {
+	ID        string
+	X         float64
+	Y         float64
+	Kind      Kind
+	SpawnedAt time.Time
+}
+
+// Snapshot is the wire projection.
+type Snapshot struct {
 	ID   string
 	X    float64
 	Y    float64
 	Kind Kind
 }
 
-// Snapshot is the wire projection.
-type Snapshot = Drop
+// Snapshot returns the wire projection for this drop.
+func (d *Drop) Snapshot() Snapshot {
+	return Snapshot{ID: d.ID, X: d.X, Y: d.Y, Kind: d.Kind}
+}

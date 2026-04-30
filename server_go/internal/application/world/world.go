@@ -582,11 +582,9 @@ func (w *World) ConsumeTransferRequests() []portal.TransferRequest {
 	return out
 }
 
-// Tick advances the simulation by dt. Order mirrors server/src/game/World.ts:
-//
-//	tickPlayers → respawnPlayers → updateSafeZone → spawnSystem → enemies →
-//	bosses → expel hostiles from safe zone → resolveBodyCollisions →
-//	resolveCombat → drops → portals → hazards.
+// Tick advances the simulation by dt. Order mirrors the main runtime: players,
+// respawns, AI, body resolution, dash/combat, then static systems like drops,
+// portals, and hazards.
 func (w *World) Tick(dt time.Duration) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -856,11 +854,7 @@ func (w *World) tickHazards(dt time.Duration) {
 	// playerHalfDiag pads the hazard hit radius so players whose body overlaps
 	// a hazard tile still take damage, mirroring server/src/game/HazardSystem.ts.
 	const playerHalfDiag = 34.0
-	hitR := hazard.HitRadius + playerHalfDiag
-	hitR2 := hitR * hitR
-	_ = hitR
-	// Per-tick dedup so a player gets hit by at most one purple field per tick
-	// (matches the TS implementation; otherwise stacked purples can chain-stun).
+	// Per-tick dedup so overlapping purple clusters only land once per actor.
 	purpleHitThisTick := make(map[string]struct{})
 	for id, h := range w.hazards {
 		if h.Tick(dt) {
@@ -868,33 +862,36 @@ func (w *World) tickHazards(dt time.Duration) {
 			w.hazardIndex.Remove(id)
 			continue
 		}
-		// Collide with players.
+		effect := hazard.EffectFor(h.Kind)
+
 		for _, p := range w.players {
 			if p.State == player.StateDead {
 				continue
 			}
-			// Spawn-safezone protection: while the post-respawn invulnerability
-			// window is active and the player stands inside the safe zone, no
-			// hazard damage or burning ticks may be applied. Mirrors the check in
-			// server/src/game/systems/HazardSystem.ts (resolveHazardDamage).
 			if w.isProtected(p) {
 				continue
 			}
-			if !h.MarkHit(p.ID) {
+			actorKey := playerActorKey(p.ID)
+			if !h.MarkHit(actorKey) {
 				continue
 			}
+			hitR := hazard.HitRadius + playerHalfDiag
+			hitR2 := hitR * hitR
 			if physics.DistanceSquared(p.X, p.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitPlayerIDs, p.ID)
+				delete(h.HitActorKeys, actorKey)
 				continue
 			}
-			effect := hazard.EffectFor(h.Kind)
 			if effect == hazard.EffectPurpleBurning {
-				if _, dup := purpleHitThisTick[p.ID]; dup {
+				if _, dup := purpleHitThisTick[actorKey]; dup {
 					continue
 				}
-				purpleHitThisTick[p.ID] = struct{}{}
+				purpleHitThisTick[actorKey] = struct{}{}
 			}
+			wasAlive := p.State != player.StateDead
 			p.TakeDamage(h.Damage)
+			if wasAlive && p.State == player.StateDead {
+				w.awardHazardPlayerKill(h.SourcePlayerID)
+			}
 			switch effect {
 			case hazard.EffectPurpleBurning:
 				p.ApplyPurpleBurning(h.BurningTicks)
@@ -902,6 +899,94 @@ func (w *World) tickHazards(dt time.Duration) {
 				p.ApplyBlueBurning(h.BurningTicks)
 			default:
 				p.ApplyBurning(h.BurningTicks)
+			}
+		}
+
+		if !h.HitsAllActors {
+			continue
+		}
+
+		for _, e := range w.enemies {
+			if e.State == enemy.StateDead {
+				continue
+			}
+			actorKey := enemyActorKey(e.ID)
+			if !h.MarkHit(actorKey) {
+				continue
+			}
+			hitR := hazard.HitRadius + e.CollisionRadius()
+			hitR2 := hitR * hitR
+			if physics.DistanceSquared(e.X, e.Y, h.X, h.Y) > hitR2 {
+				delete(h.HitActorKeys, actorKey)
+				continue
+			}
+			wasAlive := e.State != enemy.StateDead
+			e.TakeDamage(h.Damage)
+			if wasAlive && e.State == enemy.StateDead {
+				w.awardHazardMonsterKill(h.SourcePlayerID)
+			}
+		}
+
+		for _, d := range w.dragons {
+			if d.State == boss.StateDead {
+				continue
+			}
+			actorKey := bossActorKey(d.ID)
+			if !h.MarkHit(actorKey) {
+				continue
+			}
+			hitR := hazard.HitRadius + d.ContactRadius()
+			hitR2 := hitR * hitR
+			if physics.DistanceSquared(d.X, d.Y, h.X, h.Y) > hitR2 {
+				delete(h.HitActorKeys, actorKey)
+				continue
+			}
+			wasAlive := d.State != boss.StateDead
+			d.TakeDamage(h.Damage)
+			if wasAlive && d.State == boss.StateDead {
+				w.awardHazardMonsterKill(h.SourcePlayerID)
+			}
+		}
+
+		for _, g := range w.gelehks {
+			if g.State == boss.StateDead {
+				continue
+			}
+			actorKey := bossActorKey(g.ID)
+			if !h.MarkHit(actorKey) {
+				continue
+			}
+			hitR := hazard.HitRadius + g.ContactRadius()
+			hitR2 := hitR * hitR
+			if physics.DistanceSquared(g.X, g.Y, h.X, h.Y) > hitR2 {
+				delete(h.HitActorKeys, actorKey)
+				continue
+			}
+			wasAlive := g.State != boss.StateDead
+			g.TakeDamage(h.Damage)
+			if wasAlive && g.State == boss.StateDead {
+				w.awardHazardMonsterKill(h.SourcePlayerID)
+			}
+		}
+
+		for _, v := range w.vanessas {
+			if v.State == boss.StateDead {
+				continue
+			}
+			actorKey := bossActorKey(v.ID)
+			if !h.MarkHit(actorKey) {
+				continue
+			}
+			hitR := hazard.HitRadius + v.ContactRadius()
+			hitR2 := hitR * hitR
+			if physics.DistanceSquared(v.X, v.Y, h.X, h.Y) > hitR2 {
+				delete(h.HitActorKeys, actorKey)
+				continue
+			}
+			wasAlive := v.State != boss.StateDead
+			v.TakeDamage(h.Damage)
+			if wasAlive && v.State == boss.StateDead {
+				w.awardHazardMonsterKill(h.SourcePlayerID)
 			}
 		}
 	}
@@ -934,6 +1019,33 @@ func (w *World) queueFireLine(x, y, dirX, dirY float64, kind hazard.Kind, tint u
 		x: x, y: y, dirX: dx, dirY: dy, kind: kind, tint: tint,
 		nextSeg: 1, nextSpawn: w.now,
 	})
+}
+
+func (w *World) spawnDashTrail(
+	sourcePlayerID string,
+	startX,
+	startY float64,
+	direction domworld.Direction,
+) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	dirX, dirY := dashDirectionVector(direction)
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	sourceKey := playerActorKey(sourcePlayerID)
+	for distance := float64(hazard.FireFieldSpacing); distance < player.DashDistance; distance += float64(hazard.FireFieldSpacing) {
+		x := startX + dirX*distance
+		y := startY + dirY*distance
+		id := w.cfg.IDs.NewID(string(hazard.KindBlueFlame))
+		h := hazard.New(id, x, y, hazard.KindBlueFlame)
+		h.SourcePlayerID = sourcePlayerID
+		h.HitsAllActors = true
+		h.IgnoreActor(sourceKey)
+		w.hazards[id] = h
+		w.hazardIndex.Upsert(id, x, y)
+	}
 }
 
 func (w *World) spawnFireBurst(x, y float64, kind hazard.Kind, tints []uint32) {
@@ -971,6 +1083,16 @@ func (w *World) spawnPurpleField(x, y float64) {
 }
 
 func (w *World) tickDrops() {
+	for id, d := range w.drops {
+		if d.SpawnedAt.IsZero() {
+			d.SpawnedAt = w.now
+		}
+		if w.now.Sub(d.SpawnedAt) < config.DefaultBalancing.HeartDropLifetime {
+			continue
+		}
+		delete(w.drops, id)
+		w.dropIndex.Remove(id)
+	}
 	// Pickup
 	for id, d := range w.drops {
 		for _, p := range w.players {
@@ -997,7 +1119,7 @@ func (w *World) tickDrops() {
 		e.HasDropped = true
 		if w.cfg.Rand.Float64() < drop.DropChance {
 			id := w.cfg.IDs.NewID("drop")
-			d := &drop.Drop{ID: id, X: e.X, Y: e.Y, Kind: e.DropKind}
+			d := &drop.Drop{ID: id, X: e.X, Y: e.Y, Kind: e.DropKind, SpawnedAt: w.now}
 			w.drops[id] = d
 			w.dropIndex.Upsert(id, d.X, d.Y)
 		}
@@ -1059,10 +1181,34 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in the same order as the TS reference server:
-	// PlayerMelee (PvE) → PvP → ContactDamage. Each system is stateless and
+	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerDash → ContactDamage. Each
+	// system is
+	// stateless and
 	// reads/mutates only the slices it needs.
 	appcombat.PlayerMeleeSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas)
 	appcombat.PvPSystem{}.Resolve(w.players, w.safeZone())
+	if (appcombat.PlayerWaveSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		w.safeZone(),
+	) {
+		w.resolveBodyCollisionsLocked()
+	}
+	if (appcombat.PlayerDashSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction) {
+			w.spawnDashTrail(sourcePlayerID, startX, startY, direction)
+		},
+	) {
+		w.resolveBodyCollisionsLocked()
+	}
 	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas, w.safeZone())
 }
 
@@ -1148,6 +1294,9 @@ func (w *World) Snapshot() SnapshotView {
 	view := SnapshotView{Tick: w.tick, Instance: w.cfg.InstanceID}
 	for _, p := range w.players {
 		view.Players = append(view.Players, p.Snapshot())
+		if wave := p.WaveIndicator(); wave != nil {
+			view.WaveIndicators = append(view.WaveIndicators, boss.WaveIndicator{OwnerID: p.ID, X: wave.X, Y: wave.Y, Radius: wave.Radius, State: boss.WaveExpanding})
+		}
 	}
 	for _, e := range w.enemies {
 		view.Enemies = append(view.Enemies, e.Snapshot())
@@ -1179,7 +1328,7 @@ func (w *World) Snapshot() SnapshotView {
 		view.Bosses = append(view.Bosses, bs)
 	}
 	for _, d := range w.drops {
-		view.Drops = append(view.Drops, *d)
+		view.Drops = append(view.Drops, d.Snapshot())
 	}
 	for _, pt := range w.portals {
 		view.Portals = append(view.Portals, portal.Snapshot{ID: pt.ID, X: physics.QuantizePosition(pt.X), Y: physics.QuantizePosition(pt.Y), Kind: pt.Kind})
@@ -1228,6 +1377,45 @@ func (w *World) Players() map[string]*player.Player {
 	}
 	return out
 }
+
+func (w *World) awardHazardMonsterKill(sourcePlayerID string) {
+	if sourcePlayerID == "" {
+		return
+	}
+	if source, ok := w.players[sourcePlayerID]; ok {
+		source.MonsterKills++
+	}
+}
+
+func (w *World) awardHazardPlayerKill(sourcePlayerID string) {
+	if sourcePlayerID == "" {
+		return
+	}
+	if source, ok := w.players[sourcePlayerID]; ok {
+		source.PlayerKills++
+	}
+}
+
+func dashDirectionVector(direction domworld.Direction) (float64, float64) {
+	switch direction {
+	case domworld.DirectionUp:
+		return 0, -1
+	case domworld.DirectionDown:
+		return 0, 1
+	case domworld.DirectionLeft:
+		return -1, 0
+	case domworld.DirectionRight:
+		return 1, 0
+	default:
+		return 0, 0
+	}
+}
+
+func playerActorKey(id string) string { return "player:" + id }
+
+func enemyActorKey(id string) string { return "enemy:" + id }
+
+func bossActorKey(id string) string { return "boss:" + id }
 
 func sign(v float64) float64 {
 	if v > 0 {

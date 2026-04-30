@@ -58,6 +58,8 @@ function createUiSink(): GameUiSink & {
   openNicknameModal: ReturnType<typeof vi.fn>;
   syncConnectionState: ReturnType<typeof vi.fn>;
   setLastConnectionAttempt: ReturnType<typeof vi.fn>;
+  setWaveCooldownEndsAt: ReturnType<typeof vi.fn>;
+  setDashCooldownEndsAt: ReturnType<typeof vi.fn>;
 } {
   return {
     syncConnectionState: vi.fn(),
@@ -67,6 +69,8 @@ function createUiSink(): GameUiSink & {
     isNicknameModalOpen: () => false,
     setLocalPlayerId: vi.fn(),
     setLocalPlayer: vi.fn(),
+    setWaveCooldownEndsAt: vi.fn(),
+    setDashCooldownEndsAt: vi.fn(),
     setBoss: vi.fn(),
     setLeaderboard: vi.fn(),
     addChatMessage: vi.fn(),

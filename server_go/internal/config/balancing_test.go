@@ -25,6 +25,7 @@ func TestDefaultBalancingSanity(t *testing.T) {
 		{"PlayerRespawnTime > 0", b.PlayerRespawnTime > 0},
 		{"SafeZoneDuration > 0", b.SafeZoneDuration > 0},
 		{"SpawnSafeZoneRadius > 0", b.SpawnSafeZoneRadius > 0},
+		{"HeartDropLifetime > 0", b.HeartDropLifetime > 0},
 	}
 	for _, c := range checks {
 		if !c.ok {

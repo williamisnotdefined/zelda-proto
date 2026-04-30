@@ -8,6 +8,7 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/drop"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/enemy"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/player"
+	domworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/world"
 )
 
 func newPlayerOutsideSafezone(id string, x, y float64) *player.Player {
@@ -114,6 +115,184 @@ func TestPlayerMeleeKillsCountForMonsterStats(t *testing.T) {
 	}
 	if attacker.MonsterKills != 1 {
 		t.Fatalf("expected MonsterKills=1, got %d", attacker.MonsterKills)
+	}
+}
+
+func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.ApplyInput(player.Input{Seq: 1, Wave: true})
+	caster.Update(10_000_000, 1)
+	target := newPlayerOutsideSafezone("tgt", 70, 40)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 0, 50)
+	g := boss.NewGelehk("g1", -60, 0)
+	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+
+	moved := PlayerWaveSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": e},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		zone,
+	)
+	if !moved {
+		t.Fatal("expected wave knockback to move targets")
+	}
+	if e.HP != enemy.BlobConfig.MaxHP-player.WaveDamage {
+		t.Fatalf("expected enemy HP=%d, got %d", enemy.BlobConfig.MaxHP-player.WaveDamage, e.HP)
+	}
+	if d.HP != boss.DragonLordMaxHP-player.WaveDamage {
+		t.Fatalf("expected dragon HP=%d, got %d", boss.DragonLordMaxHP-player.WaveDamage, d.HP)
+	}
+	if g.HP != boss.GelehkMaxHP-player.WaveDamage {
+		t.Fatalf("expected gelehk HP=%d, got %d", boss.GelehkMaxHP-player.WaveDamage, g.HP)
+	}
+	if v.HP != boss.VanessaMaxHP-player.WaveDamage {
+		t.Fatalf("expected vanessa HP=%d, got %d", boss.VanessaMaxHP-player.WaveDamage, v.HP)
+	}
+	if target.HP != player.MaxHP-player.WaveDamage {
+		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.WaveDamage, target.HP)
+	}
+	for name, pos := range map[string][2]float64{
+		"enemy":   {e.X, e.Y},
+		"dragon":  {d.X, d.Y},
+		"gelehk":  {g.X, g.Y},
+		"vanessa": {v.X, v.Y},
+		"player":  {target.X, target.Y},
+	} {
+		if distSq := pos[0]*pos[0] + pos[1]*pos[1]; distSq <= player.WaveMaxRadius*player.WaveMaxRadius {
+			t.Fatalf("expected %s to be pushed outside wave radius, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+	}
+}
+
+func TestPlayerWaveRespectsSafezoneForPvP(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 0, Y: 0, Radius: 100}
+	protectedCaster := player.New("att", "n", 0, 0)
+	protectedCaster.ApplyInput(player.Input{Seq: 1, Wave: true})
+	protectedCaster.Update(10_000_000, 1)
+	target := newPlayerOutsideSafezone("tgt", 80, 0)
+	PlayerWaveSystem{}.Resolve(
+		map[string]*player.Player{"att": protectedCaster, "tgt": target},
+		nil,
+		nil,
+		nil,
+		nil,
+		zone,
+	)
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected protected caster to deal no PvP wave damage, got %d", target.HP)
+	}
+
+	unprotectedCaster := newPlayerOutsideSafezone("att2", 80, 0)
+	unprotectedCaster.ApplyInput(player.Input{Seq: 1, Wave: true})
+	unprotectedCaster.Update(10_000_000, 1)
+	protectedTarget := player.New("tgt2", "n", 0, 0)
+	PlayerWaveSystem{}.Resolve(
+		map[string]*player.Player{"att2": unprotectedCaster, "tgt2": protectedTarget},
+		nil,
+		nil,
+		nil,
+		nil,
+		zone,
+	)
+	if protectedTarget.HP != player.MaxHP {
+		t.Fatalf("expected protected target to ignore PvP wave damage, got %d", protectedTarget.HP)
+	}
+}
+
+func TestPlayerDashPushesAllSupportedTargetKinds(t *testing.T) {
+	t.Parallel()
+
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.ApplyInput(player.Input{Seq: 1, Right: true, Dash: true})
+	caster.Update(10_000_000, 1)
+	target := newPlayerOutsideSafezone("tgt", 80, 0)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 60, 10)
+	g := boss.NewGelehk("g1", 90, -10)
+	v := boss.NewVanessaTheRuthless("v1", 120, 0)
+
+	spawnedTrail := false
+	moved := PlayerDashSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": e},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction) {
+			spawnedTrail = true
+			if sourcePlayerID != caster.ID || startX != 0 || startY != 0 || direction != domworld.DirectionRight {
+				t.Fatalf("unexpected dash trail callback: source=%q start=(%.1f, %.1f) dir=%s", sourcePlayerID, startX, startY, direction)
+			}
+		},
+	)
+	if !moved {
+		t.Fatal("expected dash knockback to move targets")
+	}
+	if !spawnedTrail {
+		t.Fatal("expected dash trail callback")
+	}
+	if caster.X != player.DashDistance || caster.Y != 0 {
+		t.Fatalf("expected caster to finish dash at (%.1f, 0), got (%.1f, %.1f)", player.DashDistance, caster.X, caster.Y)
+	}
+	if e.HP != enemy.BlobConfig.MaxHP || d.HP != boss.DragonLordMaxHP || g.HP != boss.GelehkMaxHP || v.HP != boss.VanessaMaxHP || target.HP != player.MaxHP {
+		t.Fatal("dash body should not deal direct damage")
+	}
+	for name, pos := range map[string][2]float64{
+		"enemy":   {e.X, e.Y},
+		"dragon":  {d.X, d.Y},
+		"gelehk":  {g.X, g.Y},
+		"vanessa": {v.X, v.Y},
+		"player":  {target.X, target.Y},
+	} {
+		if pos[0] <= 120 && name == "vanessa" {
+			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+		if pos[0] <= 90 && name == "gelehk" {
+			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+		if pos[0] <= 60 && name == "dragon" {
+			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+		if pos[0] <= 40 && name == "enemy" {
+			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+		if pos[0] <= 80 && name == "player" {
+			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+	}
+}
+
+func TestPlayerDashAlsoPushesProtectedPlayers(t *testing.T) {
+	t.Parallel()
+
+	protectedCaster := player.New("att", "n", 0, 0)
+	protectedCaster.ApplyInput(player.Input{Seq: 1, Right: true, Dash: true})
+	protectedCaster.Update(10_000_000, 1)
+	protectedTarget := player.New("tgt", "n", 80, 0)
+	moved := PlayerDashSystem{}.Resolve(
+		map[string]*player.Player{"att": protectedCaster, "tgt": protectedTarget},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	if !moved {
+		t.Fatal("expected protected caster dash to move target")
+	}
+	if protectedTarget.HP != player.MaxHP {
+		t.Fatalf("expected dash to avoid direct damage, got %d", protectedTarget.HP)
+	}
+	if protectedTarget.X <= 80 {
+		t.Fatalf("expected protected target to be pushed, got X=%.1f", protectedTarget.X)
 	}
 }
 

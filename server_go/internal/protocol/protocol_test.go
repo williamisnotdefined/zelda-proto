@@ -126,6 +126,8 @@ func TestMessageBuilders(t *testing.T) {
 		Left:   false,
 		Right:  true,
 		Attack: false,
+		Wave:   false,
+		Dash:   false,
 	})
 	if !reflect.DeepEqual(input, protocol.InputMessage{
 		ProtocolVersion: protocol.ProtocolVersion,
@@ -136,6 +138,8 @@ func TestMessageBuilders(t *testing.T) {
 		Left:            false,
 		Right:           true,
 		Attack:          false,
+		Wave:            false,
+		Dash:            false,
 	}) {
 		t.Fatalf("unexpected input message: %#v", input)
 	}
@@ -216,6 +220,8 @@ func TestParseClientMessage(t *testing.T) {
 			"left":            false,
 			"right":           false,
 			"attack":          false,
+			"wave":            false,
+			"dash":            false,
 		}), protocol.ClientMessageParseFailureInvalidMessage)
 		assertParseFailure(t, protocol.ParseClientMessage(map[string]any{
 			"protocolVersion": int64(protocol.ProtocolVersion),
@@ -280,6 +286,8 @@ func TestValidateClientMessage(t *testing.T) {
 			"left":            false,
 			"right":           true,
 			"attack":          false,
+			"wave":            false,
+			"dash":            false,
 		}, false), protocol.ValidationFailureReasonJoinRequired)
 
 		assertValidationFailure(t, protocol.ValidateClientMessage(map[string]any{

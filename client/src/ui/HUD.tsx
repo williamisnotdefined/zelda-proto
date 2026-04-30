@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PLAYER_DASH_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@gelehka/game-core';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
@@ -17,6 +18,8 @@ export function HUD() {
   const localPlayer = useGameStore((s) => s.localPlayer);
   const connected = useGameStore((s) => s.connected);
   const playerCount = useGameStore((s) => s.playerCount);
+  const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
+  const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
@@ -25,6 +28,7 @@ export function HUD() {
   const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const muted = phaserGame?.sound.mute ?? false;
@@ -34,6 +38,24 @@ export function HUD() {
   useEffect(() => {
     return subscribePwaUpdatePrompt(setPwaUpdateAvailable);
   }, []);
+
+  useEffect(() => {
+    if (!waveCooldownEndsAt && !dashCooldownEndsAt) {
+      setCooldownNowMs(Date.now());
+      return;
+    }
+
+    setCooldownNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setCooldownNowMs(now);
+      if (now >= (waveCooldownEndsAt ?? 0) && now >= (dashCooldownEndsAt ?? 0)) {
+        window.clearInterval(intervalId);
+      }
+    }, 50);
+
+    return () => window.clearInterval(intervalId);
+  }, [dashCooldownEndsAt, waveCooldownEndsAt]);
 
   useEffect(() => {
     const element = document.documentElement as HTMLElement & {
@@ -114,6 +136,13 @@ export function HUD() {
   const handleUpdateLater = () => {
     dismissPwaUpdatePrompt();
   };
+
+  const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
+  const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
+  const waveCooldownProgress = waveReady ? 1 : 1 - waveCooldownRemainingMs / PLAYER_WAVE_COOLDOWN;
+  const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
+  const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
+  const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
 
   return (
     <div
@@ -261,6 +290,93 @@ export function HUD() {
           <div style={{ fontSize: '11px', marginTop: 2, opacity: 0.8 }}>
             {localPlayer.hp} / {localPlayer.maxHp}
           </div>
+          <div style={{ marginTop: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
+              <span>Dash</span>
+              <span
+                style={{
+                  color: dashReady ? '#8df7ff' : '#d3fbff',
+                }}
+              >
+                {dashReady ? 'READY' : `${(dashCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(14, 24, 34, 0.92)',
+                border: '1px solid rgba(114, 224, 255, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(117, 226, 255, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${dashCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: dashReady
+                    ? 'linear-gradient(90deg, #66d9ff 0%, #b8f5ff 100%)'
+                    : 'linear-gradient(90deg, #2f7db8 0%, #5ad7ff 100%)',
+                  boxShadow: dashReady ? '0 0 12px rgba(127, 238, 255, 0.45)' : 'none',
+                  transition: dashReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
+              <span>Wave</span>
+              <span
+                style={{
+                  color: waveReady ? '#ffb7ff' : '#ffd9ff',
+                }}
+              >
+                {waveReady ? 'READY' : `${(waveCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(26, 16, 36, 0.92)',
+                border: '1px solid rgba(255, 164, 245, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(255, 135, 240, 0.1)',
+              }}
+            >
+              <div
+                style={{
+                  width: `${waveCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: waveReady
+                    ? 'linear-gradient(90deg, #f68cff 0%, #ffb7ff 100%)'
+                    : 'linear-gradient(90deg, #8b43d9 0%, #d668ff 100%)',
+                  boxShadow: waveReady ? '0 0 12px rgba(255, 166, 245, 0.5)' : 'none',
+                  transition: waveReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -293,7 +409,7 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys / WASD: move | Space: attack | Tab: players
+          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | Space: attack | Tab: players
         </div>
       )}
 

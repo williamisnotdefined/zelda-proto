@@ -1,7 +1,9 @@
-import type { PlayerSnapshot } from '@gelehka/shared';
+import type { Direction, PlayerSnapshot } from '@gelehka/shared';
 import {
   PLAYER_ATTACK_SPEED_PENALTY,
   PLAYER_SPEED,
+  getDashDelta,
+  getDashDirection,
   getDeltaForInput,
   reconcilePredictedPosition,
   trimPendingInputs,
@@ -23,6 +25,16 @@ export class PredictionController {
   applyLocalPrediction(input: InputState, dtMs: number, entity: PlayerEntity | null): void {
     if (!entity) return;
     if (entity.serverState === 'dead') return;
+
+    if (input.dash) {
+      const dashDirection = getDashDirection(input, entity.serverDirection as Direction);
+      if (dashDirection) {
+        const dash = getDashDelta(dashDirection);
+        entity.targetX += dash.dx;
+        entity.targetY += dash.dy;
+        return;
+      }
+    }
 
     const speedPenalty = entity.serverState === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
     const delta = getDeltaForInput(input, dtMs, PLAYER_SPEED, speedPenalty);

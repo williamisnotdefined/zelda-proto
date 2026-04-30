@@ -1,10 +1,11 @@
 import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
-import type { PlayerStatusSnapshot } from '@gelehka/shared';
+import type { BossWaveIndicator, PlayerStatusSnapshot } from '@gelehka/shared';
 import Phaser from 'phaser';
 import { PlayerAnimationController } from './player/PlayerAnimationController';
 import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';
 import { PlayerPresentation } from './player/PlayerPresentation';
 import { PlayerStatusOverlays } from './player/PlayerStatusOverlays';
+import { PlayerWaveIndicator } from './player/PlayerWaveIndicator';
 import {
   LOCAL_LERP_BASE,
   MAX_LERP_DT_MS,
@@ -32,6 +33,7 @@ export class PlayerEntity {
   private readonly statusOverlays: PlayerStatusOverlays;
   private readonly attackTelegraph: PlayerAttackTelegraph;
   private readonly animationController: PlayerAnimationController;
+  private readonly waveIndicator: PlayerWaveIndicator;
 
   constructor(scene: Phaser.Scene, x: number, y: number, isLocal: boolean, nickname: string) {
     this.isLocal = isLocal;
@@ -50,6 +52,7 @@ export class PlayerEntity {
     this.presentation = new PlayerPresentation(scene, x, y, nickname);
     this.statusOverlays = new PlayerStatusOverlays(scene, x, y);
     this.attackTelegraph = new PlayerAttackTelegraph(scene, x, y);
+    this.waveIndicator = new PlayerWaveIndicator(scene);
     this.hpBar = this.presentation.hpBar;
     this.hpBarBg = this.presentation.hpBarBg;
     this.nicknameLabel = this.presentation.nicknameLabel;
@@ -110,7 +113,12 @@ export class PlayerEntity {
       this.serverState,
       this.serverDirection
     );
+    this.waveIndicator.update();
     this.animationController.update(this.sprite, this.serverState, this.serverDirection);
+  }
+
+  syncWaveIndicator(wave: Pick<BossWaveIndicator, 'x' | 'y' | 'radius'> | null): void {
+    this.waveIndicator.sync(wave);
   }
 
   setNickname(nickname: string): void {
@@ -124,5 +132,6 @@ export class PlayerEntity {
     this.presentation.destroy();
     this.attackTelegraph.destroy();
     this.statusOverlays.destroy();
+    this.waveIndicator.destroy();
   }
 }

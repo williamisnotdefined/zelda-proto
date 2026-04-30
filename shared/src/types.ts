@@ -71,7 +71,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 6 as const;
+export const PROTOCOL_VERSION = 7 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -353,6 +353,8 @@ export interface InputMessage {
   left: boolean;
   right: boolean;
   attack: boolean;
+  wave: boolean;
+  dash: boolean;
 }
 
 export interface JoinMessage {

@@ -1,5 +1,3 @@
-- heart dura no maximo 40 segundos no chao (perf)
-- beserker yelling (throw monsters away with a low damage)
 - move fast on double click OR jump (dbl click)
 - fireball (distance)
 - granade (distance)

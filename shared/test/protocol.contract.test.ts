@@ -28,7 +28,7 @@ describe('protocol contract fixtures', () => {
   it('keeps protocol fixtures aligned with MessagePack bytes and canonical parsing', async () => {
     const fixture = await readProtocolFixture();
 
-    expect(fixture.protocolVersion).toBe(6);
+    expect(fixture.protocolVersion).toBe(7);
 
     for (const testCase of fixture.cases) {
       const bytes = Buffer.from(testCase.msgpackBase64, 'base64');

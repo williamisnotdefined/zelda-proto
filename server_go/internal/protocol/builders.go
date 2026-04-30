@@ -34,6 +34,8 @@ func NewInputMessage(seq int64, input ClientInputState) InputMessage {
 		Left:            input.Left,
 		Right:           input.Right,
 		Attack:          input.Attack,
+		Wave:            input.Wave,
+		Dash:            input.Dash,
 	}
 }
 

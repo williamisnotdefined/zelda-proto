@@ -10,6 +10,8 @@ type ClientInputState struct {
 	Left   bool
 	Right  bool
 	Attack bool
+	Wave   bool
+	Dash   bool
 }
 
 type JoinMessage struct {
@@ -51,6 +53,8 @@ type InputMessage struct {
 	Left            bool              `json:"left" msgpack:"left"`
 	Right           bool              `json:"right" msgpack:"right"`
 	Attack          bool              `json:"attack" msgpack:"attack"`
+	Wave            bool              `json:"wave" msgpack:"wave"`
+	Dash            bool              `json:"dash" msgpack:"dash"`
 }
 
 func (InputMessage) MessageType() ClientMessageType {

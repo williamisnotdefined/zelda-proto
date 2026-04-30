@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PlayerSnapshot } from '@gelehka/shared';
 import { createInputMessage } from '../src/input';
 import { getPredictedPosition, reconcilePredictedPosition } from '../src/prediction';
-import { PLAYER_ATTACK_SPEED_PENALTY, PLAYER_SPEED } from '../src/player';
+import { PLAYER_ATTACK_SPEED_PENALTY, PLAYER_DASH_DISTANCE, PLAYER_SPEED } from '../src/player';
 
 function createPlayer(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
   return {
@@ -36,6 +36,8 @@ describe('getPredictedPosition', () => {
             left: false,
             right: true,
             attack: false,
+            wave: false,
+            dash: false,
           }),
           dtMs: 16,
           sentAtMs: 980,
@@ -47,6 +49,8 @@ describe('getPredictedPosition', () => {
             left: false,
             right: true,
             attack: false,
+            wave: false,
+            dash: false,
           }),
           dtMs: 16,
           sentAtMs: 990,
@@ -58,6 +62,8 @@ describe('getPredictedPosition', () => {
             left: false,
             right: true,
             attack: false,
+            wave: false,
+            dash: false,
           }),
           dtMs: 16,
           sentAtMs: -1000,
@@ -83,6 +89,8 @@ describe('getPredictedPosition', () => {
             left: false,
             right: true,
             attack: true,
+            wave: false,
+            dash: false,
           }),
           dtMs: 16,
           sentAtMs: 990,
@@ -94,6 +102,32 @@ describe('getPredictedPosition', () => {
     );
 
     expect(result.x).toBeCloseTo(PLAYER_SPEED * PLAYER_ATTACK_SPEED_PENALTY * (16 / 1000));
+    expect(result.y).toBe(0);
+  });
+
+  it('replays a dash as an instant 150px jump', () => {
+    const result = getPredictedPosition(
+      createPlayer({ x: 0, y: 0, direction: 'right' }),
+      [
+        {
+          input: createInputMessage(0, {
+            up: false,
+            down: false,
+            left: false,
+            right: true,
+            attack: false,
+            wave: false,
+            dash: true,
+          }),
+          dtMs: 16,
+          sentAtMs: 990,
+        },
+      ],
+      PLAYER_SPEED,
+      1000
+    );
+
+    expect(result.x).toBe(PLAYER_DASH_DISTANCE);
     expect(result.y).toBe(0);
   });
 });
@@ -111,6 +145,8 @@ describe('reconcilePredictedPosition', () => {
             left: false,
             right: true,
             attack: false,
+            wave: false,
+            dash: false,
           }),
           dtMs: 50,
           sentAtMs: 990,
@@ -153,6 +189,8 @@ describe('reconcilePredictedPosition', () => {
             left: false,
             right: true,
             attack: false,
+            wave: false,
+            dash: false,
           }),
           dtMs: 16,
           sentAtMs: 990,

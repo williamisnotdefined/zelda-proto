@@ -89,6 +89,70 @@ func TestUpdateAttackEntersStateAndConsumesCooldown(t *testing.T) {
 	}
 }
 
+func TestWaveTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Wave: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.WaveCooldown != WaveCooldown {
+		t.Fatalf("expected wave cooldown %s, got %s", WaveCooldown, p.WaveCooldown)
+	}
+	cx, cy, ok := p.ConsumeWaveCast()
+	if !ok {
+		t.Fatal("expected queued wave cast")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected wave center at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if _, _, ok := p.ConsumeWaveCast(); ok {
+		t.Fatal("expected wave cast to be consumed once")
+	}
+	wave := p.WaveIndicator()
+	if wave == nil || wave.Radius <= 0 {
+		t.Fatalf("expected active wave indicator, got %#v", wave)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Wave: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, ok := p.ConsumeWaveCast(); ok {
+		t.Fatal("expected cooldown to block second wave cast")
+	}
+}
+
+func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Right: true, Dash: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.DashCooldown != DashCooldown {
+		t.Fatalf("expected dash cooldown %s, got %s", DashCooldown, p.DashCooldown)
+	}
+	cx, cy, direction, ok := p.ConsumeDashCast()
+	if !ok {
+		t.Fatal("expected queued dash cast")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected dash start at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if direction != world.DirectionRight {
+		t.Fatalf("expected dash direction right, got %s", direction)
+	}
+	if _, _, _, ok := p.ConsumeDashCast(); ok {
+		t.Fatal("expected dash cast to be consumed once")
+	}
+	if wave := p.WaveIndicator(); wave != nil {
+		t.Fatalf("expected no player wave indicator during dash, got %#v", wave)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Right: true, Dash: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, _, ok := p.ConsumeDashCast(); ok {
+		t.Fatal("expected cooldown to block second dash cast")
+	}
+}
+
 func TestAttackHitboxReturnsBoxOnlyWhileAttacking(t *testing.T) {
 	t.Parallel()
 

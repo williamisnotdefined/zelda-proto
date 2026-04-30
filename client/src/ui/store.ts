@@ -54,6 +54,8 @@ export interface DropData {
 export interface GameStore {
   localPlayerId: string | null;
   localPlayer: PlayerData | null;
+  waveCooldownEndsAt: number | null;
+  dashCooldownEndsAt: number | null;
   boss: BossData | null;
   connected: boolean;
   connectionState: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
@@ -66,6 +68,8 @@ export interface GameStore {
   allPlayers: PlayerLeaderboardEntry[];
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
+  setWaveCooldownEndsAt: (time: number | null) => void;
+  setDashCooldownEndsAt: (time: number | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
   setConnectionState: (state: GameStore['connectionState']) => void;
@@ -82,6 +86,8 @@ export interface GameStore {
 export const useGameStore = create<GameStore>((set) => ({
   localPlayerId: null,
   localPlayer: null,
+  waveCooldownEndsAt: null,
+  dashCooldownEndsAt: null,
   boss: null,
   connected: false,
   connectionState: 'DISCONNECTED',
@@ -94,6 +100,8 @@ export const useGameStore = create<GameStore>((set) => ({
   allPlayers: [],
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
   setLocalPlayer: (p) => set({ localPlayer: p }),
+  setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
+  setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),
   setConnectionState: (state) => set({ connectionState: state }),

@@ -63,6 +63,7 @@ describe('World.update ordering', () => {
       left: false,
       right: true,
       attack: false,
+      wave: false,
     });
 
     world.update(200);
@@ -100,6 +101,7 @@ describe('World.update ordering', () => {
       left: false,
       right: true,
       attack: false,
+      wave: false,
     });
 
     world.update(200);

@@ -1,4 +1,4 @@
-import type { PlayerSnapshot } from '@gelehka/shared';
+import type { BossWaveIndicator, PlayerSnapshot } from '@gelehka/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
@@ -20,7 +20,16 @@ export class PlayerRuntime {
     private readonly fx: FxController,
     connection: GameConnection
   ) {
-    this.inputController = new LocalInputController(scene, connection);
+    this.inputController = new LocalInputController(
+      scene,
+      connection,
+      (time) => {
+        this.ui.setWaveCooldownEndsAt(time);
+      },
+      (time) => {
+        this.ui.setDashCooldownEndsAt(time);
+      }
+    );
   }
 
   handleWelcome(localPlayerId: string): void {
@@ -31,11 +40,18 @@ export class PlayerRuntime {
     this.inputController.handleWelcome();
   }
 
-  syncPlayers(players: PlayerSnapshot[]): void {
+  syncPlayers(players: PlayerSnapshot[], waveIndicators: BossWaveIndicator[]): void {
+    const waveByOwner = new Map<string, BossWaveIndicator>();
+    for (const wave of waveIndicators) {
+      if (wave.ownerId) {
+        waveByOwner.set(wave.ownerId, wave);
+      }
+    }
+
     const seenPlayerIds = new Set<string>();
     for (const player of players) {
       seenPlayerIds.add(player.id);
-      this.upsertPlayerEntity(player);
+      this.upsertPlayerEntity(player, waveByOwner.get(player.id) ?? null);
     }
 
     for (const [id] of this.playerEntities) {
@@ -108,7 +124,10 @@ export class PlayerRuntime {
     };
   }
 
-  private upsertPlayerEntity(player: PlayerSnapshot): void {
+  private upsertPlayerEntity(
+    player: PlayerSnapshot,
+    waveIndicator: BossWaveIndicator | null
+  ): void {
     let entity = this.playerEntities.get(player.id);
     if (!entity) {
       entity = new PlayerEntity(
@@ -146,6 +165,7 @@ export class PlayerRuntime {
         state: player.state,
         direction: player.direction,
       });
+      entity.syncWaveIndicator(waveIndicator);
       return;
     }
 
@@ -158,6 +178,7 @@ export class PlayerRuntime {
       player.direction,
       player.statusEffects
     );
+    entity.syncWaveIndicator(waveIndicator);
   }
 
   private removePlayerEntity(id: string): void {

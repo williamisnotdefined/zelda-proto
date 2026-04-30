@@ -10,6 +10,8 @@ export interface GameUiSink {
   isNicknameModalOpen(): boolean;
   setLocalPlayerId(id: string): void;
   setLocalPlayer(player: PlayerData | null): void;
+  setWaveCooldownEndsAt(time: number | null): void;
+  setDashCooldownEndsAt(time: number | null): void;
   setBoss(boss: BossData | null): void;
   setLeaderboard(players: PlayerLeaderboardEntry[]): void;
   addChatMessage(message: ServerChatMessage): void;

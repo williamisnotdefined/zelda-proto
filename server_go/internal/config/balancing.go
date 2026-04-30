@@ -78,6 +78,9 @@ type Balancing struct {
 	// SpawnSafeZoneRadius is the protective bubble radius around each
 	// phase's spawn point.
 	SpawnSafeZoneRadius float64
+	// HeartDropLifetime is how long heart drops may remain on the ground
+	// before despawning.
+	HeartDropLifetime time.Duration
 }
 
 // DefaultBalancing reflects the legacy TypeScript server values. Tune here.
@@ -107,4 +110,5 @@ var DefaultBalancing = Balancing{
 	PlayerRespawnTime:   1500 * time.Millisecond,
 	SafeZoneDuration:    3000 * time.Millisecond,
 	SpawnSafeZoneRadius: 150,
+	HeartDropLifetime:   40 * time.Second,
 }

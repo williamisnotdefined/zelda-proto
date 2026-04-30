@@ -1,121 +1,125 @@
 {
-  "protocolVersion": 6,
+  "protocolVersion": 7,
   "cases": [
     {
       "name": "join_trimmed",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "join",
         "nickname": "  Zelda  "
       },
       "canonical": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "join",
         "nickname": "Zelda"
       },
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgakdHlwZaRqb2luqG5pY2tuYW1lqSAgWmVsZGEgIA=="
+      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgekdHlwZaRqb2luqG5pY2tuYW1lqSAgWmVsZGEgIA=="
     },
     {
       "name": "chat_trimmed",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "chat",
         "text": "  hello hyrule  "
       },
       "canonical": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "chat",
         "text": "hello hyrule"
       },
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgakdHlwZaRjaGF0pHRleHSwICBoZWxsbyBoeXJ1bGUgIA=="
+      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgekdHlwZaRjaGF0pHRleHSwICBoZWxsbyBoeXJ1bGUgIA=="
     },
     {
       "name": "resume_session_trimmed",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "resume_session",
         "sessionToken": "  resume_token_123  "
       },
       "canonical": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "resume_session",
         "sessionToken": "resume_token_123"
       },
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgakdHlwZa5yZXN1bWVfc2Vzc2lvbqxzZXNzaW9uVG9rZW60ICByZXN1bWVfdG9rZW5fMTIzICA="
+      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgekdHlwZa5yZXN1bWVfc2Vzc2lvbqxzZXNzaW9uVG9rZW60ICByZXN1bWVfdG9rZW5fMTIzICA="
     },
     {
       "name": "input_attack_diagonal",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "input",
         "seq": 42,
         "up": true,
         "down": false,
         "left": false,
         "right": true,
-        "attack": true
+        "attack": true,
+        "wave": false,
+        "dash": false
       },
       "canonical": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "input",
         "seq": 42,
         "up": true,
         "down": false,
         "left": false,
         "right": true,
-        "attack": true
+        "attack": true,
+        "wave": false,
+        "dash": false
       },
-      "msgpackBase64": "3gAIr3Byb3RvY29sVmVyc2lvbgakdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrww=="
+      "msgpackBase64": "3gAKr3Byb3RvY29sVmVyc2lvbgekdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRkYXNowg=="
     },
     {
       "name": "snapshot_resync_tick_gap",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "snapshot_resync",
         "reason": "tick_gap",
         "lastTick": 17,
         "instanceId": "phase2"
       },
       "canonical": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "snapshot_resync",
         "reason": "tick_gap",
         "lastTick": 17,
         "instanceId": "phase2"
       },
-      "msgpackBase64": "3gAFr3Byb3RvY29sVmVyc2lvbgakdHlwZa9zbmFwc2hvdF9yZXN5bmOmcmVhc29uqHRpY2tfZ2FwqGxhc3RUaWNrEappbnN0YW5jZUlkpnBoYXNlMg=="
+      "msgpackBase64": "3gAFr3Byb3RvY29sVmVyc2lvbgekdHlwZa9zbmFwc2hvdF9yZXN5bmOmcmVhc29uqHRpY2tfZ2FwqGxhc3RUaWNrEappbnN0YW5jZUlkpnBoYXNlMg=="
     },
     {
       "name": "join_protocol_mismatch",
       "raw": {
-        "protocolVersion": 7,
+        "protocolVersion": 8,
         "type": "join",
         "nickname": "Link"
       },
       "expectedFailure": "protocol_mismatch",
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgekdHlwZaRqb2luqG5pY2tuYW1lpExpbms="
+      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgikdHlwZaRqb2luqG5pY2tuYW1lpExpbms="
     },
     {
       "name": "resume_session_invalid_chars",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "resume_session",
         "sessionToken": "bad token"
       },
       "expectedFailure": "invalid_message",
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgakdHlwZa5yZXN1bWVfc2Vzc2lvbqxzZXNzaW9uVG9rZW6pYmFkIHRva2Vu"
+      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgekdHlwZa5yZXN1bWVfc2Vzc2lvbqxzZXNzaW9uVG9rZW6pYmFkIHRva2Vu"
     },
     {
       "name": "snapshot_resync_invalid_reason",
       "raw": {
-        "protocolVersion": 6,
+        "protocolVersion": 7,
         "type": "snapshot_resync",
         "reason": "oops",
         "lastTick": 0,
         "instanceId": "phase1"
       },
       "expectedFailure": "invalid_message",
-      "msgpackBase64": "3gAFr3Byb3RvY29sVmVyc2lvbgakdHlwZa9zbmFwc2hvdF9yZXN5bmOmcmVhc29upG9vcHOobGFzdFRpY2sAqmluc3RhbmNlSWSmcGhhc2Ux"
+      "msgpackBase64": "3gAFr3Byb3RvY29sVmVyc2lvbgekdHlwZa9zbmFwc2hvdF9yZXN5bmOmcmVhc29upG9vcHOobGFzdFRpY2sAqmluc3RhbmNlSWSmcGhhc2Ux"
     }
   ]
 }

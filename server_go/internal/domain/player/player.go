@@ -12,24 +12,32 @@ import (
 
 // Combat and movement constants (mirror game-core/src/player.ts).
 const (
-	Speed                  float64 = 150
-	MaxHP                          = 100
-	MeleeDamage                    = 10
-	AttackCooldown                 = 400 * time.Millisecond
-	AttackStateDuration            = 300 * time.Millisecond
-	AttackSpeedPenalty     float64 = 0.5
-	Width                          = 48
-	Height                         = 48
-	AttackRangeUp          float64 = 40
-	AttackRangeDown        float64 = 56
-	AttackRangeLeft        float64 = 48
-	AttackRangeRight       float64 = 48
-	AttackWidth                    = 72
-	PvPDamage                      = 25
-	SafeZoneDuration               = 3000 * time.Millisecond
-	BurningTickDamage              = 4
-	BurningTicks                   = 3
-	BurningTickInterval            = 1000 * time.Millisecond
+	Speed               float64 = 150
+	MaxHP                       = 100
+	MeleeDamage                 = 10
+	WaveDamage                  = 3
+	DashDistance        float64 = 150
+	DashPushDistance    float64 = 150
+	DashHalfWidth       float64 = 36
+	AttackCooldown              = 400 * time.Millisecond
+	WaveCooldown                = 1 * time.Second
+	DashCooldown                = 5 * time.Second
+	AttackStateDuration         = 300 * time.Millisecond
+	AttackSpeedPenalty  float64 = 0.5
+	WaveMaxRadius       float64 = 150
+	WaveSpeed           float64 = 900
+	Width                       = 48
+	Height                      = 48
+	AttackRangeUp       float64 = 40
+	AttackRangeDown     float64 = 56
+	AttackRangeLeft     float64 = 48
+	AttackRangeRight    float64 = 48
+	AttackWidth                 = 72
+	PvPDamage                   = 25
+	SafeZoneDuration            = 3000 * time.Millisecond
+	BurningTickDamage           = 4
+	BurningTicks                = 3
+	BurningTickInterval         = 1000 * time.Millisecond
 )
 
 // State enumerates the high-level player FSM states.
@@ -51,6 +59,8 @@ type Input struct {
 	Left   bool
 	Right  bool
 	Attack bool
+	Wave   bool
+	Dash   bool
 }
 
 // Direction returns the dominant movement direction encoded by the input,
@@ -138,6 +148,12 @@ type Snapshot struct {
 	StatusEffects         map[StatusEffect]BurningSnapshot
 }
 
+// WaveIndicator is the active player wave visual state.
+type WaveIndicator struct {
+	X, Y   float64
+	Radius float64
+}
+
 // BurningSnapshot is the wire-shape for a burning status (only TicksRemaining).
 type BurningSnapshot struct {
 	TicksRemaining int
@@ -156,23 +172,34 @@ type Player struct {
 	State     State
 	Direction world.Direction
 
-	AttackCooldown      time.Duration
-	AttackState         time.Duration
-	AttackHitEnemyIDs   map[string]struct{}
-	AttackHitPlayerIDs  map[string]struct{}
-	AttackMonsterKills  int
-	ToastyTriggered     bool
-	ToastyCount         int
-	PlayerKills         int
-	MonsterKills        int
-	Deaths              int
-	SafeZoneTimer       time.Duration
-	RespawnTimer        time.Duration
+	AttackCooldown        time.Duration
+	AttackState           time.Duration
+	WaveCooldown          time.Duration
+	DashCooldown          time.Duration
+	AttackHitEnemyIDs     map[string]struct{}
+	AttackHitPlayerIDs    map[string]struct{}
+	AttackMonsterKills    int
+	ToastyTriggered       bool
+	ToastyCount           int
+	PlayerKills           int
+	MonsterKills          int
+	Deaths                int
+	SafeZoneTimer         time.Duration
+	RespawnTimer          time.Duration
 	PhaseTransferCooldown time.Duration
 
 	LastProcessedInputSeq int64
 	lastReceivedInputSeq  int64
 	pendingInput          *Input
+	waveActive            bool
+	waveCastQueued        bool
+	waveRadius            float64
+	waveCenterX           float64
+	waveCenterY           float64
+	dashCastQueued        bool
+	dashStartX            float64
+	dashStartY            float64
+	dashDirection         world.Direction
 
 	burning       BurningStatus
 	purpleBurning BurningStatus
@@ -236,11 +263,24 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	if p.State == StateDead {
 		return
 	}
+	defer p.advanceWave(dt)
 
 	if p.AttackCooldown > 0 {
 		p.AttackCooldown -= dt
 		if p.AttackCooldown < 0 {
 			p.AttackCooldown = 0
+		}
+	}
+	if p.WaveCooldown > 0 {
+		p.WaveCooldown -= dt
+		if p.WaveCooldown < 0 {
+			p.WaveCooldown = 0
+		}
+	}
+	if p.DashCooldown > 0 {
+		p.DashCooldown -= dt
+		if p.DashCooldown < 0 {
+			p.DashCooldown = 0
 		}
 	}
 
@@ -265,6 +305,32 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.AttackCooldown = AttackCooldown
 		p.AttackState = AttackStateDuration
 		p.resetAttackTracking()
+	}
+	if input.Wave && p.WaveCooldown <= 0 {
+		p.WaveCooldown = WaveCooldown
+		p.waveActive = true
+		p.waveCastQueued = true
+		p.waveRadius = 0
+		p.waveCenterX = p.X
+		p.waveCenterY = p.Y
+	}
+	triggeredDash := false
+	if input.Dash && p.DashCooldown <= 0 {
+		if dashDirection := dashDirectionFromInput(input, p.Direction); dashDirection != "" {
+			p.DashCooldown = DashCooldown
+			p.dashCastQueued = true
+			p.dashStartX = p.X
+			p.dashStartY = p.Y
+			p.dashDirection = dashDirection
+			p.Direction = dashDirection
+			triggeredDash = true
+		}
+	}
+	if triggeredDash {
+		if p.State != StateAttacking {
+			p.transition(StateMoving)
+		}
+		return
 	}
 
 	if direction := input.Direction(); direction != "" {
@@ -323,6 +389,8 @@ func (p *Player) TakeDamage(amount int) {
 	p.HP -= amount
 	if p.HP <= 0 {
 		p.HP = 0
+		p.resetWave()
+		p.resetDash()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -349,6 +417,8 @@ func (p *Player) Respawn(x, y float64) {
 	p.AttackCooldown = 0
 	p.AttackState = 0
 	p.resetAttackTracking()
+	p.resetWave()
+	p.resetDash()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -357,6 +427,8 @@ func (p *Player) SuspendForDisconnect() {
 	p.pendingInput = nil
 	p.LastProcessedInputSeq = -1
 	p.lastReceivedInputSeq = -1
+	p.resetWave()
+	p.resetDash()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
@@ -391,6 +463,32 @@ func (p *Player) RecordMonsterKillInCurrentAttack() {
 		p.ToastyTriggered = true
 		p.ToastyCount += 1
 	}
+}
+
+// ConsumeWaveCast returns the center of a newly triggered wave once.
+func (p *Player) ConsumeWaveCast() (float64, float64, bool) {
+	if !p.waveCastQueued {
+		return 0, 0, false
+	}
+	p.waveCastQueued = false
+	return p.waveCenterX, p.waveCenterY, true
+}
+
+// ConsumeDashCast returns a newly triggered dash once.
+func (p *Player) ConsumeDashCast() (float64, float64, world.Direction, bool) {
+	if !p.dashCastQueued {
+		return 0, 0, "", false
+	}
+	p.dashCastQueued = false
+	return p.dashStartX, p.dashStartY, p.dashDirection, true
+}
+
+// WaveIndicator returns the active player wave visual, if any.
+func (p *Player) WaveIndicator() *WaveIndicator {
+	if !p.waveActive {
+		return nil
+	}
+	return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: p.waveRadius}
 }
 
 // Snapshot returns the wire projection for this player.
@@ -463,6 +561,45 @@ func (p *Player) resetAttackTracking() {
 	}
 	p.AttackMonsterKills = 0
 	p.ToastyTriggered = false
+}
+
+func (p *Player) advanceWave(dt time.Duration) {
+	if !p.waveActive {
+		return
+	}
+	p.waveRadius += WaveSpeed * dt.Seconds()
+	if p.waveRadius < WaveMaxRadius {
+		return
+	}
+	p.waveActive = false
+	p.waveRadius = 0
+}
+
+func (p *Player) resetWave() {
+	p.WaveCooldown = 0
+	p.waveActive = false
+	p.waveCastQueued = false
+	p.waveRadius = 0
+	p.waveCenterX = 0
+	p.waveCenterY = 0
+}
+
+func (p *Player) resetDash() {
+	p.DashCooldown = 0
+	p.dashCastQueued = false
+	p.dashStartX = 0
+	p.dashStartY = 0
+	p.dashDirection = ""
+}
+
+func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direction {
+	if input == nil {
+		return fallback
+	}
+	if direction := input.Direction(); direction != "" {
+		return direction
+	}
+	return fallback
 }
 
 func (p *Player) transition(state State) {

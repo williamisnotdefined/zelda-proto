@@ -1,5 +1,6 @@
 import type { InputMessage, PlayerSnapshot } from '@gelehka/shared';
 import { getDeltaForInput } from './movement.js';
+import { getDashDelta, getDashDirection } from './player.js';
 
 export interface PendingInput {
   input: InputMessage;
@@ -14,6 +15,8 @@ export interface InputState {
   left: boolean;
   right: boolean;
   attack: boolean;
+  wave: boolean;
+  dash: boolean;
 }
 
 export interface ReconcileOptions {
@@ -76,8 +79,20 @@ export function getPredictedPosition(
 
   let x = serverPlayer.x;
   let y = serverPlayer.y;
+  let direction = serverPlayer.direction;
 
   for (const pending of filteredPending) {
+    if (pending.input.dash) {
+      const dashDirection = getDashDirection(pending.input, direction);
+      if (dashDirection) {
+        const dash = getDashDelta(dashDirection);
+        x += dash.dx;
+        y += dash.dy;
+        direction = dashDirection;
+        continue;
+      }
+    }
+
     const delta = getDeltaForInput(
       pending.input,
       pending.dtMs,
@@ -86,6 +101,11 @@ export function getPredictedPosition(
     );
     x += delta.dx;
     y += delta.dy;
+
+    const nextDirection = getDashDirection(pending.input, null);
+    if (nextDirection) {
+      direction = nextDirection;
+    }
   }
 
   return { x, y, filteredPending };

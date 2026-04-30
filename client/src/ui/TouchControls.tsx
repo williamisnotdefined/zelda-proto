@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
+import { useGameStore } from './store';
 
 const JOYSTICK_RADIUS_PX = 46;
 const JOYSTICK_DEADZONE = 0.15;
 const CONTROLS_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 72px)';
+const WAVE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 84px)';
 
 interface KnobPosition {
   x: number;
@@ -25,16 +27,20 @@ function detectTouchDevice(): boolean {
 
 export function TouchControls() {
   const enabled = useTouchInputStore((state) => state.enabled);
+  const waveCooldownEndsAt = useGameStore((state) => state.waveCooldownEndsAt);
   const setEnabled = useTouchInputStore((state) => state.setEnabled);
   const setJoystickActive = useTouchInputStore((state) => state.setJoystickActive);
   const setMove = useTouchInputStore((state) => state.setMove);
   const setAttackPressed = useTouchInputStore((state) => state.setAttackPressed);
+  const setWavePressed = useTouchInputStore((state) => state.setWavePressed);
   const resetTouchInput = useTouchInputStore((state) => state.resetTouchInput);
 
   const joystickRef = useRef<HTMLDivElement | null>(null);
   const joystickPointerId = useRef<number | null>(null);
   const attackPointerId = useRef<number | null>(null);
+  const wavePointerId = useRef<number | null>(null);
   const [knobPosition, setKnobPosition] = useState<KnobPosition>(KNOB_CENTER);
+  const [waveNowMs, setWaveNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const coarseQuery = window.matchMedia('(pointer: coarse)');
@@ -55,6 +61,24 @@ export function TouchControls() {
       setKnobPosition(KNOB_CENTER);
     };
   }, [resetTouchInput, setEnabled]);
+
+  useEffect(() => {
+    if (!waveCooldownEndsAt) {
+      setWaveNowMs(Date.now());
+      return;
+    }
+
+    setWaveNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      const now = Date.now();
+      setWaveNowMs(now);
+      if (now >= waveCooldownEndsAt) {
+        window.clearInterval(intervalId);
+      }
+    }, 50);
+
+    return () => window.clearInterval(intervalId);
+  }, [waveCooldownEndsAt]);
 
   const updateJoystick = (clientX: number, clientY: number) => {
     const element = joystickRef.current;
@@ -157,6 +181,36 @@ export function TouchControls() {
     releaseAttack(event.currentTarget);
   };
 
+  const releaseWave = (target?: EventTarget | null) => {
+    if (target instanceof Element && wavePointerId.current !== null) {
+      target.releasePointerCapture(wavePointerId.current);
+    }
+    wavePointerId.current = null;
+    setWavePressed(false);
+  };
+
+  const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - waveNowMs);
+  const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
+
+  const handleWavePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!waveReady || wavePointerId.current !== null) return;
+    event.preventDefault();
+    wavePointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setWavePressed(true);
+  };
+
+  const handleWavePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== wavePointerId.current) return;
+    event.preventDefault();
+    releaseWave(event.currentTarget);
+  };
+
+  const handleWavePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== wavePointerId.current) return;
+    releaseWave(event.currentTarget);
+  };
+
   if (!enabled) return null;
 
   return (
@@ -209,6 +263,40 @@ export function TouchControls() {
           }}
         />
       </div>
+
+      <button
+        type="button"
+        onPointerDown={handleWavePointerDown}
+        onPointerUp={handleWavePointerUp}
+        onPointerCancel={handleWavePointerCancel}
+        onLostPointerCapture={() => releaseWave()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: WAVE_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: waveReady
+            ? '2px solid rgba(255, 166, 245, 0.82)'
+            : '2px solid rgba(170, 121, 196, 0.55)',
+          background: waveReady ? 'rgba(196, 95, 255, 0.3)' : 'rgba(72, 39, 93, 0.46)',
+          color: '#ffeaff',
+          fontSize: waveReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: waveReady ? 1 : 0.8,
+          boxShadow: waveReady ? '0 0 18px rgba(221, 116, 255, 0.18)' : 'none',
+        }}
+      >
+        {waveReady ? 'Wave' : `${(waveCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
 
       <button
         type="button"

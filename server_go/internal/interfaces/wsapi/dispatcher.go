@@ -219,6 +219,8 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Left:   msg.Left,
 		Right:  msg.Right,
 		Attack: msg.Attack,
+		Wave:   msg.Wave,
+		Dash:   msg.Dash,
 	})
 	return nil
 }

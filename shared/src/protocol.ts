@@ -30,7 +30,10 @@ export type ClientMessageParseFailureReason = 'invalid_message' | 'protocol_mism
 
 export type ParseResult<T, R extends string> = { ok: true; value: T } | { ok: false; reason: R };
 
-export type ClientInputState = Pick<InputMessage, 'up' | 'down' | 'left' | 'right' | 'attack'>;
+export type ClientInputState = Pick<
+  InputMessage,
+  'up' | 'down' | 'left' | 'right' | 'attack' | 'wave' | 'dash'
+>;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
 
 const INSTANCE_ID_SET = new Set<string>(Object.values(INSTANCE_IDS));
@@ -156,6 +159,8 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     left: input.left,
     right: input.right,
     attack: input.attack,
+    wave: input.wave,
+    dash: input.dash,
   };
 }
 
@@ -230,7 +235,7 @@ export function parseClientMessage(
       typeof raw.seq !== 'number' ||
       !Number.isSafeInteger(raw.seq) ||
       raw.seq < 0 ||
-      !hasBooleanFields(raw, ['up', 'down', 'left', 'right', 'attack'])
+      !hasBooleanFields(raw, ['up', 'down', 'left', 'right', 'attack', 'wave', 'dash'])
     ) {
       return { ok: false, reason: 'invalid_message' };
     }
@@ -245,6 +250,8 @@ export function parseClientMessage(
         left: input.left,
         right: input.right,
         attack: input.attack,
+        wave: input.wave,
+        dash: input.dash,
       }),
     };
   }

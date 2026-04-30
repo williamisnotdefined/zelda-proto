@@ -97,6 +97,7 @@ describe('validateClientMessage', () => {
           left: false,
           right: true,
           attack: false,
+          wave: false,
         },
         false
       )

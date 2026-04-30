@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/williamisnotdefined/zelda-proto/server_go/internal/config"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/boss"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/drop"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/enemy"
+	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/hazard"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/player"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/portal"
 	domworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/world"
@@ -23,11 +25,18 @@ func (c *counterIDs) NewID(prefix string) string {
 
 func newWorld(t *testing.T) *World {
 	t.Helper()
+	now := time.Unix(1_700_000_000, 0)
+	return newWorldAt(t, &now)
+}
+
+func newWorldAt(t *testing.T, now *time.Time) *World {
+	t.Helper()
 	return New(Config{
 		InstanceID: domworld.InstancePhase1,
 		SpawnX:     200, SpawnY: 200,
-		IDs:  &counterIDs{},
-		Rand: rand.New(rand.NewSource(1)),
+		IDs:     &counterIDs{},
+		Rand:    rand.New(rand.NewSource(1)),
+		NowFunc: func() time.Time { return *now },
 	})
 }
 
@@ -190,6 +199,114 @@ func TestSnapshotIncludesEntities(t *testing.T) {
 	snap := w.Snapshot()
 	if len(snap.Players) != 1 || len(snap.Enemies) != 1 || len(snap.Bosses) != 2 {
 		t.Fatalf("unexpected snapshot: %+v", snap)
+	}
+}
+
+func TestDropsDespawnAfterConfiguredLifetime(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	w := newWorldAt(t, &now)
+	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: 1000, Y: 1000, Kind: drop.KindHeartSmall, SpawnedAt: now}
+	w.dropIndex.Upsert("drop_1", 1000, 1000)
+	if len(w.drops) != 1 {
+		t.Fatalf("expected one spawned drop, got %d", len(w.drops))
+	}
+
+	now = now.Add(config.DefaultBalancing.HeartDropLifetime - time.Millisecond)
+	w.Tick(20 * time.Millisecond)
+	if len(w.drops) != 1 {
+		t.Fatalf("expected drop to remain before ttl, got %d", len(w.drops))
+	}
+
+	now = now.Add(2 * time.Millisecond)
+	w.Tick(20 * time.Millisecond)
+	if len(w.drops) != 0 {
+		t.Fatalf("expected drop to despawn after ttl, got %d", len(w.drops))
+	}
+	if got := len(w.Snapshot().Drops); got != 0 {
+		t.Fatalf("expected snapshot drops empty after despawn, got %d", got)
+	}
+}
+
+func TestPlayerDashMovesPushesTargetsAndSpawnsBlueTrail(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1080.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	e := enemy.New("e1", 1040, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Dash: true})
+	w.Tick(20 * time.Millisecond)
+
+	if attacker.X <= ax+100 || attacker.Y != ay {
+		t.Fatalf("expected attacker to advance sharply on dash, got (%.1f, %.1f)", attacker.X, attacker.Y)
+	}
+	if target.X <= tx {
+		t.Fatalf("expected target pushed forward, got (%.1f, %.1f)", target.X, target.Y)
+	}
+	if e.X <= 1040 {
+		t.Fatalf("expected enemy pushed forward, got (%.1f, %.1f)", e.X, e.Y)
+	}
+	if target.HP != player.MaxHP || e.HP != passiveConfig.MaxHP {
+		t.Fatal("dash body should not deal direct damage")
+	}
+	snap := w.Snapshot()
+	if len(snap.WaveIndicators) != 0 {
+		t.Fatal("expected no player wave indicator for dash")
+	}
+	foundBlueFlame := false
+	for _, h := range snap.Hazards {
+		if h.Kind == hazard.KindBlueFlame {
+			foundBlueFlame = true
+			break
+		}
+	}
+	if !foundBlueFlame {
+		t.Fatal("expected blue flame hazards from dash trail")
+	}
+}
+
+func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1070.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Wave: true})
+	w.Tick(20 * time.Millisecond)
+
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.WaveDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after wave, got %d", want, got)
+	}
+	if got, want := target.HP, player.MaxHP-player.WaveDamage; got != want {
+		t.Fatalf("expected target HP=%d after wave, got %d", want, got)
+	}
+	if dx, dy := e.X-attacker.X, e.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
+		t.Fatalf("expected enemy pushed outside wave radius, got enemy at (%.1f, %.1f)", e.X, e.Y)
+	}
+	if dx, dy := target.X-attacker.X, target.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
+		t.Fatalf("expected player pushed outside wave radius, got target at (%.1f, %.1f)", target.X, target.Y)
+	}
+	if len(w.Snapshot().WaveIndicators) == 0 {
+		t.Fatal("expected active player wave indicator in snapshot")
 	}
 }
 

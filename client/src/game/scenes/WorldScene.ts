@@ -113,7 +113,7 @@ export class WorldScene extends Phaser.Scene {
       this.handleInstanceChanged(message.instanceId);
     }
 
-    this.playerRuntime.syncPlayers(message.players);
+    this.playerRuntime.syncPlayers(message.players, message.waveIndicators ?? []);
     this.enemyRuntime.syncSnapshots(message.enemies);
     this.bossRuntime.syncSnapshots(
       message.bosses,

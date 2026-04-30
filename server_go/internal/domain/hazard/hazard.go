@@ -59,14 +59,17 @@ func TTLFor(k Kind) time.Duration {
 
 // Hazard is the runtime entity.
 type Hazard struct {
-	ID           string
-	X, Y         float64
-	Kind         Kind
-	TTL          time.Duration
-	Damage       int
-	BurningTicks int
-	Tint         uint32
-	HitPlayerIDs map[string]struct{}
+	ID               string
+	X, Y             float64
+	Kind             Kind
+	TTL              time.Duration
+	Damage           int
+	BurningTicks     int
+	Tint             uint32
+	SourcePlayerID   string
+	HitsAllActors    bool
+	HitActorKeys     map[string]struct{}
+	IgnoredActorKeys map[string]struct{}
 }
 
 // New builds a hazard with default parameters for the kind.
@@ -74,7 +77,8 @@ func New(id string, x, y float64, kind Kind) *Hazard {
 	return &Hazard{
 		ID: id, X: x, Y: y, Kind: kind,
 		TTL: TTLFor(kind), Damage: BurningTickDamage, BurningTicks: BurningTicks,
-		HitPlayerIDs: make(map[string]struct{}),
+		HitActorKeys:     make(map[string]struct{}),
+		IgnoredActorKeys: make(map[string]struct{}),
 	}
 }
 
@@ -91,13 +95,21 @@ func (h *Hazard) Tick(dt time.Duration) bool {
 	return h.TTL <= 0
 }
 
-// MarkHit records a player as hit to prevent multi-tick stacking.
-func (h *Hazard) MarkHit(playerID string) bool {
-	if _, hit := h.HitPlayerIDs[playerID]; hit {
+// MarkHit records an actor as hit to prevent multi-tick stacking.
+func (h *Hazard) MarkHit(actorKey string) bool {
+	if _, ignored := h.IgnoredActorKeys[actorKey]; ignored {
 		return false
 	}
-	h.HitPlayerIDs[playerID] = struct{}{}
+	if _, hit := h.HitActorKeys[actorKey]; hit {
+		return false
+	}
+	h.HitActorKeys[actorKey] = struct{}{}
 	return true
+}
+
+// IgnoreActor prevents a hazard from affecting the supplied actor key.
+func (h *Hazard) IgnoreActor(actorKey string) {
+	h.IgnoredActorKeys[actorKey] = struct{}{}
 }
 
 // Snapshot is the wire projection.

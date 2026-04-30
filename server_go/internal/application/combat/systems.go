@@ -17,9 +17,12 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/enemy"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/physics"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/player"
+	domworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/world"
 )
 
 const contactTouchMargin = 2.0
+const playerWavePushMargin = 12.0
+const playerDashPathMargin = 12.0
 
 // PlayerMeleeSystem resolves player melee swings against enemies and bosses.
 // Mirrors server/src/game/combat/PlayerAttackIntentSystem.ts (the TS server
@@ -157,6 +160,208 @@ func (PvPSystem) Resolve(players map[string]*player.Player, zone safezone.Zone) 
 	}
 }
 
+// PlayerWaveSystem resolves the player-triggered knockback wave skill.
+type PlayerWaveSystem struct{}
+
+// Resolve applies player wave damage and knockback. Returns true when any
+// entity position changed and body collisions should be re-resolved.
+func (PlayerWaveSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	zone safezone.Zone,
+) bool {
+	moved := false
+	for _, caster := range players {
+		cx, cy, ok := caster.ConsumeWaveCast()
+		if !ok {
+			continue
+		}
+		casterProtected := zone.Protects(caster)
+		for _, e := range enemies {
+			if e.State == enemy.StateDead || !withinWave(cx, cy, e.X, e.Y, e.CollisionRadius()) {
+				continue
+			}
+			e.TakeDamage(player.WaveDamage)
+			if e.State == enemy.StateDead {
+				caster.MonsterKills++
+				continue
+			}
+			if pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
+				moved = true
+			}
+		}
+		for _, d := range dragons {
+			if d.State == boss.StateDead || !withinWave(cx, cy, d.X, d.Y, d.ContactRadius()) {
+				continue
+			}
+			d.TakeDamage(player.WaveDamage)
+			if d.State == boss.StateDead {
+				caster.MonsterKills++
+				continue
+			}
+			if pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
+				moved = true
+			}
+		}
+		for _, g := range gelehks {
+			if g.State == boss.StateDead || !withinWave(cx, cy, g.X, g.Y, g.ContactRadius()) {
+				continue
+			}
+			g.TakeDamage(player.WaveDamage)
+			if g.State == boss.StateDead {
+				caster.MonsterKills++
+				continue
+			}
+			if pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
+				moved = true
+			}
+		}
+		for _, v := range vanessas {
+			if v.State == boss.StateDead || !withinWave(cx, cy, v.X, v.Y, v.ContactRadius()) {
+				continue
+			}
+			v.TakeDamage(player.WaveDamage)
+			if v.State == boss.StateDead {
+				caster.MonsterKills++
+				continue
+			}
+			if pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
+				moved = true
+			}
+		}
+		for _, target := range players {
+			if target.ID == caster.ID || target.State == player.StateDead {
+				continue
+			}
+			if casterProtected || zone.Protects(target) || !withinWave(cx, cy, target.X, target.Y, player.Width/2) {
+				continue
+			}
+			target.TakeDamage(player.WaveDamage)
+			if target.State == player.StateDead {
+				caster.PlayerKills++
+				continue
+			}
+			if pushOutOfWave(cx, cy, &target.X, &target.Y, player.Width/2) {
+				moved = true
+			}
+		}
+	}
+	return moved
+}
+
+// DashTrailSpawner receives the authoritative dash path so the world can spawn
+// the blue flame trail after movement is resolved.
+type DashTrailSpawner func(sourcePlayerID string, startX, startY float64, direction domworld.Direction)
+
+// PlayerDashSystem resolves the player-triggered dash skill.
+type PlayerDashSystem struct{}
+
+type dashCast struct {
+	caster    *player.Player
+	startX    float64
+	startY    float64
+	endX      float64
+	endY      float64
+	direction domworld.Direction
+}
+
+// Resolve completes every queued dash, then applies directional knockback to
+// players, enemies, and bosses caught in the path. Returns true when any
+// entity position changed and body collisions should be re-resolved.
+func (PlayerDashSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	spawnTrail DashTrailSpawner,
+) bool {
+	dashes := make([]dashCast, 0, len(players))
+	for _, caster := range players {
+		startX, startY, direction, ok := caster.ConsumeDashCast()
+		if !ok || direction == "" || caster.State == player.StateDead {
+			continue
+		}
+		endX, endY := dashDestination(startX, startY, direction)
+		dashes = append(dashes, dashCast{
+			caster:    caster,
+			startX:    startX,
+			startY:    startY,
+			endX:      endX,
+			endY:      endY,
+			direction: direction,
+		})
+	}
+	if len(dashes) == 0 {
+		return false
+	}
+
+	moved := false
+	for _, dash := range dashes {
+		dash.caster.X = dash.endX
+		dash.caster.Y = dash.endY
+		moved = true
+		if spawnTrail != nil {
+			spawnTrail(dash.caster.ID, dash.startX, dash.startY, dash.direction)
+		}
+	}
+
+	for _, dash := range dashes {
+		for _, e := range enemies {
+			if e.State == enemy.StateDead || !intersectsDashPath(dash, e.X, e.Y, e.CollisionRadius()) {
+				continue
+			}
+			if moveAlongDash(dash.direction, &e.X, &e.Y) {
+				e.TargetID = ""
+				e.State = enemy.StateIdle
+				moved = true
+			}
+		}
+		for _, d := range dragons {
+			if d.State == boss.StateDead || !intersectsDashPath(dash, d.X, d.Y, d.ContactRadius()) {
+				continue
+			}
+			if moveAlongDash(dash.direction, &d.X, &d.Y) {
+				d.TargetID = ""
+				d.State = boss.StateIdle
+				moved = true
+			}
+		}
+		for _, g := range gelehks {
+			if g.State == boss.StateDead || !intersectsDashPath(dash, g.X, g.Y, g.ContactRadius()) {
+				continue
+			}
+			if moveAlongDash(dash.direction, &g.X, &g.Y) {
+				g.StopChargeOnCollision()
+				moved = true
+			}
+		}
+		for _, v := range vanessas {
+			if v.State == boss.StateDead || !intersectsDashPath(dash, v.X, v.Y, v.ContactRadius()) {
+				continue
+			}
+			if moveAlongDash(dash.direction, &v.X, &v.Y) {
+				v.TargetID = ""
+				v.State = boss.StateIdle
+				moved = true
+			}
+		}
+		for _, target := range players {
+			if target.ID == dash.caster.ID || target.State == player.StateDead {
+				continue
+			}
+			if moveAlongDashIfHit(dash, target, player.Width/2) {
+				moved = true
+			}
+		}
+	}
+
+	return moved
+}
+
 // ContactDamageSystem resolves enemy/boss body collisions that damage
 // players. Mirrors server/src/game/combat/ContactDamageSystem.ts. Players
 // inside the spawn safezone are immune.
@@ -260,4 +465,85 @@ func (ContactDamageSystem) Resolve(
 func playerTouchesHostileBody(p *player.Player, hx, hy, hostileRadius float64) bool {
 	r := hostileRadius + player.Width/2 + contactTouchMargin
 	return physics.DistanceSquared(hx, hy, p.X, p.Y) <= r*r
+}
+
+func withinWave(cx, cy, x, y, bodyRadius float64) bool {
+	reach := player.WaveMaxRadius + bodyRadius
+	return physics.DistanceSquared(cx, cy, x, y) <= reach*reach
+}
+
+func pushOutOfWave(cx, cy float64, x, y *float64, bodyRadius float64) bool {
+	dx := *x - cx
+	dy := *y - cy
+	pushDist := player.WaveMaxRadius + bodyRadius + playerWavePushMargin
+	if dx == 0 && dy == 0 {
+		*x = cx + pushDist
+		*y = cy
+		return true
+	}
+	dist := math.Hypot(dx, dy)
+	if dist == 0 {
+		return false
+	}
+	*x = cx + (dx/dist)*pushDist
+	*y = cy + (dy/dist)*pushDist
+	return true
+}
+
+func dashDestination(x, y float64, direction domworld.Direction) (float64, float64) {
+	switch direction {
+	case domworld.DirectionUp:
+		return x, y - player.DashDistance
+	case domworld.DirectionDown:
+		return x, y + player.DashDistance
+	case domworld.DirectionLeft:
+		return x - player.DashDistance, y
+	default:
+		return x + player.DashDistance, y
+	}
+}
+
+func moveAlongDash(direction domworld.Direction, x, y *float64) bool {
+	if x == nil || y == nil {
+		return false
+	}
+	switch direction {
+	case domworld.DirectionUp:
+		*y -= player.DashPushDistance
+	case domworld.DirectionDown:
+		*y += player.DashPushDistance
+	case domworld.DirectionLeft:
+		*x -= player.DashPushDistance
+	case domworld.DirectionRight:
+		*x += player.DashPushDistance
+	default:
+		return false
+	}
+	return true
+}
+
+func moveAlongDashIfHit(dash dashCast, target *player.Player, bodyRadius float64) bool {
+	if target == nil || !intersectsDashPath(dash, target.X, target.Y, bodyRadius) {
+		return false
+	}
+	return moveAlongDash(dash.direction, &target.X, &target.Y)
+}
+
+func intersectsDashPath(dash dashCast, targetX, targetY, bodyRadius float64) bool {
+	minX := math.Min(dash.startX, dash.endX)
+	maxX := math.Max(dash.startX, dash.endX)
+	minY := math.Min(dash.startY, dash.endY)
+	maxY := math.Max(dash.startY, dash.endY)
+	crossAxisAllowance := player.DashHalfWidth + bodyRadius + playerDashPathMargin
+
+	switch dash.direction {
+	case domworld.DirectionLeft, domworld.DirectionRight:
+		return targetX >= minX-bodyRadius && targetX <= maxX+bodyRadius &&
+			math.Abs(targetY-dash.startY) <= crossAxisAllowance
+	case domworld.DirectionUp, domworld.DirectionDown:
+		return targetY >= minY-bodyRadius && targetY <= maxY+bodyRadius &&
+			math.Abs(targetX-dash.startX) <= crossAxisAllowance
+	default:
+		return false
+	}
 }
