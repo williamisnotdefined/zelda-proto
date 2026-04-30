@@ -34,6 +34,7 @@ func (PlayerMeleeSystem) Resolve(
 	enemies map[string]*enemy.Enemy,
 	dragons map[string]*boss.DragonLord,
 	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
 ) {
 	for _, p := range players {
 		hb, ok := p.AttackHitbox()
@@ -96,6 +97,25 @@ func (PlayerMeleeSystem) Resolve(
 				p.MonsterKills++
 			}
 		}
+		// Vanessa the Ruthless
+		for _, v := range vanessas {
+			if v.State == boss.StateDead {
+				continue
+			}
+			if _, hit := p.AttackHitEnemyIDs[v.ID]; hit {
+				continue
+			}
+			vb := physics.EntityAABB(v.X, v.Y, 88, 88)
+			if !physics.AABBOverlap(hb, vb) {
+				continue
+			}
+			p.AttackHitEnemyIDs[v.ID] = struct{}{}
+			v.TakeDamage(player.MeleeDamage)
+			if v.State == boss.StateDead {
+				p.MonsterKills++
+				p.RecordMonsterKillInCurrentAttack()
+			}
+		}
 	}
 }
 
@@ -149,6 +169,7 @@ func (ContactDamageSystem) Resolve(
 	enemies map[string]*enemy.Enemy,
 	dragons map[string]*boss.DragonLord,
 	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
 	zone safezone.Zone,
 ) {
 	// Enemies — one player per enemy per tick. Choose the nearest touched player
@@ -213,6 +234,25 @@ func (ContactDamageSystem) Resolve(
 			}
 			p.TakeDamage(boss.GelehkContactDamage)
 			g.MarkContactDamageDealt(p.ID)
+		}
+	}
+	// Vanessa the Ruthless — per-target cooldown tracked just like other bosses.
+	for _, v := range vanessas {
+		if v.State == boss.StateDead {
+			continue
+		}
+		for _, p := range players {
+			if p.State == player.StateDead || zone.Protects(p) {
+				continue
+			}
+			if !v.CanDealContactDamageTo(p.ID) {
+				continue
+			}
+			if !playerTouchesHostileBody(p, v.X, v.Y, v.ContactRadius()) {
+				continue
+			}
+			p.TakeDamage(v.Damage)
+			v.MarkContactDamageDealt(p.ID)
 		}
 	}
 }

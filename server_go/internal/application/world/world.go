@@ -61,13 +61,14 @@ type World struct {
 	cfg Config
 	now time.Time
 
-	players map[string]*player.Player
-	enemies map[string]*enemy.Enemy
-	dragons map[string]*boss.DragonLord
-	gelehks map[string]*boss.Gelehk
-	drops   map[string]*drop.Drop
-	portals map[string]*portal.Portal
-	hazards map[string]*hazard.Hazard
+	players  map[string]*player.Player
+	enemies  map[string]*enemy.Enemy
+	dragons  map[string]*boss.DragonLord
+	gelehks  map[string]*boss.Gelehk
+	vanessas map[string]*boss.VanessaTheRuthless
+	drops    map[string]*drop.Drop
+	portals  map[string]*portal.Portal
+	hazards  map[string]*hazard.Hazard
 
 	playerIndex *spatial.Index
 	enemyIndex  *spatial.Index
@@ -93,6 +94,7 @@ type pendingFireLine struct {
 	x, y       float64
 	dirX, dirY int
 	kind       hazard.Kind
+	tint       uint32
 	nextSeg    int
 	nextSpawn  time.Time
 }
@@ -112,6 +114,7 @@ func New(cfg Config) *World {
 		enemies:                make(map[string]*enemy.Enemy),
 		dragons:                make(map[string]*boss.DragonLord),
 		gelehks:                make(map[string]*boss.Gelehk),
+		vanessas:               make(map[string]*boss.VanessaTheRuthless),
 		drops:                  make(map[string]*drop.Drop),
 		portals:                make(map[string]*portal.Portal),
 		hazards:                make(map[string]*hazard.Hazard),
@@ -176,6 +179,25 @@ func (w *World) SeedPhase3Bosses() {
 		return
 	}
 	w.EnsurePhase3BossesNear(w.def.SpawnX, w.def.SpawnY)
+}
+
+// SeedPhase4Boss spawns the fixed Vanessa boss for phase 4.
+func (w *World) SeedPhase4Boss() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.def == nil || w.def.Phase4Boss == nil {
+		return
+	}
+	b := w.def.Phase4Boss
+	if _, ok := w.vanessas[b.ID]; ok {
+		return
+	}
+	x := w.def.SpawnX + b.OffsetX
+	y := w.def.SpawnY + b.OffsetY
+	v := boss.NewVanessaTheRuthless(b.ID, x, y)
+	w.vanessas[v.ID] = v
+	w.bossIndex.Upsert(v.ID, v.X, v.Y)
+	w.resolveBodyCollisionsLocked()
 }
 
 // EnsurePhase3BossesNear (re)seeds the Phase 3 entry boss trio relative to a
@@ -430,6 +452,14 @@ func (w *World) SpawnGelehk(b *boss.Gelehk) {
 	w.bossIndex.Upsert(b.ID, b.X, b.Y)
 }
 
+// SpawnVanessa adds a Vanessa the Ruthless boss.
+func (w *World) SpawnVanessa(b *boss.VanessaTheRuthless) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.vanessas[b.ID] = b
+	w.bossIndex.Upsert(b.ID, b.X, b.Y)
+}
+
 // SpawnPortal adds a portal.
 func (w *World) SpawnPortal(p *portal.Portal) {
 	w.mu.Lock()
@@ -458,6 +488,8 @@ func (w *World) handleBossDeathPortals() {
 			dState, exists = d.State, true
 		} else if g, ok := w.gelehks[id]; ok {
 			dState, exists = g.State, true
+		} else if v, ok := w.vanessas[id]; ok {
+			dState, exists = v.State, true
 		}
 		if !exists || dState != boss.StateDead {
 			delete(w.handledBossDeath, id)
@@ -477,6 +509,9 @@ func (w *World) handleBossDeathPortals() {
 		} else if g, ok := w.gelehks[pt.SourceBossID]; ok {
 			alive = g.State != boss.StateDead
 			kind = boss.KindGelehk
+		} else if v, ok := w.vanessas[pt.SourceBossID]; ok {
+			alive = v.State != boss.StateDead
+			kind = v.Kind()
 		} else {
 			delete(w.portals, pid)
 			w.portalIndex.Remove(pid)
@@ -529,6 +564,12 @@ func (w *World) handleBossDeathPortals() {
 			continue
 		}
 		spawnFor(id, g.X, g.Y, boss.KindGelehk)
+	}
+	for id, v := range w.vanessas {
+		if v.State != boss.StateDead {
+			continue
+		}
+		spawnFor(id, v.X, v.Y, v.Kind())
 	}
 }
 
@@ -646,6 +687,17 @@ func (w *World) expelHostilesFromSafeZone() {
 		g.Reset()
 		w.bossIndex.Upsert(id, g.X, g.Y)
 	}
+	for id, v := range w.vanessas {
+		if v.State == boss.StateDead {
+			continue
+		}
+		if !push(&v.X, &v.Y) {
+			continue
+		}
+		v.TargetID = ""
+		v.State = boss.StateIdle
+		w.bossIndex.Upsert(id, v.X, v.Y)
+	}
 }
 
 func (w *World) tickPlayers(dt time.Duration) bool {
@@ -694,11 +746,16 @@ func (w *World) tickBosses(dt time.Duration) {
 					d := boss.NewDragonLord(id, x, y)
 					w.dragons[id] = d
 					w.bossIndex.Upsert(id, x, y)
+				case boss.KindVanessaTheRuthless:
+					v := boss.NewVanessaTheRuthless(id, x, y)
+					w.vanessas[id] = v
+					w.bossIndex.Upsert(id, x, y)
 				}
 			},
 			func(id string) {
 				delete(w.dragons, id)
 				delete(w.gelehks, id)
+				delete(w.vanessas, id)
 				w.bossIndex.Remove(id)
 			},
 			func(id string) (boss.State, boss.Kind, bool) {
@@ -707,6 +764,9 @@ func (w *World) tickBosses(dt time.Duration) {
 				}
 				if g, ok := w.gelehks[id]; ok {
 					return g.State, boss.KindGelehk, true
+				}
+				if v, ok := w.vanessas[id]; ok {
+					return v.State, v.Kind(), true
 				}
 				return boss.StateDead, "", false
 			},
@@ -748,8 +808,8 @@ func (w *World) tickBosses(dt time.Duration) {
 			w.bossIndex.Upsert(id, d.X, d.Y)
 			continue
 		}
-		fire := func(x, y, dx, dy float64, kind hazard.Kind) {
-			w.queueFireLine(x, y, dx, dy, kind)
+		fire := func(x, y, dx, dy float64, kind hazard.Kind, tint uint32) {
+			w.queueFireLine(x, y, dx, dy, kind, tint)
 		}
 		d.Update(dt, bossViews, fire, findBoss)
 		w.bossIndex.Upsert(id, d.X, d.Y)
@@ -775,6 +835,20 @@ func (w *World) tickBosses(dt time.Duration) {
 		}
 		g.Update(dt, bossViews, spawnMinions, spawnPurple, dmg, findBoss)
 		w.bossIndex.Upsert(id, g.X, g.Y)
+	}
+	for id, v := range w.vanessas {
+		if v.TryRespawn(dt) {
+			w.bossIndex.Upsert(id, v.X, v.Y)
+			continue
+		}
+		fire := func(x, y, dx, dy float64, kind hazard.Kind, tint uint32) {
+			w.queueFireLine(x, y, dx, dy, kind, tint)
+		}
+		burst := func(x, y float64, kind hazard.Kind, tints []uint32) {
+			w.spawnFireBurst(x, y, kind, tints)
+		}
+		v.Update(dt, bossViews, fire, burst, findBoss)
+		w.bossIndex.Upsert(id, v.X, v.Y)
 	}
 }
 
@@ -838,7 +912,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			x := line.x + float64(line.dirX*hazard.FireFieldSpacing*line.nextSeg)
 			y := line.y + float64(line.dirY*hazard.FireFieldSpacing*line.nextSeg)
 			id := w.cfg.IDs.NewID(string(line.kind))
-			h := hazard.New(id, x, y, line.kind)
+			h := hazard.NewTinted(id, x, y, line.kind, line.tint)
 			w.hazards[id] = h
 			w.hazardIndex.Upsert(id, x, y)
 			line.nextSeg++
@@ -850,16 +924,36 @@ func (w *World) tickHazards(dt time.Duration) {
 	}
 }
 
-func (w *World) queueFireLine(x, y, dirX, dirY float64, kind hazard.Kind) {
+func (w *World) queueFireLine(x, y, dirX, dirY float64, kind hazard.Kind, tint uint32) {
 	dx := int(sign(dirX))
 	dy := int(sign(dirY))
 	if dx == 0 && dy == 0 {
 		return
 	}
 	w.pendingFireLines = append(w.pendingFireLines, pendingFireLine{
-		x: x, y: y, dirX: dx, dirY: dy, kind: kind,
+		x: x, y: y, dirX: dx, dirY: dy, kind: kind, tint: tint,
 		nextSeg: 1, nextSpawn: w.now,
 	})
+}
+
+func (w *World) spawnFireBurst(x, y float64, kind hazard.Kind, tints []uint32) {
+	colorIndex := 0
+	for oy := -hazard.PurpleBlastRadius; oy <= hazard.PurpleBlastRadius; oy += hazard.PurpleTileStep {
+		for ox := -hazard.PurpleBlastRadius; ox <= hazard.PurpleBlastRadius; ox += hazard.PurpleTileStep {
+			if ox*ox+oy*oy > hazard.PurpleBlastRadius*hazard.PurpleBlastRadius {
+				continue
+			}
+			id := w.cfg.IDs.NewID("fire_burst")
+			tint := uint32(0)
+			if len(tints) > 0 {
+				tint = tints[colorIndex%len(tints)]
+				colorIndex++
+			}
+			h := hazard.NewTinted(id, x+float64(ox), y+float64(oy), kind, tint)
+			w.hazards[id] = h
+			w.hazardIndex.Upsert(id, h.X, h.Y)
+		}
+	}
 }
 
 func (w *World) spawnPurpleField(x, y float64) {
@@ -967,9 +1061,9 @@ func (w *World) resolveCombat() {
 	// Run focused sub-systems in the same order as the TS reference server:
 	// PlayerMelee (PvE) → PvP → ContactDamage. Each system is stateless and
 	// reads/mutates only the slices it needs.
-	appcombat.PlayerMeleeSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks)
+	appcombat.PlayerMeleeSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas)
 	appcombat.PvPSystem{}.Resolve(w.players, w.safeZone())
-	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.safeZone())
+	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas, w.safeZone())
 }
 
 // playerViews builds a snapshot slice of players for AI consumption.
@@ -1038,9 +1132,12 @@ type SnapshotView struct {
 // by the wire layer for telegraph rendering.
 type BossSnapshot struct {
 	boss.Snapshot
-	TargetX   float64
-	TargetY   float64
-	HasTarget bool
+	TargetX     float64
+	TargetY     float64
+	HasTarget   bool
+	SpeechText  string
+	SpeechColor string
+	HasSpeech   bool
 }
 
 // Snapshot returns the world state as a flat projection.
@@ -1072,6 +1169,15 @@ func (w *World) Snapshot() SnapshotView {
 			view.WaveIndicators = append(view.WaveIndicators, *wave)
 		}
 	}
+	for _, v := range w.vanessas {
+		bs := BossSnapshot{Snapshot: v.Snapshot()}
+		if text, color, ok := v.Speech(); ok {
+			bs.SpeechText = text
+			bs.SpeechColor = color
+			bs.HasSpeech = true
+		}
+		view.Bosses = append(view.Bosses, bs)
+	}
 	for _, d := range w.drops {
 		view.Drops = append(view.Drops, *d)
 	}
@@ -1080,7 +1186,7 @@ func (w *World) Snapshot() SnapshotView {
 	}
 	for _, h := range w.hazards {
 		ttl := int64(math.Max(0, math.Round(float64(h.TTL.Milliseconds()))))
-		view.Hazards = append(view.Hazards, hazard.Snapshot{ID: h.ID, X: physics.QuantizePosition(h.X), Y: physics.QuantizePosition(h.Y), Kind: h.Kind, TTLMs: ttl})
+		view.Hazards = append(view.Hazards, hazard.Snapshot{ID: h.ID, X: physics.QuantizePosition(h.X), Y: physics.QuantizePosition(h.Y), Kind: h.Kind, TTLMs: ttl, Tint: h.Tint})
 	}
 	return view
 }

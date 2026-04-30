@@ -9,7 +9,9 @@ import (
 
 	appinst "github.com/williamisnotdefined/zelda-proto/server_go/internal/application/instance"
 	appsess "github.com/williamisnotdefined/zelda-proto/server_go/internal/application/session"
+	appworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/application/world"
 	bossdom "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/boss"
+	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/hazard"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/portal"
 	domworld "github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/world"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/protocol"
@@ -253,5 +255,36 @@ func TestAOEIndicatorWireUsesTimerField(t *testing.T) {
 	}
 	if _, ok := obj.Lookup("remainingMs"); ok {
 		t.Fatal("did not expect legacy remainingMs field on AOE indicator wire object")
+	}
+}
+
+func TestBossWireIncludesOptionalSpeechFields(t *testing.T) {
+	t.Parallel()
+
+	obj := bossObj(appworld.BossSnapshot{
+		Snapshot:    bossdom.Snapshot{ID: "v1", Kind: bossdom.KindVanessaTheRuthless},
+		SpeechText:  "hello",
+		SpeechColor: "#ff0000",
+		HasSpeech:   true,
+	})
+	if v, ok := obj.Lookup("speechText"); !ok || v != "hello" {
+		t.Fatalf("expected speechText on boss wire object, got %v ok=%v", v, ok)
+	}
+	if v, ok := obj.Lookup("speechColor"); !ok || v != "#ff0000" {
+		t.Fatalf("expected speechColor on boss wire object, got %v ok=%v", v, ok)
+	}
+}
+
+func TestHazardWireOmitsZeroTintAndIncludesNonZeroTint(t *testing.T) {
+	t.Parallel()
+
+	plain := hazardObj(hazard.Snapshot{ID: "h1", Kind: hazard.KindFireField})
+	if _, ok := plain.Lookup("tint"); ok {
+		t.Fatal("did not expect tint field for zero tint")
+	}
+
+	tinted := hazardObj(hazard.Snapshot{ID: "h2", Kind: hazard.KindFireField, Tint: 0xff8844})
+	if v, ok := tinted.Lookup("tint"); !ok || v != int64(0xff8844) {
+		t.Fatalf("expected tint field on tinted hazard wire object, got %v ok=%v", v, ok)
 	}
 }

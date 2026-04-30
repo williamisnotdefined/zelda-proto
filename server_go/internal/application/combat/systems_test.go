@@ -32,7 +32,7 @@ func TestContactDamageRespectsSafezone(t *testing.T) {
 		"e2": enemy.New("e2", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindHeartSmall),
 	}
 
-	ContactDamageSystem{}.Resolve(players, enemies, nil, nil, zone)
+	ContactDamageSystem{}.Resolve(players, enemies, nil, nil, nil, zone)
 
 	if protected.HP != player.MaxHP {
 		t.Errorf("safezone-protected player took contact damage: %d", protected.HP)
@@ -50,18 +50,18 @@ func TestGelehkContactDamageRepeatsEverySecondWhileTouching(t *testing.T) {
 	players := map[string]*player.Player{"p1": target}
 	gelehks := map[string]*boss.Gelehk{"g1": boss.NewGelehk("g1", 0, 0)}
 
-	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, nil, zone)
 	if got, want := target.HP, player.MaxHP-boss.GelehkContactDamage; got != want {
 		t.Fatalf("expected first body-contact hit HP=%d, got %d", want, got)
 	}
 
-	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, nil, zone)
 	if got, want := target.HP, player.MaxHP-boss.GelehkContactDamage; got != want {
 		t.Fatalf("expected cooldown to block immediate retrigger, want HP=%d got %d", want, got)
 	}
 
 	gelehks["g1"].Update(boss.GelehkContactCD, nil, nil, nil, nil, nil)
-	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, zone)
+	ContactDamageSystem{}.Resolve(players, nil, nil, gelehks, nil, zone)
 	if got, want := target.HP, player.MaxHP-(2*boss.GelehkContactDamage); got != want {
 		t.Fatalf("expected repeated body-contact hit after 1s, want HP=%d got %d", want, got)
 	}
@@ -108,7 +108,7 @@ func TestPlayerMeleeKillsCountForMonsterStats(t *testing.T) {
 	e := enemy.New("e1", 20, 0, "0,0", weakConfig, drop.KindHeartSmall)
 	players := map[string]*player.Player{"att": attacker}
 	enemies := map[string]*enemy.Enemy{"e1": e}
-	PlayerMeleeSystem{}.Resolve(players, enemies, nil, nil)
+	PlayerMeleeSystem{}.Resolve(players, enemies, nil, nil, nil)
 	if e.State != enemy.StateDead {
 		t.Fatalf("expected enemy dead, got %s HP=%d", e.State, e.HP)
 	}
@@ -124,5 +124,6 @@ func TestPlayerMeleeNilBossMapsAreSafe(t *testing.T) {
 	enemies := map[string]*enemy.Enemy{}
 	var dragons map[string]*boss.DragonLord
 	var gelehks map[string]*boss.Gelehk
-	PlayerMeleeSystem{}.Resolve(players, enemies, dragons, gelehks)
+	var vanessas map[string]*boss.VanessaTheRuthless
+	PlayerMeleeSystem{}.Resolve(players, enemies, dragons, gelehks, vanessas)
 }

@@ -62,6 +62,7 @@ func New(cfg Config) *Manager {
 		// (matches InstanceManager.ensurePhase3BossesNear in the TS server).
 		// Worlds without Phase3EntryBosses defined are a no-op.
 		m.worlds[id].SeedPhase3Bosses()
+		m.worlds[id].SeedPhase4Boss()
 	}
 	return m
 }

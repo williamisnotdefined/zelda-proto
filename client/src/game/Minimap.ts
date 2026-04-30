@@ -3,11 +3,12 @@ import Phaser from 'phaser';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';
 import { BossPhase3Entity } from '../entities/BossPhase3';
+import { BossVanessaEntity } from '../entities/BossVanessa';
 import { PlayerEntity } from '../entities/Player';
 import { PortalEntity } from '../entities/PortalEntity';
 import { getPortalMinimapColor } from './runtime/world/portalRegistry';
 
-type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
+type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity | BossVanessaEntity;
 type EnemyRadiusQuery = (
   x: number,
   y: number,

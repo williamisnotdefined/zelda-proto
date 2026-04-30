@@ -1,6 +1,6 @@
 import type { HazardKind, HazardSnapshot } from '@gelehka/shared';
 import { HAZARD_KINDS } from '@gelehka/shared';
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { BlueFlameHazardEntity } from '../../../entities/BlueFlameHazardEntity';
 import { FireFieldHazardEntity } from '../../../entities/FireFieldHazardEntity';
 import { PurpleFieldHazardEntity } from '../../../entities/PurpleFieldHazardEntity';
@@ -12,7 +12,8 @@ export const hazardRegistry: Record<
   { create: (scene: Phaser.Scene, snapshot: HazardSnapshot) => HazardEntity }
 > = {
   [HAZARD_KINDS.FIRE_FIELD]: {
-    create: (scene, snapshot) => new FireFieldHazardEntity(scene, snapshot.x, snapshot.y),
+    create: (scene, snapshot) =>
+      new FireFieldHazardEntity(scene, snapshot.x, snapshot.y, snapshot.tint),
   },
   [HAZARD_KINDS.PURPLE_FIELD]: {
     create: (scene, snapshot) => new PurpleFieldHazardEntity(scene, snapshot.x, snapshot.y),

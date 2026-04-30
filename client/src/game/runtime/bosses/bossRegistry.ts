@@ -6,12 +6,17 @@ import type {
   IceZone,
 } from '@gelehka/shared';
 import { BOSS_KINDS } from '@gelehka/shared';
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { BossDragonLordEntity } from '../../../entities/BossDragonLord';
 import { BossGelehkEntity } from '../../../entities/BossGelehk';
 import { BossPhase3Entity } from '../../../entities/BossPhase3';
+import { BossVanessaEntity } from '../../../entities/BossVanessa';
 
-export type BossEntity = BossGelehkEntity | BossDragonLordEntity | BossPhase3Entity;
+export type BossEntity =
+  | BossGelehkEntity
+  | BossDragonLordEntity
+  | BossPhase3Entity
+  | BossVanessaEntity;
 
 interface BossUpdateContext {
   iceZones: IceZone[];
@@ -150,6 +155,21 @@ export const bossRegistry: BossRegistry = {
         snapshot.maxHp,
         snapshot.state,
         snapshot.phase
+      );
+    },
+  },
+  [BOSS_KINDS.VANESSA_THE_RUTHLESS]: {
+    create: (scene, snapshot) => new BossVanessaEntity(scene, snapshot.x, snapshot.y),
+    update: (entity, snapshot) => {
+      (entity as BossVanessaEntity).updateFromServer(
+        snapshot.x,
+        snapshot.y,
+        snapshot.hp,
+        snapshot.maxHp,
+        snapshot.state,
+        snapshot.phase,
+        snapshot.speechText,
+        snapshot.speechColor
       );
     },
   },

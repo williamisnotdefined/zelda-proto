@@ -129,12 +129,39 @@ const gelehkDefinition: BossRuntimeDefinition<BossGelehk> = {
   }),
 };
 
+const vanessaDefinition: BossRuntimeDefinition<DragonLord> = {
+  kind: BOSS_KINDS.VANESSA_THE_RUTHLESS,
+  definition: bossDefinitions[BOSS_KINDS.VANESSA_THE_RUTHLESS],
+  attackBounds: DRAGON_ATTACK_BOUNDS,
+  contactDamageRadius: DRAGON_LORD_CONTACT_RADIUS,
+  create: (id, x, y) => new DragonLord(id, x, y),
+  update: (boss, context) => {
+    boss.update(
+      context.dt,
+      context.players,
+      (x, y, dirX, dirY) => {
+        context.spawnFireLine(x, y, dirX, dirY);
+      },
+      context.findNearestPlayerInRadius
+    );
+  },
+  getContactDamageAmount: (boss) => boss.damage,
+  canDealContactDamage: (boss, playerId) => boss.canDealContactDamageTo(playerId),
+  markContactDamageDealt: (boss, playerId) => {
+    boss.markContactDamageDealt(playerId);
+  },
+  onSafeZoneExpel: (boss) => {
+    boss.targetPlayerId = null;
+  },
+};
+
 export const bossRegistry: Record<BossKind, BossRuntimeDefinition> = {
   [BOSS_KINDS.GELEHK]: gelehkDefinition,
   [BOSS_KINDS.DRAGON_LORD]: createDragonLikeRuntimeDefinition(BOSS_KINDS.DRAGON_LORD),
   [BOSS_KINDS.SILVERBACK_WAINER]: createDragonLikeRuntimeDefinition(BOSS_KINDS.SILVERBACK_WAINER),
   [BOSS_KINDS.SLIM_MAIOLI]: createDragonLikeRuntimeDefinition(BOSS_KINDS.SLIM_MAIOLI),
   [BOSS_KINDS.FRANKLY_STEIN]: createDragonLikeRuntimeDefinition(BOSS_KINDS.FRANKLY_STEIN),
+  [BOSS_KINDS.VANESSA_THE_RUTHLESS]: vanessaDefinition,
 };
 
 export const MAX_BOSS_ATTACK_HALF_DIAGONAL = Math.max(

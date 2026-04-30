@@ -199,7 +199,7 @@ export const INSTANCE_RUNTIME_DEFINITIONS: Record<InstanceId, InstanceRuntimeDef
       despawnTimeMs: 60000,
       keyPrefix: 'phase4_boss_region',
       bossPrefix: 'phase4_boss',
-      spawnKind: BOSS_KINDS.DRAGON_LORD,
+      spawnKind: BOSS_KINDS.VANESSA_THE_RUTHLESS,
     },
     initialPortals: [
       {

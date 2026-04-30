@@ -10,38 +10,38 @@ import (
 
 // DragonLord constants.
 const (
-	DragonLordMaxHP                  = 125
-	DragonLordSpeed          float64 = 80
-	DragonLordDamage                 = 5
-	DragonLordAggroRadius    float64 = 700
-	DragonLordContactRadius  float64 = 48
-	DragonLordContactCD              = 1000 * time.Millisecond
-	DragonLordRespawnTime            = 15 * time.Second
-	DragonLordAttackCD               = 2500 * time.Millisecond
-	DragonAxisHysteresis     float64 = 18
-	DragonReacquireInterval          = 250 * time.Millisecond
-	DragonFireDiagThreshold  float64 = 0.82
+	DragonLordMaxHP                 = 125
+	DragonLordSpeed         float64 = 80
+	DragonLordDamage                = 5
+	DragonLordAggroRadius   float64 = 700
+	DragonLordContactRadius float64 = 48
+	DragonLordContactCD             = 1000 * time.Millisecond
+	DragonLordRespawnTime           = 15 * time.Second
+	DragonLordAttackCD              = 2500 * time.Millisecond
+	DragonAxisHysteresis    float64 = 18
+	DragonReacquireInterval         = 250 * time.Millisecond
+	DragonFireDiagThreshold float64 = 0.82
 )
 
 // DragonLord is the phase-2 mini-boss aggregate.
 type DragonLord struct {
-	ID                 string
-	X, Y               float64
-	SpawnX, SpawnY     float64
-	HP                 int
-	MaxHP              int
-	Speed              float64
-	Damage             int
-	State              State
-	Phase              int
-	TargetID           string
-	AttackCD           time.Duration
-	ReacquireCD        time.Duration
-	RespawnTimer       time.Duration
-	moveAxis           string
-	contactCDByPlayer  map[string]time.Duration
-	flameKind          hazard.Kind
-	kind               Kind
+	ID                string
+	X, Y              float64
+	SpawnX, SpawnY    float64
+	HP                int
+	MaxHP             int
+	Speed             float64
+	Damage            int
+	State             State
+	Phase             int
+	TargetID          string
+	AttackCD          time.Duration
+	ReacquireCD       time.Duration
+	RespawnTimer      time.Duration
+	moveAxis          string
+	contactCDByPlayer map[string]time.Duration
+	flameKind         hazard.Kind
+	kind              Kind
 }
 
 // NewDragonLord constructs a dragon at (x, y).
@@ -128,7 +128,7 @@ func (d *DragonLord) Update(dt time.Duration, players []PlayerView, fire SpawnFi
 	if d.AttackCD <= 0 && fire != nil {
 		dirX, dirY := d.fireDirection(dx, dy, absDX, absDY)
 		if dirX != 0 || dirY != 0 {
-			fire(d.X, d.Y, dirX, dirY, d.flameKind)
+			fire(d.X, d.Y, dirX, dirY, d.flameKind, 0)
 			d.AttackCD = DragonLordAttackCD
 			d.State = StateAttacking
 		}

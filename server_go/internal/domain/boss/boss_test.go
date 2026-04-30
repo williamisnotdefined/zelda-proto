@@ -17,7 +17,7 @@ func TestDragonLordMovesAndAttacks(t *testing.T) {
 	d := NewDragonLord("d1", 0, 0)
 	players := []PlayerView{alive("p1", 200, 0)}
 	var fired bool
-	fire := func(x, y, dx, dy float64, k hazard.Kind) { fired = true }
+	fire := func(x, y, dx, dy float64, k hazard.Kind, tint uint32) { fired = true; _ = tint }
 	d.Update(50*time.Millisecond, players, fire, nil)
 	if d.X <= 0 {
 		t.Fatalf("expected dragon to move toward target, got X=%v", d.X)
@@ -249,5 +249,89 @@ func TestGelehkTakeDamageAndRespawn(t *testing.T) {
 	}
 	if g.Phase != 1 || g.HP != g.MaxHP {
 		t.Fatalf("unexpected reset: %+v", g)
+	}
+}
+
+func TestVanessaCyclesAttackPatternsAndSpeech(t *testing.T) {
+	t.Parallel()
+
+	v := NewVanessaTheRuthless("v1", 0, 0)
+	players := []PlayerView{alive("p1", 180, 0)}
+	var lineCalls []struct {
+		dx   float64
+		dy   float64
+		tint uint32
+	}
+	var burstCalls int
+	var burstColors []uint32
+	fire := func(x, y, dx, dy float64, k hazard.Kind, tint uint32) {
+		if k != hazard.KindFireField {
+			t.Fatalf("expected fire field lines, got %s", k)
+		}
+		lineCalls = append(lineCalls, struct {
+			dx   float64
+			dy   float64
+			tint uint32
+		}{dx: dx, dy: dy, tint: tint})
+	}
+	burst := func(x, y float64, k hazard.Kind, tints []uint32) {
+		burstCalls++
+		burstColors = append([]uint32(nil), tints...)
+	}
+
+	v.Update(50*time.Millisecond, players, fire, burst, nil)
+	if len(lineCalls) != 2 {
+		t.Fatalf("expected horizontal attack to spawn 2 lines, got %d", len(lineCalls))
+	}
+	if lineCalls[0].tint == 0 || lineCalls[1].tint != lineCalls[0].tint {
+		t.Fatalf("expected horizontal attack to use a non-zero shared tint, got %+v", lineCalls)
+	}
+
+	v.Update(VanessaAttackCD, players, fire, burst, nil)
+	if len(lineCalls) != 4 {
+		t.Fatalf("expected vertical attack to add 2 more lines, got %d", len(lineCalls))
+	}
+
+	v.Update(VanessaAttackCD, players, fire, burst, nil)
+	if len(lineCalls) != 8 {
+		t.Fatalf("expected diagonal attack to add 4 lines, got %d", len(lineCalls))
+	}
+
+	v.Update(VanessaAttackCD, players, fire, burst, nil)
+	if burstCalls != 1 {
+		t.Fatalf("expected one burst attack, got %d", burstCalls)
+	}
+	if len(burstColors) < 3 {
+		t.Fatalf("expected burst attack to mix multiple colors, got %v", burstColors)
+	}
+
+	v.Update(VanessaSpeechInterval, players, fire, burst, nil)
+	text, color, ok := v.Speech()
+	if !ok {
+		t.Fatal("expected Vanessa speech to activate after interval")
+	}
+	if text != vanessaSpeechText || color != VanessaSpeechColor {
+		t.Fatalf("unexpected speech payload: %q %q", text, color)
+	}
+
+	v.Update(VanessaSpeechDuration, players, fire, burst, nil)
+	if _, _, ok := v.Speech(); ok {
+		t.Fatal("expected speech to disappear after duration")
+	}
+}
+
+func TestVanessaTakeDamageAndRespawn(t *testing.T) {
+	t.Parallel()
+
+	v := NewVanessaTheRuthless("v1", 0, 0)
+	v.TakeDamage(VanessaMaxHP)
+	if v.State != StateDead {
+		t.Fatal("expected dead")
+	}
+	if !v.TryRespawn(VanessaRespawn + time.Millisecond) {
+		t.Fatal("expected respawn")
+	}
+	if v.Phase != 4 || v.HP != v.MaxHP {
+		t.Fatalf("unexpected reset: %+v", v)
 	}
 }

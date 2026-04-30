@@ -25,6 +25,8 @@ const (
 	Phase1PortalDurationMS = 30000
 	Phase3ReturnPortalDX   = 240
 	Phase4ReturnPortalDX   = 240
+	Phase4BossOffsetX      = 520
+	Phase4BossOffsetY      = 120
 	BossDeathPortalDelayMS = 500
 )
 
@@ -44,6 +46,14 @@ type Phase3EntryBoss struct {
 	OffsetY float64
 }
 
+// Phase4Boss describes the fixed Vanessa spawn for the pacman phase.
+type Phase4Boss struct {
+	ID      string
+	Kind    boss.Kind
+	OffsetX float64
+	OffsetY float64
+}
+
 // Phase3EntryBosses is the canonical trio seeded around the Phase 3 spawn.
 var Phase3EntryBosses = []Phase3EntryBoss{
 	{ID: "phase3_boss_silverback_entry", Kind: boss.KindSilverbackWainer, OffsetX: 120, OffsetY: -90},
@@ -51,17 +61,25 @@ var Phase3EntryBosses = []Phase3EntryBoss{
 	{ID: "phase3_boss_frankly_entry", Kind: boss.KindFranklyStein, OffsetX: -120, OffsetY: 30},
 }
 
+// Phase4BossDefinition is the canonical static Vanessa spawn.
+var Phase4BossDefinition = Phase4Boss{
+	ID:      "phase4_boss_vanessa",
+	Kind:    boss.KindVanessaTheRuthless,
+	OffsetX: Phase4BossOffsetX,
+	OffsetY: Phase4BossOffsetY,
+}
+
 // SpawnSystemConfig configures the chunk-based monster spawner.
 type SpawnSystemConfig struct {
-	ChunkSize        int
-	EnemiesPerChunk  int
-	ActiveRange      float64
-	DespawnTimeMS    int64
-	EnemyPrefix      string
-	EnemyKind        enemy.Kind
-	EnemyConfig      enemy.Config
-	DefaultDropKind  drop.Kind
-	PacmanVariants   bool
+	ChunkSize       int
+	EnemiesPerChunk int
+	ActiveRange     float64
+	DespawnTimeMS   int64
+	EnemyPrefix     string
+	EnemyKind       enemy.Kind
+	EnemyConfig     enemy.Config
+	DefaultDropKind drop.Kind
+	PacmanVariants  bool
 }
 
 // BossRegionConfig configures the player-relative boss respawner.
@@ -78,13 +96,13 @@ type BossRegionConfig struct {
 // BossDeathPortalConfig spawns a forward portal at the corpse of an allowed
 // boss. ActivationDelayMS and DurationMS mirror the TS values.
 type BossDeathPortalConfig struct {
-	Kind             portal.Kind
-	SourceBossKinds  []boss.Kind
-	ToInstance       domworld.InstanceID
-	TargetX          float64
-	TargetY          float64
+	Kind              portal.Kind
+	SourceBossKinds   []boss.Kind
+	ToInstance        domworld.InstanceID
+	TargetX           float64
+	TargetY           float64
 	ActivationDelayMS int64
-	DurationMS       int64
+	DurationMS        int64
 }
 
 // InitialPortalConfig is a portal seeded at world construction.
@@ -107,6 +125,7 @@ type InstanceDefinition struct {
 	StarterEnemies     int
 	StarterEnemyRadius float64
 	Phase3EntryBosses  []Phase3EntryBoss
+	Phase4Boss         *Phase4Boss
 }
 
 // All returns the canonical per-phase definitions in deterministic order
@@ -142,10 +161,10 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				SpawnKind: boss.KindGelehk,
 			},
 			BossDeathPortal: &BossDeathPortalConfig{
-				Kind:              portal.Phase1ToPhase2,
-				SourceBossKinds:   []boss.Kind{boss.KindGelehk},
-				ToInstance:        domworld.InstancePhase2,
-				TargetX:           p2.X, TargetY: p2.Y,
+				Kind:            portal.Phase1ToPhase2,
+				SourceBossKinds: []boss.Kind{boss.KindGelehk},
+				ToInstance:      domworld.InstancePhase2,
+				TargetX:         p2.X, TargetY: p2.Y,
 				ActivationDelayMS: BossDeathPortalDelayMS,
 				DurationMS:        Phase1PortalDurationMS,
 			},
@@ -167,10 +186,10 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				SpawnKind: boss.KindDragonLord,
 			},
 			BossDeathPortal: &BossDeathPortalConfig{
-				Kind:              portal.Phase2ToPhase3,
-				SourceBossKinds:   []boss.Kind{boss.KindDragonLord},
-				ToInstance:        domworld.InstancePhase3,
-				TargetX:           p3.X, TargetY: p3.Y,
+				Kind:            portal.Phase2ToPhase3,
+				SourceBossKinds: []boss.Kind{boss.KindDragonLord},
+				ToInstance:      domworld.InstancePhase3,
+				TargetX:         p3.X, TargetY: p3.Y,
 				ActivationDelayMS: BossDeathPortalDelayMS,
 				DurationMS:        Phase1PortalDurationMS,
 			},
@@ -200,10 +219,10 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				SpawnKind: boss.KindSilverbackWainer,
 			},
 			BossDeathPortal: &BossDeathPortalConfig{
-				Kind:              portal.Phase3ToPhase4,
-				SourceBossKinds:   []boss.Kind{boss.KindSilverbackWainer, boss.KindSlimMaioli, boss.KindFranklyStein},
-				ToInstance:        domworld.InstancePhase4,
-				TargetX:           p4.X, TargetY: p4.Y,
+				Kind:            portal.Phase3ToPhase4,
+				SourceBossKinds: []boss.Kind{boss.KindSilverbackWainer, boss.KindSlimMaioli, boss.KindFranklyStein},
+				ToInstance:      domworld.InstancePhase4,
+				TargetX:         p4.X, TargetY: p4.Y,
 				ActivationDelayMS: BossDeathPortalDelayMS,
 				DurationMS:        Phase1PortalDurationMS,
 			},
@@ -230,7 +249,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				Enabled: false, RegionSize: b.Phase2BossRegionSize, ActiveRange: b.Phase2BossActiveRange,
 				DespawnTimeMS: b.BossRegionDespawnTimeMS,
 				KeyPrefix:     "phase4_boss_region", BossPrefix: "phase4_boss",
-				SpawnKind: boss.KindDragonLord,
+				SpawnKind: boss.KindVanessaTheRuthless,
 			},
 			InitialPortals: []InitialPortalConfig{{
 				Kind: portal.Phase4ToPhase3,
@@ -240,6 +259,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			}},
 			StarterEnemies:     b.Phase4StarterPacmans,
 			StarterEnemyRadius: b.Phase4StarterPacmanRadius,
+			Phase4Boss:         &Phase4BossDefinition,
 		},
 	}
 }

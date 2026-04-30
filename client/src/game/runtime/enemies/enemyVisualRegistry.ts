@@ -1,6 +1,6 @@
 import type { EnemyKind, EnemySnapshot, PacmanGhostVariant } from '@gelehka/shared';
 import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import { BlobEntity } from '../../../entities/Blob';
 import { HandEntity } from '../../../entities/Hand';
 import { PacmanGhostEntity } from '../../../entities/PacmanGhost';

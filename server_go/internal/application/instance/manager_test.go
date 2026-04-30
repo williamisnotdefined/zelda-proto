@@ -28,6 +28,23 @@ func TestManagerSeedsAllInstances(t *testing.T) {
 	}
 }
 
+func TestManagerSeedsPhase4Vanessa(t *testing.T) {
+	t.Parallel()
+
+	m := New(Config{IDs: &counterIDs{}, StartPhase: domworld.InstancePhase1})
+	w := m.World(domworld.InstancePhase4)
+	if w == nil {
+		t.Fatal("phase4 world missing")
+	}
+	snap := w.Snapshot()
+	for _, b := range snap.Bosses {
+		if b.Kind == "vanessa_the_ruthless" {
+			return
+		}
+	}
+	t.Fatal("expected Vanessa the Ruthless in phase4 snapshot")
+}
+
 func TestManagerInvalidStartPhaseFallsBack(t *testing.T) {
 	t.Parallel()
 

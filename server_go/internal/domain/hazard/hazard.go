@@ -59,13 +59,14 @@ func TTLFor(k Kind) time.Duration {
 
 // Hazard is the runtime entity.
 type Hazard struct {
-	ID            string
-	X, Y          float64
-	Kind          Kind
-	TTL           time.Duration
-	Damage        int
-	BurningTicks  int
-	HitPlayerIDs  map[string]struct{}
+	ID           string
+	X, Y         float64
+	Kind         Kind
+	TTL          time.Duration
+	Damage       int
+	BurningTicks int
+	Tint         uint32
+	HitPlayerIDs map[string]struct{}
 }
 
 // New builds a hazard with default parameters for the kind.
@@ -75,6 +76,13 @@ func New(id string, x, y float64, kind Kind) *Hazard {
 		TTL: TTLFor(kind), Damage: BurningTickDamage, BurningTicks: BurningTicks,
 		HitPlayerIDs: make(map[string]struct{}),
 	}
+}
+
+// NewTinted builds a hazard with an optional sprite tint.
+func NewTinted(id string, x, y float64, kind Kind, tint uint32) *Hazard {
+	h := New(id, x, y, kind)
+	h.Tint = tint
+	return h
 }
 
 // Tick advances the hazard. Returns true when the TTL expires.
@@ -98,4 +106,5 @@ type Snapshot struct {
 	X, Y  float64
 	Kind  Kind
 	TTLMs int64
+	Tint  uint32
 }

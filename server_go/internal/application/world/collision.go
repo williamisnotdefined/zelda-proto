@@ -58,7 +58,7 @@ func (w *World) resolveBodyCollisionsLocked() {
 }
 
 func (w *World) dynamicBodiesLocked() []dynamicBody {
-	bodies := make([]dynamicBody, 0, len(w.players)+len(w.enemies)+len(w.dragons)+len(w.gelehks))
+	bodies := make([]dynamicBody, 0, len(w.players)+len(w.enemies)+len(w.dragons)+len(w.gelehks)+len(w.vanessas))
 	for _, p := range w.players {
 		if p.State == player.StateDead {
 			continue
@@ -114,6 +114,19 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			}(g),
 		})
 	}
+	for _, v := range w.vanessas {
+		if v.State == boss.StateDead {
+			continue
+		}
+		bodies = append(bodies, dynamicBody{
+			kind:   "boss",
+			id:     v.ID,
+			x:      &v.X,
+			y:      &v.Y,
+			radius: v.ContactRadius(),
+			mass:   bossBodyMass,
+		})
+	}
 	return bodies
 }
 
@@ -129,6 +142,9 @@ func (w *World) syncDynamicIndexesLocked() {
 	}
 	for id, g := range w.gelehks {
 		w.bossIndex.Upsert(id, g.X, g.Y)
+	}
+	for id, v := range w.vanessas {
+		w.bossIndex.Upsert(id, v.X, v.Y)
 	}
 }
 

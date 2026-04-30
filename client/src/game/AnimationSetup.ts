@@ -216,4 +216,11 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'frankly_stein_left', start: 2, end: 3, frameRate: 2.5 },
     { key: 'frankly_stein_up', start: 6, end: 7, frameRate: 2.5 },
   ]);
+
+  createStripDirectionAnims(scene, 'vanessa', [
+    { key: 'vanessa_down', start: 0, end: 7, frameRate: 10 },
+    { key: 'vanessa_left', start: 8, end: 15, frameRate: 10 },
+    { key: 'vanessa_right', start: 16, end: 23, frameRate: 10 },
+    { key: 'vanessa_up', start: 24, end: 31, frameRate: 10 },
+  ]);
 }

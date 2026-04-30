@@ -18,7 +18,7 @@ export class FireFieldHazardEntity {
   private targetX: number;
   private targetY: number;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(scene: Phaser.Scene, x: number, y: number, tint?: number) {
     this.targetX = x;
     this.targetY = y;
 
@@ -29,9 +29,13 @@ export class FireFieldHazardEntity {
     );
     this.sprite.setDepth(4);
     this.sprite.setAlpha(FIRE_FIELD_ALPHA);
+    if (tint !== undefined) {
+      this.sprite.setTint(tint);
+    }
 
-    this.hitZone = scene.add.circle(x, y, FIRE_FIELD_HIT_RADIUS, HIT_ZONE_COLOR, HIT_ZONE_ALPHA);
-    this.hitZone.setStrokeStyle(2, HIT_ZONE_COLOR, HIT_ZONE_STROKE_ALPHA);
+    const hitZoneColor = tint ?? HIT_ZONE_COLOR;
+    this.hitZone = scene.add.circle(x, y, FIRE_FIELD_HIT_RADIUS, hitZoneColor, HIT_ZONE_ALPHA);
+    this.hitZone.setStrokeStyle(2, hitZoneColor, HIT_ZONE_STROKE_ALPHA);
     this.hitZone.setDepth(3.9);
   }
 

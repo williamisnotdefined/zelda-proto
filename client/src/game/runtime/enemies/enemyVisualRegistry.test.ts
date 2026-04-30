@@ -1,15 +1,43 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
-import { createEnemyVisualRegistry } from './enemyVisualRegistry';
+
+vi.mock('../../../entities/Blob', () => ({
+  BlobEntity: class BlobEntity {},
+}));
+
+vi.mock('../../../entities/Hand', () => ({
+  HandEntity: class HandEntity {},
+}));
+
+vi.mock('../../../entities/PacmanGhost', () => ({
+  PacmanGhostEntity: class PacmanGhostEntity {
+    variant?: string;
+
+    constructor(_scene: unknown, _x: number, _y: number, variant?: string) {
+      this.variant = variant;
+    }
+  },
+}));
+
+vi.mock('../../../entities/Slime', () => ({
+  SlimeEntity: class SlimeEntity {},
+}));
+
+async function loadRegistryFactory() {
+  const mod = await import('./enemyVisualRegistry');
+  return mod.createEnemyVisualRegistry;
+}
 
 describe('enemyVisualRegistry', () => {
-  it('covers every shared enemy kind', () => {
+  it('covers every shared enemy kind', async () => {
+    const createEnemyVisualRegistry = await loadRegistryFactory();
     const registry = createEnemyVisualRegistry(128, 64);
 
     expect(Object.keys(registry).sort()).toEqual(Object.values(ENEMY_KINDS).sort());
   });
 
-  it('creates isolated pools for pacman ghost variants', () => {
+  it('creates isolated pools for pacman ghost variants', async () => {
+    const createEnemyVisualRegistry = await loadRegistryFactory();
     const registry = createEnemyVisualRegistry(128, 64);
     const ghostEntry = registry[ENEMY_KINDS.PACMAN_GHOST];
 

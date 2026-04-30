@@ -16,11 +16,12 @@ type Kind string
 
 // Boss kinds.
 const (
-	KindDragonLord       Kind = "dragon_lord"
-	KindGelehk           Kind = "gelehk"
-	KindSilverbackWainer Kind = "silverback_wainer"
-	KindSlimMaioli       Kind = "slim_maioli"
-	KindFranklyStein     Kind = "frankly_stein"
+	KindDragonLord         Kind = "dragon_lord"
+	KindGelehk             Kind = "gelehk"
+	KindSilverbackWainer   Kind = "silverback_wainer"
+	KindSlimMaioli         Kind = "slim_maioli"
+	KindFranklyStein       Kind = "frankly_stein"
+	KindVanessaTheRuthless Kind = "vanessa_the_ruthless"
 )
 
 // State enumerates boss FSM states across all variants.
@@ -52,10 +53,13 @@ type PlayerView struct {
 type FindNearestPlayer func(x, y, radius float64, predicate func(PlayerView) bool) *PlayerView
 
 // SpawnFireLine spawns a fire line hazard with normalized direction.
-type SpawnFireLine func(x, y, dirX, dirY float64, kind hazard.Kind)
+type SpawnFireLine func(x, y, dirX, dirY float64, kind hazard.Kind, tint uint32)
 
 // SpawnPurpleField spawns a purple-field blast at (x, y).
 type SpawnPurpleField func(x, y float64)
+
+// SpawnFireBurst spawns an immediate clustered fire burst at (x, y).
+type SpawnFireBurst func(x, y float64, kind hazard.Kind, tints []uint32)
 
 // SpawnMinions spawns count minions at (x, y).
 type SpawnMinions func(x, y float64, count int)

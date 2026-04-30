@@ -475,6 +475,12 @@ func bossObj(b appworld.BossSnapshot) codec.Object {
 			codec.Field{Key: "targetY", Value: b.TargetY},
 		)
 	}
+	if b.HasSpeech {
+		obj = append(obj,
+			codec.Field{Key: "speechText", Value: b.SpeechText},
+			codec.Field{Key: "speechColor", Value: b.SpeechColor},
+		)
+	}
 	return obj
 }
 
@@ -493,11 +499,15 @@ func portalObj(pt portal.Snapshot) codec.Object {
 }
 
 func hazardObj(h hazard.Snapshot) codec.Object {
-	return codec.Object{
+	obj := codec.Object{
 		{Key: "id", Value: h.ID}, {Key: "kind", Value: string(h.Kind)},
 		{Key: "x", Value: h.X}, {Key: "y", Value: h.Y},
 		{Key: "ttlMs", Value: h.TTLMs},
 	}
+	if h.Tint != 0 {
+		obj = append(obj, codec.Field{Key: "tint", Value: int64(h.Tint)})
+	}
+	return obj
 }
 
 func iceZoneObj(z bossdom.IceZone) codec.Object {

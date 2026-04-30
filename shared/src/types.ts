@@ -39,6 +39,7 @@ export const BOSS_KINDS = {
   SILVERBACK_WAINER: 'silverback_wainer',
   SLIM_MAIOLI: 'slim_maioli',
   FRANKLY_STEIN: 'frankly_stein',
+  VANESSA_THE_RUTHLESS: 'vanessa_the_ruthless',
 } as const;
 
 export type BossKind = (typeof BOSS_KINDS)[keyof typeof BOSS_KINDS];
@@ -207,6 +208,8 @@ export interface BossSnapshot {
   phase: BossPhase;
   targetX?: number;
   targetY?: number;
+  speechText?: string;
+  speechColor?: string;
 }
 
 export interface IceZone {
@@ -253,6 +256,7 @@ export interface HazardSnapshot {
   y: number;
   kind: HazardKind;
   ttlMs: number;
+  tint?: number;
 }
 
 interface SnapshotWorldState {

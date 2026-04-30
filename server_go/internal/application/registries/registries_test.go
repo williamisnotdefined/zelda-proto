@@ -39,6 +39,9 @@ func TestPhase4UsesPacmanVariants(t *testing.T) {
 		t.Fatalf("phase4 EnemiesPerChunk: got %d want %d",
 			def.SpawnSystem.EnemiesPerChunk, config.DefaultBalancing.Phase4EnemiesPerChunk)
 	}
+	if def.Phase4Boss == nil {
+		t.Fatal("phase4 must seed Vanessa the Ruthless")
+	}
 }
 
 func TestPhase3HasEntryBosses(t *testing.T) {

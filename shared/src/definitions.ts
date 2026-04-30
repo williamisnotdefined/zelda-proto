@@ -97,6 +97,12 @@ export const bossDefinitions: Record<BossKind, BossDefinition> = {
     family: 'phase3',
     defaultPhase: 3,
   },
+  [BOSS_KINDS.VANESSA_THE_RUTHLESS]: {
+    kind: BOSS_KINDS.VANESSA_THE_RUTHLESS,
+    label: 'Vanessa the Ruthless',
+    family: 'phase4',
+    defaultPhase: 4,
+  },
 };
 
 export const dropDefinitions: Record<DropKind, DropDefinition> = {
