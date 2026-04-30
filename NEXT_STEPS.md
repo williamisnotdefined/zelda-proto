@@ -1,4 +1,6 @@
-- move fast on double click OR jump
-- granade (distance)
+- heart dura no maximo 40 segundos no chao (perf)
 - beserker yelling (throw monsters away with a low damage)
-- gun / machine gun
+- move fast on double click OR jump (dbl click)
+- fireball (distance)
+- granade (distance)
+- gun / machine gun (maybe cut it off)
