@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-import { setupAnimations } from '../AnimationSetup';
 import { logError } from '../../monitoring/errorLogger';
+import { setupAnimations } from '../AnimationSetup';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -107,6 +107,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
     this.load.image('ice_stone_floor_tile', 'assets/sprites/tilesets/Ice_Stone_Floor.gif');
     this.load.image('void_tile', 'assets/sprites/tilesets/Void.gif');
+    this.load.image('floor_fase_4', 'assets/sprites/tilesets/floor_fase_4.gif');
     this.load.image('cut_grass_tile', 'assets/sprites/tilesets/Cut_Grass.gif');
     this.load.image('humanoid_remains', 'assets/sprites/objects/Humanoid_Remains.gif');
     this.load.image('pile_of_bones_animal', 'assets/sprites/objects/Pile_of_Bones_(Animal).gif');

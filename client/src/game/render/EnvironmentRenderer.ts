@@ -1,5 +1,5 @@
-import { INSTANCE_IDS } from '@gelehka/shared';
 import type { InstanceId } from '@gelehka/shared';
+import { INSTANCE_IDS } from '@gelehka/shared';
 import { seededRandom } from '@gelehka/shared/utils';
 import Phaser from 'phaser';
 
@@ -77,7 +77,7 @@ export class EnvironmentRenderer {
   private getBackgroundTextureKey(instanceId: InstanceId | null): string {
     if (instanceId === INSTANCE_IDS.PHASE2) return 'stone_floor_bege_tile';
     if (instanceId === INSTANCE_IDS.PHASE3) return 'ice_stone_floor_tile';
-    if (instanceId === INSTANCE_IDS.PHASE4) return 'void_tile';
+    if (instanceId === INSTANCE_IDS.PHASE4) return 'floor_fase_4';
     return 'grass_tile';
   }
 
