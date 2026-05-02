@@ -3,6 +3,10 @@ import Phaser from 'phaser';
 const WAVE_RING_COLOR = 0xc06bff;
 const WAVE_RING_ALPHA = 0.92;
 const WAVE_RING_STROKE_WIDTH = 10;
+const WAVE_CORE_FILL_ALPHA = 0.2;
+const WAVE_CORE_STROKE_ALPHA = 0.75;
+const WAVE_CORE_PULSE_SPEED = 0.012;
+const WAVE_CORE_PULSE_SIZE = 8;
 const WAVE_EDGE_SPRITE_SIZE = 42;
 const WAVE_EDGE_SPRITE_ALPHA = 0.68;
 const WAVE_EDGE_STEP = 92;
@@ -13,14 +17,18 @@ interface WaveData {
   x: number;
   y: number;
   radius: number;
+  state: 'windup' | 'expanding';
 }
 
 export class PlayerWaveIndicator {
   private readonly waveRing: Phaser.GameObjects.Arc;
+  private readonly waveCore: Phaser.GameObjects.Arc;
   private readonly waveEdgeSprites: Phaser.GameObjects.Image[] = [];
   private waveCenterX = 0;
   private waveCenterY = 0;
   private waveRadius = 0;
+  private waveState: WaveData['state'] | null = null;
+  private wavePulseTimeMs = 0;
   private active = false;
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -29,12 +37,19 @@ export class PlayerWaveIndicator {
     this.waveRing.setFillStyle(WAVE_RING_COLOR, 0);
     this.waveRing.setStrokeStyle(WAVE_RING_STROKE_WIDTH, WAVE_RING_COLOR, WAVE_RING_ALPHA);
     this.waveRing.setVisible(false);
+
+    this.waveCore = scene.add.circle(0, 0, 1, WAVE_RING_COLOR, WAVE_CORE_FILL_ALPHA);
+    this.waveCore.setDepth(4.1);
+    this.waveCore.setStrokeStyle(3, WAVE_RING_COLOR, WAVE_CORE_STROKE_ALPHA);
+    this.waveCore.setVisible(false);
   }
 
   sync(wave: WaveData | null): void {
     if (!wave) {
       this.active = false;
+      this.waveState = null;
       this.waveRing.setVisible(false);
+      this.waveCore.setVisible(false);
       this.syncWaveEdgeSprites(0);
       return;
     }
@@ -43,24 +58,48 @@ export class PlayerWaveIndicator {
     this.waveCenterX = wave.x;
     this.waveCenterY = wave.y;
     this.waveRadius = wave.radius;
+    this.waveState = wave.state;
     this.render();
   }
 
-  update(): void {
+  update(dt: number): void {
     if (!this.active) {
       return;
     }
+    this.wavePulseTimeMs += dt;
     this.render();
   }
 
   destroy(): void {
     this.waveRing.destroy();
+    this.waveCore.destroy();
     for (const sprite of this.waveEdgeSprites) {
       sprite.destroy();
     }
   }
 
   private render(): void {
+    if (!this.waveState) {
+      this.waveRing.setVisible(false);
+      this.waveCore.setVisible(false);
+      this.syncWaveEdgeSprites(0);
+      return;
+    }
+
+    if (this.waveState === 'windup') {
+      this.waveRing.setVisible(false);
+      this.syncWaveEdgeSprites(0);
+      const pulse =
+        1 + Math.sin(this.wavePulseTimeMs * WAVE_CORE_PULSE_SPEED) * WAVE_CORE_PULSE_SIZE;
+      this.waveCore.setPosition(this.waveCenterX, this.waveCenterY);
+      this.waveCore.setRadius(Math.max(this.waveRadius + pulse, WAVE_RING_STROKE_WIDTH * 2));
+      this.waveCore.setFillStyle(WAVE_RING_COLOR, WAVE_CORE_FILL_ALPHA);
+      this.waveCore.setStrokeStyle(3, WAVE_RING_COLOR, WAVE_CORE_STROKE_ALPHA);
+      this.waveCore.setVisible(true);
+      return;
+    }
+
+    this.waveCore.setVisible(false);
     this.waveRing.setPosition(this.waveCenterX, this.waveCenterY);
     this.waveRing.setRadius(Math.max(this.waveRadius, WAVE_RING_STROKE_WIDTH));
     this.waveRing.setVisible(true);

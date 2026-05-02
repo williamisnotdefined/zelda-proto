@@ -175,13 +175,14 @@ func (PlayerWaveSystem) Resolve(
 ) bool {
 	moved := false
 	for _, caster := range players {
-		cx, cy, ok := caster.ConsumeWaveCast()
+		cx, cy, targets, ok := caster.ConsumeWaveRelease()
 		if !ok {
 			continue
 		}
 		casterProtected := zone.Protects(caster)
-		for _, e := range enemies {
-			if e.State == enemy.StateDead || !withinWave(cx, cy, e.X, e.Y, e.CollisionRadius()) {
+		for _, id := range targets.EnemyIDs {
+			e := enemies[id]
+			if e == nil || e.State == enemy.StateDead {
 				continue
 			}
 			e.TakeDamage(player.WaveDamage)
@@ -190,11 +191,14 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			if pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
+				e.TargetID = ""
+				e.State = enemy.StateIdle
 				moved = true
 			}
 		}
-		for _, d := range dragons {
-			if d.State == boss.StateDead || !withinWave(cx, cy, d.X, d.Y, d.ContactRadius()) {
+		for _, id := range targets.DragonIDs {
+			d := dragons[id]
+			if d == nil || d.State == boss.StateDead {
 				continue
 			}
 			d.TakeDamage(player.WaveDamage)
@@ -203,11 +207,14 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			if pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
+				d.TargetID = ""
+				d.State = boss.StateIdle
 				moved = true
 			}
 		}
-		for _, g := range gelehks {
-			if g.State == boss.StateDead || !withinWave(cx, cy, g.X, g.Y, g.ContactRadius()) {
+		for _, id := range targets.GelehkIDs {
+			g := gelehks[id]
+			if g == nil || g.State == boss.StateDead {
 				continue
 			}
 			g.TakeDamage(player.WaveDamage)
@@ -216,11 +223,13 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			if pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
+				g.StopChargeOnCollision()
 				moved = true
 			}
 		}
-		for _, v := range vanessas {
-			if v.State == boss.StateDead || !withinWave(cx, cy, v.X, v.Y, v.ContactRadius()) {
+		for _, id := range targets.VanessaIDs {
+			v := vanessas[id]
+			if v == nil || v.State == boss.StateDead {
 				continue
 			}
 			v.TakeDamage(player.WaveDamage)
@@ -229,6 +238,8 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			if pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
+				v.TargetID = ""
+				v.State = boss.StateIdle
 				moved = true
 			}
 		}

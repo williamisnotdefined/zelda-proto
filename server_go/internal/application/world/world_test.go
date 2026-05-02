@@ -288,10 +288,34 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindHeartSmall)
+	e.TargetID = attacker.ID
+	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Wave: true})
 	w.Tick(20 * time.Millisecond)
+	if e.X != 1000 || e.Y != 1090 {
+		t.Fatalf("expected frozen enemy to stay put during wave windup, got (%.1f, %.1f)", e.X, e.Y)
+	}
+	if e.HP != enemy.BlobConfig.MaxHP {
+		t.Fatalf("expected no enemy damage during windup, got %d", e.HP)
+	}
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected no player damage during windup, got %d", target.HP)
+	}
+	windupSnap := w.Snapshot()
+	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
+		t.Fatalf("expected player wave windup indicator, got %#v", windupSnap.WaveIndicators)
+	}
+
+	w.Tick(player.WaveWindup)
+	expandingSnap := w.Snapshot()
+	if len(expandingSnap.WaveIndicators) == 0 || expandingSnap.WaveIndicators[0].State != boss.WaveExpanding {
+		t.Fatalf("expected expanding player wave indicator, got %#v", expandingSnap.WaveIndicators)
+	}
+
+	releaseAfter := player.WaveExpandDuration() + 20*time.Millisecond
+	w.Tick(releaseAfter)
 
 	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.WaveDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after wave, got %d", want, got)
@@ -305,8 +329,8 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	if dx, dy := target.X-attacker.X, target.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
 		t.Fatalf("expected player pushed outside wave radius, got target at (%.1f, %.1f)", target.X, target.Y)
 	}
-	if len(w.Snapshot().WaveIndicators) == 0 {
-		t.Fatal("expected active player wave indicator in snapshot")
+	if len(w.Snapshot().WaveIndicators) != 0 {
+		t.Fatal("expected no player wave indicator after release")
 	}
 }
 

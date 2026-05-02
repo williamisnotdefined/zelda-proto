@@ -113,11 +113,11 @@ export class PlayerEntity {
       this.serverState,
       this.serverDirection
     );
-    this.waveIndicator.update();
+    this.waveIndicator.update(dt);
     this.animationController.update(this.sprite, this.serverState, this.serverDirection);
   }
 
-  syncWaveIndicator(wave: Pick<BossWaveIndicator, 'x' | 'y' | 'radius'> | null): void {
+  syncWaveIndicator(wave: Pick<BossWaveIndicator, 'x' | 'y' | 'radius' | 'state'> | null): void {
     this.waveIndicator.sync(wave);
   }
 

@@ -2,6 +2,7 @@ package combat
 
 import (
 	"testing"
+	"time"
 
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/application/safezone"
 	"github.com/williamisnotdefined/zelda-proto/server_go/internal/domain/boss"
@@ -15,6 +16,15 @@ func newPlayerOutsideSafezone(id string, x, y float64) *player.Player {
 	p := player.New(id, "n", x, y)
 	p.SafeZoneTimer = 0
 	return p
+}
+
+func queuePlayerWaveRelease(p *player.Player, targets player.WaveTargets) {
+	p.ApplyInput(player.Input{Seq: 1, Wave: true})
+	p.Update(10*time.Millisecond, 1)
+	p.ConsumeWaveStart()
+	p.SetWaveTargets(targets)
+	releaseAfter := player.WaveWindup + player.WaveExpandDuration()
+	p.Update(releaseAfter, 1)
 }
 
 func TestContactDamageRespectsSafezone(t *testing.T) {
@@ -123,13 +133,17 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 
 	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
 	caster := newPlayerOutsideSafezone("att", 0, 0)
-	caster.ApplyInput(player.Input{Seq: 1, Wave: true})
-	caster.Update(10_000_000, 1)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
 	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+	queuePlayerWaveRelease(caster, player.WaveTargets{
+		EnemyIDs:   []string{"e1"},
+		DragonIDs:  []string{"d1"},
+		GelehkIDs:  []string{"g1"},
+		VanessaIDs: []string{"v1"},
+	})
 
 	moved := PlayerWaveSystem{}.Resolve(
 		map[string]*player.Player{"att": caster, "tgt": target},
@@ -175,8 +189,7 @@ func TestPlayerWaveRespectsSafezoneForPvP(t *testing.T) {
 
 	zone := safezone.Zone{X: 0, Y: 0, Radius: 100}
 	protectedCaster := player.New("att", "n", 0, 0)
-	protectedCaster.ApplyInput(player.Input{Seq: 1, Wave: true})
-	protectedCaster.Update(10_000_000, 1)
+	queuePlayerWaveRelease(protectedCaster, player.WaveTargets{})
 	target := newPlayerOutsideSafezone("tgt", 80, 0)
 	PlayerWaveSystem{}.Resolve(
 		map[string]*player.Player{"att": protectedCaster, "tgt": target},
@@ -191,8 +204,7 @@ func TestPlayerWaveRespectsSafezoneForPvP(t *testing.T) {
 	}
 
 	unprotectedCaster := newPlayerOutsideSafezone("att2", 80, 0)
-	unprotectedCaster.ApplyInput(player.Input{Seq: 1, Wave: true})
-	unprotectedCaster.Update(10_000_000, 1)
+	queuePlayerWaveRelease(unprotectedCaster, player.WaveTargets{})
 	protectedTarget := player.New("tgt2", "n", 0, 0)
 	PlayerWaveSystem{}.Resolve(
 		map[string]*player.Player{"att2": unprotectedCaster, "tgt2": protectedTarget},

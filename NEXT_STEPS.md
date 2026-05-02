@@ -1,4 +1,3 @@
-- move fast on double click OR jump (dbl click)
 - fireball (distance)
 - granade (distance)
 - gun / machine gun (maybe cut it off)

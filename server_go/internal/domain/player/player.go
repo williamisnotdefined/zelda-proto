@@ -16,6 +16,8 @@ const (
 	MaxHP                       = 100
 	MeleeDamage                 = 10
 	WaveDamage                  = 3
+	WaveWindup                  = 80 * time.Millisecond
+	WaveWindupRadius    float64 = 44
 	DashDistance        float64 = 150
 	DashPushDistance    float64 = 150
 	DashHalfWidth       float64 = 36
@@ -61,6 +63,13 @@ type Input struct {
 	Attack bool
 	Wave   bool
 	Dash   bool
+}
+
+// WaveExpandDuration returns how long the player wave spends expanding from
+// zero to max radius.
+func WaveExpandDuration() time.Duration {
+	second := float64(time.Second)
+	return time.Duration(second * WaveMaxRadius / WaveSpeed)
 }
 
 // Direction returns the dominant movement direction encoded by the input,
@@ -152,6 +161,24 @@ type Snapshot struct {
 type WaveIndicator struct {
 	X, Y   float64
 	Radius float64
+	State  WaveState
+}
+
+// WaveState is the current phase of the player wave visual.
+type WaveState string
+
+// Player-wave phases mirrored by the client wave indicator.
+const (
+	WaveStateWindup    WaveState = "windup"
+	WaveStateExpanding WaveState = "expanding"
+)
+
+// WaveTargets stores the hostile IDs locked by a player wave at cast time.
+type WaveTargets struct {
+	EnemyIDs   []string
+	DragonIDs  []string
+	GelehkIDs  []string
+	VanessaIDs []string
 }
 
 // BurningSnapshot is the wire-shape for a burning status (only TicksRemaining).
@@ -192,10 +219,13 @@ type Player struct {
 	lastReceivedInputSeq  int64
 	pendingInput          *Input
 	waveActive            bool
-	waveCastQueued        bool
+	waveStartQueued       bool
+	waveReleaseQueued     bool
+	waveWindupRemaining   time.Duration
 	waveRadius            float64
 	waveCenterX           float64
 	waveCenterY           float64
+	waveTargets           WaveTargets
 	dashCastQueued        bool
 	dashStartX            float64
 	dashStartY            float64
@@ -309,10 +339,13 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	if input.Wave && p.WaveCooldown <= 0 {
 		p.WaveCooldown = WaveCooldown
 		p.waveActive = true
-		p.waveCastQueued = true
+		p.waveStartQueued = true
+		p.waveReleaseQueued = false
+		p.waveWindupRemaining = WaveWindup
 		p.waveRadius = 0
 		p.waveCenterX = p.X
 		p.waveCenterY = p.Y
+		p.waveTargets = WaveTargets{}
 	}
 	triggeredDash := false
 	if input.Dash && p.DashCooldown <= 0 {
@@ -465,13 +498,42 @@ func (p *Player) RecordMonsterKillInCurrentAttack() {
 	}
 }
 
-// ConsumeWaveCast returns the center of a newly triggered wave once.
-func (p *Player) ConsumeWaveCast() (float64, float64, bool) {
-	if !p.waveCastQueued {
+// ConsumeWaveStart returns the center of a newly triggered wave once so the
+// world can pre-lock affected hostiles before AI movement runs.
+func (p *Player) ConsumeWaveStart() (float64, float64, bool) {
+	if !p.waveStartQueued {
 		return 0, 0, false
 	}
-	p.waveCastQueued = false
+	p.waveStartQueued = false
 	return p.waveCenterX, p.waveCenterY, true
+}
+
+// SetWaveTargets stores the hostile IDs captured when the wave started.
+func (p *Player) SetWaveTargets(targets WaveTargets) {
+	p.waveTargets = targets
+}
+
+// ConsumeWaveRelease returns the center and captured hostiles of a completed
+// player wave once.
+func (p *Player) ConsumeWaveRelease() (float64, float64, WaveTargets, bool) {
+	if !p.waveReleaseQueued {
+		return 0, 0, WaveTargets{}, false
+	}
+	p.waveReleaseQueued = false
+	targets := p.waveTargets
+	p.waveTargets = WaveTargets{}
+	return p.waveCenterX, p.waveCenterY, targets, true
+}
+
+// WaveRemainingDuration returns how long the current wave will keep hostiles
+// frozen before it releases.
+func (p *Player) WaveRemainingDuration() time.Duration {
+	if !p.waveActive {
+		return 0
+	}
+	remainingRadius := math.Max(0, WaveMaxRadius-p.waveRadius)
+	expandRemaining := time.Duration(float64(time.Second) * remainingRadius / WaveSpeed)
+	return p.waveWindupRemaining + expandRemaining
 }
 
 // ConsumeDashCast returns a newly triggered dash once.
@@ -488,7 +550,10 @@ func (p *Player) WaveIndicator() *WaveIndicator {
 	if !p.waveActive {
 		return nil
 	}
-	return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: p.waveRadius}
+	if p.waveWindupRemaining > 0 {
+		return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: WaveWindupRadius, State: WaveStateWindup}
+	}
+	return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: p.waveRadius, State: WaveStateExpanding}
 }
 
 // Snapshot returns the wire projection for this player.
@@ -567,21 +632,34 @@ func (p *Player) advanceWave(dt time.Duration) {
 	if !p.waveActive {
 		return
 	}
-	p.waveRadius += WaveSpeed * dt.Seconds()
+	remaining := dt
+	if p.waveWindupRemaining > 0 {
+		if remaining < p.waveWindupRemaining {
+			p.waveWindupRemaining -= remaining
+			return
+		}
+		remaining -= p.waveWindupRemaining
+		p.waveWindupRemaining = 0
+	}
+	p.waveRadius += WaveSpeed * remaining.Seconds()
 	if p.waveRadius < WaveMaxRadius {
 		return
 	}
 	p.waveActive = false
+	p.waveReleaseQueued = true
 	p.waveRadius = 0
 }
 
 func (p *Player) resetWave() {
 	p.WaveCooldown = 0
 	p.waveActive = false
-	p.waveCastQueued = false
+	p.waveStartQueued = false
+	p.waveReleaseQueued = false
+	p.waveWindupRemaining = 0
 	p.waveRadius = 0
 	p.waveCenterX = 0
 	p.waveCenterY = 0
+	p.waveTargets = WaveTargets{}
 }
 
 func (p *Player) resetDash() {
