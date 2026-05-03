@@ -275,6 +275,36 @@ func (PlayerWaveSystem) Resolve(
 // the blue flame trail after movement is resolved.
 type DashTrailSpawner func(sourcePlayerID string, startX, startY float64, direction domworld.Direction)
 
+// PlayerLandmineSpawner receives a queued landmine cast so the world can spawn
+// the hazard after movement is resolved.
+type PlayerLandmineSpawner func(
+	sourcePlayerID string,
+	startX, startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+)
+
+// PlayerLandmineSystem resolves queued player landmine casts.
+type PlayerLandmineSystem struct{}
+
+// Resolve emits every queued landmine cast.
+func (PlayerLandmineSystem) Resolve(
+	players map[string]*player.Player,
+	zone safezone.Zone,
+	spawnLandmine PlayerLandmineSpawner,
+) {
+	if spawnLandmine == nil {
+		return
+	}
+	for _, caster := range players {
+		startX, startY, direction, ok := caster.ConsumeLandmineCast()
+		if !ok || direction == "" || caster.State == player.StateDead {
+			continue
+		}
+		spawnLandmine(caster.ID, startX, startY, direction, !zone.Protects(caster))
+	}
+}
+
 // PlayerFireballSpawner receives a queued fireball cast so the world can spawn
 // the projectile entity after movement is resolved.
 type PlayerFireballSpawner func(

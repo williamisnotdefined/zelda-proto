@@ -12,26 +12,31 @@ type Kind string
 
 // Canonical hazard kinds.
 const (
-	KindFireField   Kind = "fire_field"
-	KindPurpleField Kind = "purple_field"
-	KindBlueFlame   Kind = "blue_flame"
-	KindFireball    Kind = "fireball"
+	KindFireField         Kind = "fire_field"
+	KindPurpleField       Kind = "purple_field"
+	KindBlueFlame         Kind = "blue_flame"
+	KindFireball          Kind = "fireball"
+	KindLandmine          Kind = "landmine"
+	KindLandmineExplosion Kind = "landmine_explosion"
 )
 
 // Tick parameters.
 const (
-	BurningTickDamage   = 8
-	BurningTicks        = 3
-	BurningTickInterval = 1000 * time.Millisecond
-	HitRadius           = 18
-	FireFieldSegments   = 7
-	FireFieldSpacing    = 36
-	FireFieldInterval   = 40 * time.Millisecond
-	PurpleBlastRadius   = 80
-	PurpleTileStep      = 34
-	DefaultTTL          = 1800 * time.Millisecond
-	PurpleTTL           = 3000 * time.Millisecond
-	FireballTTL         = 400 * time.Millisecond
+	BurningTickDamage       = 8
+	BurningTicks            = 3
+	BurningTickInterval     = 1000 * time.Millisecond
+	HitRadius               = 18
+	FireFieldSegments       = 7
+	FireFieldSpacing        = 36
+	FireFieldInterval       = 40 * time.Millisecond
+	PurpleBlastRadius       = 80
+	PurpleTileStep          = 34
+	DefaultTTL              = 1800 * time.Millisecond
+	PurpleTTL               = 3000 * time.Millisecond
+	FireballTTL             = 400 * time.Millisecond
+	LandmineTTL             = 30 * time.Second
+	LandmineExplosionTTL    = 420 * time.Millisecond
+	LandmineExplosionRadius = 180
 )
 
 // Effect identifies the status effect applied by a hazard.
@@ -57,8 +62,15 @@ func EffectFor(k Kind) Effect {
 
 // TTLFor returns the default time-to-live for a hazard kind.
 func TTLFor(k Kind) time.Duration {
-	if k == KindPurpleField {
+	switch k {
+	case KindPurpleField:
 		return PurpleTTL
+	case KindFireball:
+		return FireballTTL
+	case KindLandmine:
+		return LandmineTTL
+	case KindLandmineExplosion:
+		return LandmineExplosionTTL
 	}
 	return DefaultTTL
 }
@@ -101,6 +113,24 @@ func NewFireball(id string, x, y float64, direction domworld.Direction) *Hazard 
 	h.BurningTicks = 0
 	h.Direction = direction
 	h.HitsPlayers = true
+	return h
+}
+
+// NewLandmine builds a stationary player landmine.
+func NewLandmine(id string, x, y float64) *Hazard {
+	h := New(id, x, y, KindLandmine)
+	h.TTL = LandmineTTL
+	h.BurningTicks = 0
+	return h
+}
+
+// NewLandmineExplosion builds the short-lived visual explosion for a landmine.
+func NewLandmineExplosion(id string, x, y float64) *Hazard {
+	h := New(id, x, y, KindLandmineExplosion)
+	h.TTL = LandmineExplosionTTL
+	h.Damage = 0
+	h.BurningTicks = 0
+	h.HitRadius = LandmineExplosionRadius
 	return h
 }
 

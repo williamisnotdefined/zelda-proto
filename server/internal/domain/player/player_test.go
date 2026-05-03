@@ -196,6 +196,36 @@ func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestLandmineTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Right: true, Landmine: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.LandmineCooldown != LandmineCooldown {
+		t.Fatalf("expected landmine cooldown %s, got %s", LandmineCooldown, p.LandmineCooldown)
+	}
+	cx, cy, direction, ok := p.ConsumeLandmineCast()
+	if !ok {
+		t.Fatal("expected queued landmine cast")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected landmine start at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if direction != world.DirectionRight {
+		t.Fatalf("expected landmine direction right, got %s", direction)
+	}
+	if _, _, _, ok := p.ConsumeLandmineCast(); ok {
+		t.Fatal("expected landmine cast to be consumed once")
+	}
+
+	p.ApplyInput(Input{Seq: 2, Right: true, Landmine: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, _, ok := p.ConsumeLandmineCast(); ok {
+		t.Fatal("expected cooldown to block second landmine cast")
+	}
+}
+
 func TestAttackHitboxReturnsBoxOnlyWhileAttacking(t *testing.T) {
 	t.Parallel()
 

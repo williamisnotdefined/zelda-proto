@@ -13,6 +13,7 @@ type ClientInputState struct {
 	Wave     bool
 	Dash     bool
 	Fireball bool
+	Landmine bool
 }
 
 type JoinMessage struct {
@@ -57,6 +58,7 @@ type InputMessage struct {
 	Wave            bool              `json:"wave" msgpack:"wave"`
 	Dash            bool              `json:"dash" msgpack:"dash"`
 	Fireball        bool              `json:"fireball" msgpack:"fireball"`
+	Landmine        bool              `json:"landmine" msgpack:"landmine"`
 }
 
 func (InputMessage) MessageType() ClientMessageType {

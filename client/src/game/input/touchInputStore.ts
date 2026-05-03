@@ -20,11 +20,15 @@ interface TouchInputStore {
   move: TouchMoveState;
   attackPressed: boolean;
   wavePressed: boolean;
+  fireballPressed: boolean;
+  landminePressed: boolean;
   setEnabled: (enabled: boolean) => void;
   setJoystickActive: (active: boolean) => void;
   setMove: (move: TouchMoveState) => void;
   setAttackPressed: (attackPressed: boolean) => void;
   setWavePressed: (wavePressed: boolean) => void;
+  setFireballPressed: (fireballPressed: boolean) => void;
+  setLandminePressed: (landminePressed: boolean) => void;
   resetTouchInput: () => void;
 }
 
@@ -34,16 +38,22 @@ export const useTouchInputStore = create<TouchInputStore>((set) => ({
   move: EMPTY_MOVE,
   attackPressed: false,
   wavePressed: false,
+  fireballPressed: false,
+  landminePressed: false,
   setEnabled: (enabled) => set({ enabled }),
   setJoystickActive: (joystickActive) => set({ joystickActive }),
   setMove: (move) => set({ move }),
   setAttackPressed: (attackPressed) => set({ attackPressed }),
   setWavePressed: (wavePressed) => set({ wavePressed }),
+  setFireballPressed: (fireballPressed) => set({ fireballPressed }),
+  setLandminePressed: (landminePressed) => set({ landminePressed }),
   resetTouchInput: () =>
     set({
       joystickActive: false,
       move: EMPTY_MOVE,
       attackPressed: false,
       wavePressed: false,
+      fireballPressed: false,
+      landminePressed: false,
     }),
 }));

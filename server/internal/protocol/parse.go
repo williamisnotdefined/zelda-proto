@@ -183,7 +183,8 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		wave, okWave := getBool(record, "wave")
 		dash, okDash := getBool(record, "dash")
 		fireball, okFireball := getBool(record, "fireball")
-		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okDash || !okFireball {
+		landmine, okLandmine := getBool(record, "landmine")
+		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okDash || !okFireball || !okLandmine {
 			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
 		}
 
@@ -198,6 +199,7 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 				Wave:     wave,
 				Dash:     dash,
 				Fireball: fireball,
+				Landmine: landmine,
 			}),
 		}
 	case ClientMessageTypeSnapshotResync:

@@ -17,7 +17,10 @@ interface ProtocolFixture {
 }
 
 async function readProtocolFixture(): Promise<ProtocolFixture> {
-  const filePath = new URL('../../../../testdata/server-contract/protocol/messages.json', import.meta.url);
+  const filePath = new URL(
+    '../../../../testdata/server-contract/protocol/messages.json',
+    import.meta.url
+  );
   return JSON.parse(await readFile(filePath, 'utf8')) as ProtocolFixture;
 }
 
@@ -25,7 +28,7 @@ describe('protocol contract fixtures', () => {
   it('keeps protocol fixtures aligned with MessagePack bytes and canonical parsing', async () => {
     const fixture = await readProtocolFixture();
 
-    expect(fixture.protocolVersion).toBe(7);
+    expect(fixture.protocolVersion).toBe(8);
 
     for (const testCase of fixture.cases) {
       const bytes = Buffer.from(testCase.msgpackBase64, 'base64');

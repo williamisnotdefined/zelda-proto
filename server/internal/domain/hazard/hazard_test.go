@@ -23,6 +23,12 @@ func TestEffectAndTTL(t *testing.T) {
 	if TTLFor(KindPurpleField) != PurpleTTL {
 		t.Fatal("purple ttl")
 	}
+	if TTLFor(KindLandmine) != LandmineTTL {
+		t.Fatal("landmine ttl")
+	}
+	if TTLFor(KindLandmineExplosion) != LandmineExplosionTTL {
+		t.Fatal("landmine explosion ttl")
+	}
 }
 
 func TestTickExpires(t *testing.T) {
@@ -58,6 +64,14 @@ func TestNewDefaults(t *testing.T) {
 	}
 	if h.TTL != DefaultTTL {
 		t.Fatalf("unexpected ttl %s", h.TTL)
+	}
+	mine := NewLandmine("m1", 0, 0)
+	if mine.TTL != LandmineTTL || mine.BurningTicks != 0 {
+		t.Fatalf("unexpected landmine defaults: %+v", mine)
+	}
+	explosion := NewLandmineExplosion("x1", 0, 0)
+	if explosion.TTL != LandmineExplosionTTL || explosion.Damage != 0 || explosion.HitRadius != LandmineExplosionRadius {
+		t.Fatalf("unexpected explosion defaults: %+v", explosion)
 	}
 	_ = time.Second // keep import
 }

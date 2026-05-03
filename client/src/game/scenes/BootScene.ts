@@ -2,6 +2,174 @@ import Phaser from 'phaser';
 import { logError } from '../../monitoring/errorLogger';
 import { setupAnimations } from '../AnimationSetup';
 
+const LANDMINE_SOURCE_KEY = 'landmine_source';
+const LANDMINE_MINE_TEXTURE_KEY = 'landmine_mine';
+const LANDMINE_EXPLOSION_TEXTURE_KEY = 'landmine_explosion';
+const LANDMINE_SOURCE_FRAME_WIDTH = 183;
+const LANDMINE_SOURCE_FRAME_HEIGHT = 225;
+const LANDMINE_EXPLOSION_FRAME_COUNT = 7;
+
+type OpaqueBounds = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+function getOpaqueBounds(
+  context: CanvasRenderingContext2D,
+  frameX: number,
+  frameY: number,
+  frameWidth: number,
+  frameHeight: number
+): OpaqueBounds {
+  const { data } = context.getImageData(frameX, frameY, frameWidth, frameHeight);
+  let left = frameWidth;
+  let top = frameHeight;
+  let right = -1;
+  let bottom = -1;
+
+  for (let y = 0; y < frameHeight; y += 1) {
+    for (let x = 0; x < frameWidth; x += 1) {
+      if (data[(y * frameWidth + x) * 4 + 3] === 0) {
+        continue;
+      }
+
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+
+  if (right === -1 || bottom === -1) {
+    return {
+      x: 0,
+      y: 0,
+      width: frameWidth,
+      height: frameHeight,
+    };
+  }
+
+  return {
+    x: left,
+    y: top,
+    width: right - left + 1,
+    height: bottom - top + 1,
+  };
+}
+
+function buildLandmineTextures(scene: Phaser.Scene): void {
+  if (scene.textures.exists(LANDMINE_MINE_TEXTURE_KEY)) {
+    scene.textures.remove(LANDMINE_MINE_TEXTURE_KEY);
+  }
+  if (scene.textures.exists(LANDMINE_EXPLOSION_TEXTURE_KEY)) {
+    scene.textures.remove(LANDMINE_EXPLOSION_TEXTURE_KEY);
+  }
+
+  const sourceTexture = scene.textures.get(LANDMINE_SOURCE_KEY);
+  const sourceImage = sourceTexture.getSourceImage() as CanvasImageSource & {
+    width: number;
+    height: number;
+  };
+
+  const analysisCanvas = document.createElement('canvas');
+  analysisCanvas.width = sourceImage.width;
+  analysisCanvas.height = sourceImage.height;
+
+  const analysisContext = analysisCanvas.getContext('2d');
+  if (!analysisContext) {
+    throw new Error('Unable to create landmine texture analysis context');
+  }
+
+  analysisContext.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
+  analysisContext.drawImage(sourceImage, 0, 0);
+
+  const mineBounds = getOpaqueBounds(
+    analysisContext,
+    0,
+    0,
+    LANDMINE_SOURCE_FRAME_WIDTH,
+    LANDMINE_SOURCE_FRAME_HEIGHT
+  );
+
+  const mineTexture = scene.textures.createCanvas(
+    LANDMINE_MINE_TEXTURE_KEY,
+    mineBounds.width,
+    mineBounds.height
+  );
+  if (!mineTexture) {
+    throw new Error('Unable to create landmine mine texture');
+  }
+  const mineContext = mineTexture.getContext();
+  mineContext.clearRect(0, 0, mineBounds.width, mineBounds.height);
+  mineContext.drawImage(
+    sourceImage,
+    mineBounds.x,
+    mineBounds.y,
+    mineBounds.width,
+    mineBounds.height,
+    0,
+    0,
+    mineBounds.width,
+    mineBounds.height
+  );
+  mineTexture.refresh();
+
+  const explosionTexture = scene.textures.createCanvas(
+    LANDMINE_EXPLOSION_TEXTURE_KEY,
+    LANDMINE_SOURCE_FRAME_WIDTH * LANDMINE_EXPLOSION_FRAME_COUNT,
+    LANDMINE_SOURCE_FRAME_HEIGHT
+  );
+  if (!explosionTexture) {
+    throw new Error('Unable to create landmine explosion texture');
+  }
+  const explosionContext = explosionTexture.getContext();
+  explosionContext.clearRect(
+    0,
+    0,
+    LANDMINE_SOURCE_FRAME_WIDTH * LANDMINE_EXPLOSION_FRAME_COUNT,
+    LANDMINE_SOURCE_FRAME_HEIGHT
+  );
+
+  for (let frame = 0; frame < LANDMINE_EXPLOSION_FRAME_COUNT; frame += 1) {
+    const sourceFrameX = LANDMINE_SOURCE_FRAME_WIDTH * (frame + 1);
+    const bounds = getOpaqueBounds(
+      analysisContext,
+      sourceFrameX,
+      0,
+      LANDMINE_SOURCE_FRAME_WIDTH,
+      LANDMINE_SOURCE_FRAME_HEIGHT
+    );
+    const destinationX =
+      frame * LANDMINE_SOURCE_FRAME_WIDTH +
+      Math.floor((LANDMINE_SOURCE_FRAME_WIDTH - bounds.width) / 2);
+    const destinationY = Math.floor((LANDMINE_SOURCE_FRAME_HEIGHT - bounds.height) / 2);
+
+    explosionContext.drawImage(
+      sourceImage,
+      sourceFrameX + bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height,
+      destinationX,
+      destinationY,
+      bounds.width,
+      bounds.height
+    );
+    explosionTexture.add(
+      String(frame),
+      0,
+      frame * LANDMINE_SOURCE_FRAME_WIDTH,
+      0,
+      LANDMINE_SOURCE_FRAME_WIDTH,
+      LANDMINE_SOURCE_FRAME_HEIGHT
+    );
+  }
+
+  explosionTexture.refresh();
+}
+
 export class BootScene extends Phaser.Scene {
   constructor() {
     super({ key: 'BootScene' });
@@ -106,6 +274,7 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     });
+    this.load.image(LANDMINE_SOURCE_KEY, 'assets/sprites/attacks/landmine.png');
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
@@ -150,6 +319,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     try {
+      buildLandmineTextures(this);
       setupAnimations(this);
       this.scene.start('WorldScene');
     } catch (error) {

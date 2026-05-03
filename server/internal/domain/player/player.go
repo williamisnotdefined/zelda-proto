@@ -17,6 +17,7 @@ const (
 	MaxHP                       = 100
 	MeleeDamage                 = 10
 	FireballDamage              = 20
+	LandmineDamage              = 20
 	WaveDamage                  = 3
 	WaveLifeStealRatio  float64 = 0.20
 	WaveWindup                  = 80 * time.Millisecond
@@ -28,11 +29,13 @@ const (
 	WaveCooldown                = 500 * time.Millisecond
 	DashCooldown                = 1 * time.Second
 	FireballCooldown            = 400 * time.Millisecond
+	LandmineCooldown            = 3 * time.Second
 	AttackStateDuration         = 300 * time.Millisecond
 	AttackSpeedPenalty  float64 = 0.5
 	WaveMaxRadius       float64 = 150
 	WaveSpeed           float64 = 900
 	FireballSpeed       float64 = 900
+	LandmineSpawnOffset float64 = 34
 	Width                       = 48
 	Height                      = 48
 	AttackRangeUp       float64 = 40
@@ -69,6 +72,7 @@ type Input struct {
 	Wave     bool
 	Dash     bool
 	Fireball bool
+	Landmine bool
 }
 
 // WaveExpandDuration returns how long the player wave spends expanding from
@@ -210,6 +214,7 @@ type Player struct {
 	WaveCooldown          time.Duration
 	DashCooldown          time.Duration
 	FireballCooldown      time.Duration
+	LandmineCooldown      time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
 	AttackMonsterKills    int
@@ -241,6 +246,10 @@ type Player struct {
 	fireballStartX        float64
 	fireballStartY        float64
 	fireballDirection     world.Direction
+	landmineCastQueued    bool
+	landmineStartX        float64
+	landmineStartY        float64
+	landmineDirection     world.Direction
 
 	burning       BurningStatus
 	purpleBurning BurningStatus
@@ -330,6 +339,12 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.FireballCooldown = 0
 		}
 	}
+	if p.LandmineCooldown > 0 {
+		p.LandmineCooldown -= dt
+		if p.LandmineCooldown < 0 {
+			p.LandmineCooldown = 0
+		}
+	}
 
 	input := p.pendingInput
 	if input == nil {
@@ -371,6 +386,15 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.fireballStartX = p.X
 			p.fireballStartY = p.Y
 			p.fireballDirection = fireballDirection
+		}
+	}
+	if input.Landmine && p.LandmineCooldown <= 0 {
+		if landmineDirection := dashDirectionFromInput(input, p.Direction); landmineDirection != "" {
+			p.LandmineCooldown = LandmineCooldown
+			p.landmineCastQueued = true
+			p.landmineStartX = p.X
+			p.landmineStartY = p.Y
+			p.landmineDirection = landmineDirection
 		}
 	}
 	triggeredDash := false
@@ -594,6 +618,15 @@ func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, bool)
 	return p.fireballStartX, p.fireballStartY, p.fireballDirection, true
 }
 
+// ConsumeLandmineCast returns a newly triggered landmine once.
+func (p *Player) ConsumeLandmineCast() (float64, float64, world.Direction, bool) {
+	if !p.landmineCastQueued {
+		return 0, 0, "", false
+	}
+	p.landmineCastQueued = false
+	return p.landmineStartX, p.landmineStartY, p.landmineDirection, true
+}
+
 // WaveIndicator returns the active player wave visual, if any.
 func (p *Player) WaveIndicator() *WaveIndicator {
 	if !p.waveActive {
@@ -725,6 +758,14 @@ func (p *Player) resetFireball() {
 	p.fireballStartX = 0
 	p.fireballStartY = 0
 	p.fireballDirection = ""
+}
+
+func (p *Player) resetLandmine() {
+	p.LandmineCooldown = 0
+	p.landmineCastQueued = false
+	p.landmineStartX = 0
+	p.landmineStartY = 0
+	p.landmineDirection = ""
 }
 
 func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direction {

@@ -7,6 +7,7 @@ export const PLAYER_DAMAGE = 10;
 export const PLAYER_WAVE_DAMAGE = 3;
 export const PLAYER_ATTACK_COOLDOWN = 400;
 export const PLAYER_FIREBALL_COOLDOWN = 400;
+export const PLAYER_LANDMINE_COOLDOWN = 3000;
 export const PLAYER_DASH_DISTANCE = 300;
 export const PLAYER_DASH_PUSH_DISTANCE = 300;
 export const PLAYER_DASH_PUSH_HALF_WIDTH = 36;

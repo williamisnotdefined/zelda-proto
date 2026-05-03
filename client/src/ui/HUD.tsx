@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react';
-import { PLAYER_DASH_COOLDOWN, PLAYER_FIREBALL_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@/game-core';
+import {
+  PLAYER_DASH_COOLDOWN,
+  PLAYER_FIREBALL_COOLDOWN,
+  PLAYER_LANDMINE_COOLDOWN,
+  PLAYER_WAVE_COOLDOWN,
+} from '@/game-core';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
@@ -21,6 +26,7 @@ export function HUD() {
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
+  const landmineCooldownEndsAt = useGameStore((s) => s.landmineCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
@@ -153,6 +159,11 @@ export function HUD() {
   const fireballCooldownProgress = fireballReady
     ? 1
     : 1 - fireballCooldownRemainingMs / PLAYER_FIREBALL_COOLDOWN;
+  const landmineCooldownRemainingMs = Math.max(0, (landmineCooldownEndsAt ?? 0) - cooldownNowMs);
+  const landmineReady = !landmineCooldownEndsAt || landmineCooldownRemainingMs <= 0;
+  const landmineCooldownProgress = landmineReady
+    ? 1
+    : 1 - landmineCooldownRemainingMs / PLAYER_LANDMINE_COOLDOWN;
 
   return (
     <div
@@ -354,6 +365,51 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
+              <span>Landmine</span>
+              <span
+                style={{
+                  color: landmineReady ? '#f6e38e' : '#fff1bf',
+                }}
+              >
+                {landmineReady ? 'READY' : `${(landmineCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(34, 28, 10, 0.92)',
+                border: '1px solid rgba(235, 213, 121, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(232, 204, 96, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${landmineCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: landmineReady
+                    ? 'linear-gradient(90deg, #d5c25b 0%, #fff2a6 100%)'
+                    : 'linear-gradient(90deg, #8f7b1f 0%, #d0b13a 100%)',
+                  boxShadow: landmineReady ? '0 0 12px rgba(255, 232, 139, 0.45)' : 'none',
+                  transition: landmineReady
+                    ? 'width 0.08s linear, box-shadow 0.08s linear'
+                    : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
               <span>Fireball</span>
               <span
                 style={{
@@ -464,8 +520,8 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | Space:
-          attack | Tab: players
+          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | E:
+          landmine | Space: attack | Tab: players
         </div>
       )}
 
@@ -474,7 +530,7 @@ export function HUD() {
           style={{
             position: 'absolute',
             left: '50%',
-            bottom: touchEnabled ? 'calc(env(safe-area-inset-bottom, 0px) + 188px)' : 16,
+            bottom: touchEnabled ? 'calc(env(safe-area-inset-bottom, 0px) + 272px)' : 16,
             transform: 'translateX(-50%)',
             pointerEvents: 'auto',
             background: 'rgba(10, 10, 10, 0.92)',

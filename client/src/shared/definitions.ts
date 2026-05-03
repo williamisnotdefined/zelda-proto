@@ -179,4 +179,18 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     burningTicks: 0,
     idPrefix: 'hazard_fireball',
   },
+  [HAZARD_KINDS.LANDMINE]: {
+    kind: HAZARD_KINDS.LANDMINE,
+    ttlMs: 30000,
+    hitRadius: 18,
+    burningTicks: 0,
+    idPrefix: 'hazard_landmine',
+  },
+  [HAZARD_KINDS.LANDMINE_EXPLOSION]: {
+    kind: HAZARD_KINDS.LANDMINE_EXPLOSION,
+    ttlMs: 420,
+    hitRadius: 180,
+    burningTicks: 0,
+    idPrefix: 'hazard_landmine_explosion',
+  },
 };

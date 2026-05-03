@@ -68,11 +68,13 @@ export const HAZARD_KINDS = {
   PURPLE_FIELD: 'purple_field',
   BLUE_FLAME: 'blue_flame',
   FIREBALL: 'fireball',
+  LANDMINE: 'landmine',
+  LANDMINE_EXPLOSION: 'landmine_explosion',
 } as const;
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 7 as const;
+export const PROTOCOL_VERSION = 8 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -358,6 +360,7 @@ export interface InputMessage {
   wave: boolean;
   dash: boolean;
   fireball: boolean;
+  landmine: boolean;
 }
 
 export interface JoinMessage {

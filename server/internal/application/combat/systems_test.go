@@ -342,6 +342,68 @@ func TestPlayerDashDoesNotMoveProtectedPlayers(t *testing.T) {
 	}
 }
 
+func TestPlayerLandmineSystemCarriesDirectionAndSafezonePvPFlag(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 0, Y: 0, Radius: 100}
+	protectedCaster := player.New("att_protected", "n", 0, 0)
+	protectedCaster.ApplyInput(player.Input{Seq: 1, Right: true, Landmine: true})
+	protectedCaster.Update(10*time.Millisecond, 1)
+
+	unprotectedCaster := newPlayerOutsideSafezone("att_unprotected", 200, 0)
+	unprotectedCaster.ApplyInput(player.Input{Seq: 1, Left: true, Landmine: true})
+	unprotectedCaster.Update(10*time.Millisecond, 1)
+
+	spawns := make([]struct {
+		sourceID    string
+		startX      float64
+		startY      float64
+		direction   domworld.Direction
+		hitsPlayers bool
+	}, 0, 2)
+
+	PlayerLandmineSystem{}.Resolve(
+		map[string]*player.Player{
+			protectedCaster.ID:   protectedCaster,
+			unprotectedCaster.ID: unprotectedCaster,
+		},
+		zone,
+		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			spawns = append(spawns, struct {
+				sourceID    string
+				startX      float64
+				startY      float64
+				direction   domworld.Direction
+				hitsPlayers bool
+			}{sourcePlayerID, startX, startY, direction, hitsPlayers})
+		},
+	)
+
+	if len(spawns) != 2 {
+		t.Fatalf("expected 2 landmine spawns, got %d", len(spawns))
+	}
+	spawnBySource := make(map[string]struct {
+		startX      float64
+		startY      float64
+		direction   domworld.Direction
+		hitsPlayers bool
+	}, len(spawns))
+	for _, spawn := range spawns {
+		spawnBySource[spawn.sourceID] = struct {
+			startX      float64
+			startY      float64
+			direction   domworld.Direction
+			hitsPlayers bool
+		}{spawn.startX, spawn.startY, spawn.direction, spawn.hitsPlayers}
+	}
+	if spawn := spawnBySource[protectedCaster.ID]; spawn.direction != domworld.DirectionRight || spawn.hitsPlayers {
+		t.Fatalf("unexpected protected caster spawn: %+v", spawn)
+	}
+	if spawn := spawnBySource[unprotectedCaster.ID]; spawn.direction != domworld.DirectionLeft || !spawn.hitsPlayers {
+		t.Fatalf("unexpected unprotected caster spawn: %+v", spawn)
+	}
+}
+
 // nil maps for boss collections must be tolerated (helps test ergonomics).
 func TestPlayerMeleeNilBossMapsAreSafe(t *testing.T) {
 	t.Parallel()

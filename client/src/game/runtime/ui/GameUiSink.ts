@@ -13,6 +13,7 @@ export interface GameUiSink {
   setWaveCooldownEndsAt(time: number | null): void;
   setDashCooldownEndsAt(time: number | null): void;
   setFireballCooldownEndsAt(time: number | null): void;
+  setLandmineCooldownEndsAt(time: number | null): void;
   setBoss(boss: BossData | null): void;
   setLeaderboard(players: PlayerLeaderboardEntry[]): void;
   addChatMessage(message: ServerChatMessage): void;

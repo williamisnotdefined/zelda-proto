@@ -6,6 +6,8 @@ const JOYSTICK_RADIUS_PX = 46;
 const JOYSTICK_DEADZONE = 0.15;
 const CONTROLS_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 72px)';
 const WAVE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 84px)';
+const FIREBALL_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 166px)';
+const LANDMINE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 248px)';
 
 interface KnobPosition {
   x: number;
@@ -28,19 +30,25 @@ function detectTouchDevice(): boolean {
 export function TouchControls() {
   const enabled = useTouchInputStore((state) => state.enabled);
   const waveCooldownEndsAt = useGameStore((state) => state.waveCooldownEndsAt);
+  const fireballCooldownEndsAt = useGameStore((state) => state.fireballCooldownEndsAt);
+  const landmineCooldownEndsAt = useGameStore((state) => state.landmineCooldownEndsAt);
   const setEnabled = useTouchInputStore((state) => state.setEnabled);
   const setJoystickActive = useTouchInputStore((state) => state.setJoystickActive);
   const setMove = useTouchInputStore((state) => state.setMove);
   const setAttackPressed = useTouchInputStore((state) => state.setAttackPressed);
   const setWavePressed = useTouchInputStore((state) => state.setWavePressed);
+  const setFireballPressed = useTouchInputStore((state) => state.setFireballPressed);
+  const setLandminePressed = useTouchInputStore((state) => state.setLandminePressed);
   const resetTouchInput = useTouchInputStore((state) => state.resetTouchInput);
 
   const joystickRef = useRef<HTMLDivElement | null>(null);
   const joystickPointerId = useRef<number | null>(null);
   const attackPointerId = useRef<number | null>(null);
   const wavePointerId = useRef<number | null>(null);
+  const fireballPointerId = useRef<number | null>(null);
+  const landminePointerId = useRef<number | null>(null);
   const [knobPosition, setKnobPosition] = useState<KnobPosition>(KNOB_CENTER);
-  const [waveNowMs, setWaveNowMs] = useState(() => Date.now());
+  const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const coarseQuery = window.matchMedia('(pointer: coarse)');
@@ -63,22 +71,26 @@ export function TouchControls() {
   }, [resetTouchInput, setEnabled]);
 
   useEffect(() => {
-    if (!waveCooldownEndsAt) {
-      setWaveNowMs(Date.now());
+    if (!waveCooldownEndsAt && !fireballCooldownEndsAt && !landmineCooldownEndsAt) {
+      setCooldownNowMs(Date.now());
       return;
     }
 
-    setWaveNowMs(Date.now());
+    setCooldownNowMs(Date.now());
     const intervalId = window.setInterval(() => {
       const now = Date.now();
-      setWaveNowMs(now);
-      if (now >= waveCooldownEndsAt) {
+      setCooldownNowMs(now);
+      if (
+        now >= (waveCooldownEndsAt ?? 0) &&
+        now >= (fireballCooldownEndsAt ?? 0) &&
+        now >= (landmineCooldownEndsAt ?? 0)
+      ) {
         window.clearInterval(intervalId);
       }
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [waveCooldownEndsAt]);
+  }, [fireballCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
 
   const updateJoystick = (clientX: number, clientY: number) => {
     const element = joystickRef.current;
@@ -189,8 +201,28 @@ export function TouchControls() {
     setWavePressed(false);
   };
 
-  const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - waveNowMs);
+  const releaseFireball = (target?: EventTarget | null) => {
+    if (target instanceof Element && fireballPointerId.current !== null) {
+      target.releasePointerCapture(fireballPointerId.current);
+    }
+    fireballPointerId.current = null;
+    setFireballPressed(false);
+  };
+
+  const releaseLandmine = (target?: EventTarget | null) => {
+    if (target instanceof Element && landminePointerId.current !== null) {
+      target.releasePointerCapture(landminePointerId.current);
+    }
+    landminePointerId.current = null;
+    setLandminePressed(false);
+  };
+
+  const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
   const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
+  const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
+  const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
+  const landmineCooldownRemainingMs = Math.max(0, (landmineCooldownEndsAt ?? 0) - cooldownNowMs);
+  const landmineReady = !landmineCooldownEndsAt || landmineCooldownRemainingMs <= 0;
 
   const handleWavePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (!waveReady || wavePointerId.current !== null) return;
@@ -209,6 +241,44 @@ export function TouchControls() {
   const handleWavePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.pointerId !== wavePointerId.current) return;
     releaseWave(event.currentTarget);
+  };
+
+  const handleFireballPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!fireballReady || fireballPointerId.current !== null) return;
+    event.preventDefault();
+    fireballPointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setFireballPressed(true);
+  };
+
+  const handleFireballPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== fireballPointerId.current) return;
+    event.preventDefault();
+    releaseFireball(event.currentTarget);
+  };
+
+  const handleFireballPointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== fireballPointerId.current) return;
+    releaseFireball(event.currentTarget);
+  };
+
+  const handleLandminePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!landmineReady || landminePointerId.current !== null) return;
+    event.preventDefault();
+    landminePointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setLandminePressed(true);
+  };
+
+  const handleLandminePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== landminePointerId.current) return;
+    event.preventDefault();
+    releaseLandmine(event.currentTarget);
+  };
+
+  const handleLandminePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== landminePointerId.current) return;
+    releaseLandmine(event.currentTarget);
   };
 
   if (!enabled) return null;
@@ -296,6 +366,74 @@ export function TouchControls() {
         }}
       >
         {waveReady ? 'Wave' : `${(waveCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
+
+      <button
+        type="button"
+        onPointerDown={handleFireballPointerDown}
+        onPointerUp={handleFireballPointerUp}
+        onPointerCancel={handleFireballPointerCancel}
+        onLostPointerCapture={() => releaseFireball()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: FIREBALL_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: fireballReady
+            ? '2px solid rgba(255, 179, 112, 0.82)'
+            : '2px solid rgba(188, 126, 88, 0.55)',
+          background: fireballReady ? 'rgba(226, 109, 24, 0.3)' : 'rgba(98, 48, 21, 0.46)',
+          color: '#fff0dc',
+          fontSize: fireballReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: fireballReady ? 1 : 0.8,
+          boxShadow: fireballReady ? '0 0 18px rgba(255, 143, 67, 0.18)' : 'none',
+        }}
+      >
+        {fireballReady ? 'Fire' : `${(fireballCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
+
+      <button
+        type="button"
+        onPointerDown={handleLandminePointerDown}
+        onPointerUp={handleLandminePointerUp}
+        onPointerCancel={handleLandminePointerCancel}
+        onLostPointerCapture={() => releaseLandmine()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: LANDMINE_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: landmineReady
+            ? '2px solid rgba(244, 224, 126, 0.82)'
+            : '2px solid rgba(176, 154, 84, 0.55)',
+          background: landmineReady ? 'rgba(160, 135, 31, 0.3)' : 'rgba(76, 63, 17, 0.46)',
+          color: '#fff4c7',
+          fontSize: landmineReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: landmineReady ? 1 : 0.8,
+          boxShadow: landmineReady ? '0 0 18px rgba(255, 228, 122, 0.18)' : 'none',
+        }}
+      >
+        {landmineReady ? 'Mine' : `${(landmineCooldownRemainingMs / 1000).toFixed(1)}s`}
       </button>
 
       <button

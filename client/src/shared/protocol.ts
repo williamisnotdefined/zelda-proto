@@ -32,7 +32,7 @@ export type ParseResult<T, R extends string> = { ok: true; value: T } | { ok: fa
 
 export type ClientInputState = Pick<
   InputMessage,
-  'up' | 'down' | 'left' | 'right' | 'attack' | 'wave' | 'dash' | 'fireball'
+  'up' | 'down' | 'left' | 'right' | 'attack' | 'wave' | 'dash' | 'fireball' | 'landmine'
 >;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
 
@@ -162,6 +162,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     wave: input.wave,
     dash: input.dash,
     fireball: input.fireball,
+    landmine: input.landmine,
   };
 }
 
@@ -236,7 +237,17 @@ export function parseClientMessage(
       typeof raw.seq !== 'number' ||
       !Number.isSafeInteger(raw.seq) ||
       raw.seq < 0 ||
-      !hasBooleanFields(raw, ['up', 'down', 'left', 'right', 'attack', 'wave', 'dash', 'fireball'])
+      !hasBooleanFields(raw, [
+        'up',
+        'down',
+        'left',
+        'right',
+        'attack',
+        'wave',
+        'dash',
+        'fireball',
+        'landmine',
+      ])
     ) {
       return { ok: false, reason: 'invalid_message' };
     }
@@ -254,6 +265,7 @@ export function parseClientMessage(
         wave: input.wave,
         dash: input.dash,
         fireball: input.fireball,
+        landmine: input.landmine,
       }),
     };
   }

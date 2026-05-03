@@ -4,13 +4,15 @@ import type Phaser from 'phaser';
 import { BlueFlameHazardEntity } from '../../../entities/BlueFlameHazardEntity';
 import { FireFieldHazardEntity } from '../../../entities/FireFieldHazardEntity';
 import { FireballHazardEntity } from '../../../entities/FireballHazardEntity';
+import { LandmineHazardEntity } from '../../../entities/LandmineHazardEntity';
 import { PurpleFieldHazardEntity } from '../../../entities/PurpleFieldHazardEntity';
 
 type HazardEntity =
   | FireFieldHazardEntity
   | PurpleFieldHazardEntity
   | BlueFlameHazardEntity
-  | FireballHazardEntity;
+  | FireballHazardEntity
+  | LandmineHazardEntity;
 
 export const hazardRegistry: Record<
   HazardKind,
@@ -29,5 +31,13 @@ export const hazardRegistry: Record<
   [HAZARD_KINDS.FIREBALL]: {
     create: (scene, snapshot) =>
       new FireballHazardEntity(scene, snapshot.x, snapshot.y, snapshot.direction ?? 'right'),
+  },
+  [HAZARD_KINDS.LANDMINE]: {
+    create: (scene, snapshot) =>
+      new LandmineHazardEntity(scene, snapshot.x, snapshot.y, snapshot.kind),
+  },
+  [HAZARD_KINDS.LANDMINE_EXPLOSION]: {
+    create: (scene, snapshot) =>
+      new LandmineHazardEntity(scene, snapshot.x, snapshot.y, snapshot.kind),
   },
 };

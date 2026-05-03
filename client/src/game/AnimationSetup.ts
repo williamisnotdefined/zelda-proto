@@ -223,4 +223,12 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'vanessa_right', start: 16, end: 23, frameRate: 10 },
     { key: 'vanessa_up', start: 24, end: 31, frameRate: 10 },
   ]);
+
+  scene.anims.remove('landmine_explosion');
+  scene.anims.create({
+    key: 'landmine_explosion',
+    frames: scene.anims.generateFrameNames('landmine_explosion', { start: 0, end: 6 }),
+    frameRate: 16,
+    repeat: 0,
+  });
 }

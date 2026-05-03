@@ -221,6 +221,7 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Wave:     msg.Wave,
 		Dash:     msg.Dash,
 		Fireball: msg.Fireball,
+		Landmine: msg.Landmine,
 	})
 	return nil
 }

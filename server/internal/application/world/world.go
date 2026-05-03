@@ -965,6 +965,30 @@ func (w *World) tickHazards(dt time.Duration) {
 			w.hazardIndex.Upsert(id, h.X, h.Y)
 			continue
 		}
+		if h.Kind == hazard.KindLandmine {
+			if expired {
+				delete(w.hazards, id)
+				w.hazardIndex.Remove(id)
+				continue
+			}
+			if w.landmineTriggered(h, playerHalfDiag) {
+				delete(w.hazards, id)
+				w.hazardIndex.Remove(id)
+				w.detonateLandmine(h, playerHalfDiag)
+				continue
+			}
+			w.hazardIndex.Upsert(id, h.X, h.Y)
+			continue
+		}
+		if h.Kind == hazard.KindLandmineExplosion {
+			if expired {
+				delete(w.hazards, id)
+				w.hazardIndex.Remove(id)
+				continue
+			}
+			w.hazardIndex.Upsert(id, h.X, h.Y)
+			continue
+		}
 		if expired {
 			delete(w.hazards, id)
 			w.hazardIndex.Remove(id)
@@ -1291,6 +1315,43 @@ func (w *World) spawnPlayerFireball(
 	w.hazardIndex.Upsert(id, h.X, h.Y)
 }
 
+func (w *World) spawnPlayerLandmine(
+	sourcePlayerID string,
+	startX,
+	startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	dirX, dirY := dashDirectionVector(direction)
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	spawnX := startX - dirX*player.LandmineSpawnOffset
+	spawnY := startY - dirY*player.LandmineSpawnOffset
+	id := w.cfg.IDs.NewID(string(hazard.KindLandmine))
+	h := hazard.NewLandmine(id, spawnX, spawnY)
+	h.SourcePlayerID = sourcePlayerID
+	h.Damage = player.LandmineDamage
+	h.HitsPlayers = hitsPlayers
+	h.IgnoreActor(playerActorKey(sourcePlayerID))
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, h.X, h.Y)
+}
+
+func (w *World) spawnLandmineExplosion(sourcePlayerID string, x, y float64) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	id := w.cfg.IDs.NewID(string(hazard.KindLandmineExplosion))
+	h := hazard.NewLandmineExplosion(id, x, y)
+	h.SourcePlayerID = sourcePlayerID
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, x, y)
+}
+
 func (w *World) spawnFireBurst(x, y float64, kind hazard.Kind, tints []uint32) {
 	colorIndex := 0
 	for oy := -hazard.PurpleBlastRadius; oy <= hazard.PurpleBlastRadius; oy += hazard.PurpleTileStep {
@@ -1421,7 +1482,8 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerDash → ContactDamage. Each
+	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerLandmine → PlayerFireball →
+	// PlayerDash → ContactDamage. Each
 	// system is
 	// stateless and
 	// reads/mutates only the slices it needs.
@@ -1437,6 +1499,13 @@ func (w *World) resolveCombat() {
 	) {
 		w.resolveBodyCollisionsLocked()
 	}
+	(appcombat.PlayerLandmineSystem{}).Resolve(
+		w.players,
+		w.safeZone(),
+		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerLandmine(sourcePlayerID, startX, startY, direction, hitsPlayers)
+		},
+	)
 	(appcombat.PlayerFireballSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
@@ -1643,6 +1712,115 @@ func (w *World) awardHazardPlayerKill(sourcePlayerID string) {
 	}
 }
 
+func (w *World) landmineTriggered(h *hazard.Hazard, playerHalfDiag float64) bool {
+	for _, p := range w.players {
+		if p.State == player.StateDead {
+			continue
+		}
+		actorKey := playerActorKey(p.ID)
+		if _, ignored := h.IgnoredActorKeys[actorKey]; ignored {
+			continue
+		}
+		if hazardTouchesActor(h.X, h.Y, h.HitRadius, p.X, p.Y, playerHalfDiag) {
+			return true
+		}
+	}
+	for _, e := range w.enemies {
+		if e.State == enemy.StateDead {
+			continue
+		}
+		if hazardTouchesActor(h.X, h.Y, h.HitRadius, e.X, e.Y, e.CollisionRadius()) {
+			return true
+		}
+	}
+	for _, d := range w.dragons {
+		if d.State == boss.StateDead {
+			continue
+		}
+		if hazardTouchesActor(h.X, h.Y, h.HitRadius, d.X, d.Y, d.ContactRadius()) {
+			return true
+		}
+	}
+	for _, g := range w.gelehks {
+		if g.State == boss.StateDead {
+			continue
+		}
+		if hazardTouchesActor(h.X, h.Y, h.HitRadius, g.X, g.Y, g.ContactRadius()) {
+			return true
+		}
+	}
+	for _, v := range w.vanessas {
+		if v.State == boss.StateDead {
+			continue
+		}
+		if hazardTouchesActor(h.X, h.Y, h.HitRadius, v.X, v.Y, v.ContactRadius()) {
+			return true
+		}
+	}
+	return false
+}
+
+func (w *World) detonateLandmine(h *hazard.Hazard, playerHalfDiag float64) {
+	w.spawnLandmineExplosion(h.SourcePlayerID, h.X, h.Y)
+
+	for _, p := range w.players {
+		if p.State == player.StateDead || p.ID == h.SourcePlayerID {
+			continue
+		}
+		if !h.HitsPlayers || w.isProtected(p) {
+			continue
+		}
+		if !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, p.X, p.Y, playerHalfDiag) {
+			continue
+		}
+		wasAlive := p.State != player.StateDead
+		p.TakeDamage(h.Damage)
+		if wasAlive && p.State == player.StateDead {
+			w.awardHazardPlayerKill(h.SourcePlayerID)
+		}
+	}
+	for _, e := range w.enemies {
+		if e.State == enemy.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, e.X, e.Y, e.CollisionRadius()) {
+			continue
+		}
+		wasAlive := e.State != enemy.StateDead
+		e.TakeDamage(h.Damage)
+		if wasAlive && e.State == enemy.StateDead {
+			w.awardHazardMonsterKill(h.SourcePlayerID)
+		}
+	}
+	for _, d := range w.dragons {
+		if d.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, d.X, d.Y, d.ContactRadius()) {
+			continue
+		}
+		wasAlive := d.State != boss.StateDead
+		d.TakeDamage(h.Damage)
+		if wasAlive && d.State == boss.StateDead {
+			w.awardHazardMonsterKill(h.SourcePlayerID)
+		}
+	}
+	for _, g := range w.gelehks {
+		if g.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, g.X, g.Y, g.ContactRadius()) {
+			continue
+		}
+		wasAlive := g.State != boss.StateDead
+		g.TakeDamage(h.Damage)
+		if wasAlive && g.State == boss.StateDead {
+			w.awardHazardMonsterKill(h.SourcePlayerID)
+		}
+	}
+	for _, v := range w.vanessas {
+		if v.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, v.X, v.Y, v.ContactRadius()) {
+			continue
+		}
+		wasAlive := v.State != boss.StateDead
+		v.TakeDamage(h.Damage)
+		if wasAlive && v.State == boss.StateDead {
+			w.awardHazardMonsterKill(h.SourcePlayerID)
+		}
+	}
+}
+
 func dashDirectionVector(direction domworld.Direction) (float64, float64) {
 	switch direction {
 	case domworld.DirectionUp:
@@ -1656,6 +1834,11 @@ func dashDirectionVector(direction domworld.Direction) (float64, float64) {
 	default:
 		return 0, 0
 	}
+}
+
+func hazardTouchesActor(x, y, hitRadius, actorX, actorY, actorRadius float64) bool {
+	reach := hitRadius + actorRadius
+	return physics.DistanceSquared(x, y, actorX, actorY) <= reach*reach
 }
 
 func playerActorKey(id string) string { return "player:" + id }

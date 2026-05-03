@@ -376,6 +376,80 @@ func TestPlayerFireballDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
 	}
 }
 
+func TestPlayerLandmineExplodesOnContactAndSkipsOwner(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := ax-player.LandmineSpawnOffset, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Landmine: true})
+	w.Tick(20 * time.Millisecond)
+
+	if got, want := attacker.HP, player.MaxHP; got != want {
+		t.Fatalf("expected landmine owner to ignore own explosion, got HP=%d", got)
+	}
+	if got, want := target.HP, player.MaxHP-player.LandmineDamage; got != want {
+		t.Fatalf("expected target HP=%d after landmine, got %d", want, got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.LandmineDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after landmine, got %d", want, got)
+	}
+
+	foundExplosion := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindLandmine {
+			t.Fatal("expected consumed landmine to be removed from snapshot")
+		}
+		if h.Kind == hazard.KindLandmineExplosion {
+			foundExplosion = true
+		}
+	}
+	if !foundExplosion {
+		t.Fatal("expected landmine explosion hazard after detonation")
+	}
+}
+
+func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 200.0, 200.0
+	tx, ty := ax-player.LandmineSpawnOffset, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Landmine: true})
+	w.Tick(20 * time.Millisecond)
+
+	if got, want := target.HP, player.MaxHP; got != want {
+		t.Fatalf("expected protected caster landmine to skip PvP damage, got HP=%d", got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.LandmineDamage; got != want {
+		t.Fatalf("expected protected caster landmine to still damage monsters, got HP=%d", got)
+	}
+	if attacker.HP != player.MaxHP {
+		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
+	}
+}
+
 func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	t.Parallel()
 
