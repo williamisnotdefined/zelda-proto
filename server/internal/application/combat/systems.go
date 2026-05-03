@@ -174,12 +174,15 @@ func (PlayerWaveSystem) Resolve(
 			continue
 		}
 		casterProtected := zone.Protects(caster)
+		totalDamage := 0
 		for _, id := range targets.EnemyIDs {
 			e := enemies[id]
 			if e == nil || e.State == enemy.StateDead {
 				continue
 			}
+			beforeHP := e.HP
 			e.TakeDamage(player.WaveDamage)
+			totalDamage += beforeHP - e.HP
 			if e.State == enemy.StateDead {
 				caster.MonsterKills++
 				continue
@@ -195,7 +198,9 @@ func (PlayerWaveSystem) Resolve(
 			if d == nil || d.State == boss.StateDead {
 				continue
 			}
+			beforeHP := d.HP
 			d.TakeDamage(player.WaveDamage)
+			totalDamage += beforeHP - d.HP
 			if d.State == boss.StateDead {
 				caster.MonsterKills++
 				continue
@@ -211,7 +216,9 @@ func (PlayerWaveSystem) Resolve(
 			if g == nil || g.State == boss.StateDead {
 				continue
 			}
+			beforeHP := g.HP
 			g.TakeDamage(player.WaveDamage)
+			totalDamage += beforeHP - g.HP
 			if g.State == boss.StateDead {
 				caster.MonsterKills++
 				continue
@@ -226,7 +233,9 @@ func (PlayerWaveSystem) Resolve(
 			if v == nil || v.State == boss.StateDead {
 				continue
 			}
+			beforeHP := v.HP
 			v.TakeDamage(player.WaveDamage)
+			totalDamage += beforeHP - v.HP
 			if v.State == boss.StateDead {
 				caster.MonsterKills++
 				continue
@@ -244,7 +253,9 @@ func (PlayerWaveSystem) Resolve(
 			if casterProtected || zone.Protects(target) || !withinWave(cx, cy, target.X, target.Y, player.Width/2) {
 				continue
 			}
+			beforeHP := target.HP
 			target.TakeDamage(player.WaveDamage)
+			totalDamage += beforeHP - target.HP
 			if target.State == player.StateDead {
 				caster.PlayerKills++
 				continue
@@ -252,6 +263,9 @@ func (PlayerWaveSystem) Resolve(
 			if pushOutOfWave(cx, cy, &target.X, &target.Y, player.Width/2) {
 				moved = true
 			}
+		}
+		if totalDamage > 0 {
+			caster.Heal(int(math.Ceil(float64(totalDamage) * player.WaveLifeStealRatio)))
 		}
 	}
 	return moved

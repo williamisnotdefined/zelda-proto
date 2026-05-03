@@ -215,6 +215,37 @@ func TestTakeDamageIgnoresZeroOrNegative(t *testing.T) {
 	}
 }
 
+func TestHealRestoresHPUpToMax(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 0, 0)
+	p.TakeDamage(30)
+	p.Heal(10)
+	if got, want := p.HP, MaxHP-20; got != want {
+		t.Fatalf("expected HP=%d after heal, got %d", want, got)
+	}
+	p.Heal(MaxHP)
+	if p.HP != MaxHP {
+		t.Fatalf("expected heal to clamp at max HP=%d, got %d", MaxHP, p.HP)
+	}
+}
+
+func TestHealIgnoresDeadPlayersAndNonPositiveAmounts(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 0, 0)
+	p.Heal(0)
+	p.Heal(-5)
+	if p.HP != MaxHP {
+		t.Fatalf("expected non-positive heal to be ignored, got %d", p.HP)
+	}
+	p.TakeDamage(MaxHP)
+	p.Heal(10)
+	if p.HP != 0 {
+		t.Fatalf("expected dead player heal to be ignored, got %d", p.HP)
+	}
+}
+
 func TestIsProtected(t *testing.T) {
 	t.Parallel()
 

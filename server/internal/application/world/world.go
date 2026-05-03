@@ -1198,10 +1198,7 @@ func (w *World) tickDrops() {
 			if physics.DistanceSquared(p.X, p.Y, d.X, d.Y) > drop.PickupRadius*drop.PickupRadius {
 				continue
 			}
-			p.HP += d.Kind.HealAmount()
-			if p.HP > p.MaxHP {
-				p.HP = p.MaxHP
-			}
+			p.Heal(d.Kind.HealAmount())
 			delete(w.drops, id)
 			w.dropIndex.Remove(id)
 			break

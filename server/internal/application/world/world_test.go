@@ -302,6 +302,7 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	tx, ty := 1070.0, 1000.0
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
 	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.TakeDamage(20)
 	attacker.SafeZoneTimer = 0
 	target.SafeZoneTimer = 0
 	passiveConfig := enemy.BlobConfig
@@ -341,6 +342,9 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	}
 	if got, want := target.HP, player.MaxHP-player.WaveDamage; got != want {
 		t.Fatalf("expected target HP=%d after wave, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-19; got != want {
+		t.Fatalf("expected attacker HP=%d after wave life steal, got %d", want, got)
 	}
 	if dx, dy := e.X-attacker.X, e.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
 		t.Fatalf("expected enemy pushed outside wave radius, got enemy at (%.1f, %.1f)", e.X, e.Y)

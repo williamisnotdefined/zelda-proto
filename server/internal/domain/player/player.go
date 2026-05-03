@@ -10,12 +10,14 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
-// Combat and movement constants mirror client/src/game-core/player.ts.
+// Combat and movement constants. Shared values mirror
+// client/src/game-core/player.ts.
 const (
 	Speed               float64 = 150
 	MaxHP                       = 100
 	MeleeDamage                 = 10
 	WaveDamage                  = 3
+	WaveLifeStealRatio  float64 = 0.10
 	WaveWindup                  = 80 * time.Millisecond
 	WaveWindupRadius    float64 = 44
 	DashDistance        float64 = 150
@@ -23,7 +25,7 @@ const (
 	DashHalfWidth       float64 = 36
 	AttackCooldown              = 400 * time.Millisecond
 	WaveCooldown                = 1 * time.Second
-	DashCooldown                = 5 * time.Second
+	DashCooldown                = 2 * time.Second
 	AttackStateDuration         = 300 * time.Millisecond
 	AttackSpeedPenalty  float64 = 0.5
 	WaveMaxRadius       float64 = 150
@@ -426,6 +428,17 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetDash()
 		p.transition(StateDead)
 		p.Deaths += 1
+	}
+}
+
+// Heal restores HP without reviving dead players.
+func (p *Player) Heal(amount int) {
+	if p.State == StateDead || amount <= 0 {
+		return
+	}
+	p.HP += amount
+	if p.HP > p.MaxHP {
+		p.HP = p.MaxHP
 	}
 }
 

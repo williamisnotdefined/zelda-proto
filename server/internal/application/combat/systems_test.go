@@ -133,6 +133,7 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 
 	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
 	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
 	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
@@ -171,6 +172,9 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	if target.HP != player.MaxHP-player.WaveDamage {
 		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.WaveDamage, target.HP)
 	}
+	if got, want := caster.HP, player.MaxHP-18; got != want {
+		t.Fatalf("expected caster HP=%d after wave life steal, got %d", want, got)
+	}
 	for name, pos := range map[string][2]float64{
 		"enemy":   {e.X, e.Y},
 		"dragon":  {d.X, d.Y},
@@ -181,6 +185,36 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 		if distSq := pos[0]*pos[0] + pos[1]*pos[1]; distSq <= player.WaveMaxRadius*player.WaveMaxRadius {
 			t.Fatalf("expected %s to be pushed outside wave radius, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
+	}
+}
+
+func TestPlayerWaveLifeStealUsesActualDamageAndRoundsUp(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(60)
+	weakConfig := enemy.BlobConfig
+	weakConfig.MaxHP = 1
+	e1 := enemy.New("e1", 40, 0, "0,0", weakConfig, drop.KindHeartSmall)
+	e2 := enemy.New("e2", -40, 0, "0,0", weakConfig, drop.KindHeartSmall)
+	target1 := newPlayerOutsideSafezone("tgt1", 0, 40)
+	target1.TakeDamage(player.MaxHP - 1)
+	target2 := newPlayerOutsideSafezone("tgt2", 0, -40)
+	target2.TakeDamage(player.MaxHP - 1)
+	queuePlayerWaveRelease(caster, player.WaveTargets{EnemyIDs: []string{"e1", "e2"}})
+
+	PlayerWaveSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt1": target1, "tgt2": target2},
+		map[string]*enemy.Enemy{"e1": e1, "e2": e2},
+		nil,
+		nil,
+		nil,
+		zone,
+	)
+
+	if got, want := caster.HP, 41; got != want {
+		t.Fatalf("expected caster HP=%d when life steal uses actual damage, got %d", want, got)
 	}
 }
 
