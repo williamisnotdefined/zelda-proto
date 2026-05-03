@@ -44,7 +44,7 @@ export interface HazardDefinition {
   hitRadius: number;
   burningTicks: number;
   idPrefix: string;
-  statusEffect: PlayerStatusEffect;
+  statusEffect?: PlayerStatusEffect;
 }
 
 export const enemyDefinitions: Record<EnemyKind, EnemyDefinition> = {
@@ -171,5 +171,12 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     burningTicks: 3,
     idPrefix: 'hazard_blue',
     statusEffect: PLAYER_STATUS_EFFECTS.BLUE_BURNING,
+  },
+  [HAZARD_KINDS.FIREBALL]: {
+    kind: HAZARD_KINDS.FIREBALL,
+    ttlMs: 400,
+    hitRadius: 18,
+    burningTicks: 0,
+    idPrefix: 'hazard_fireball',
   },
 };

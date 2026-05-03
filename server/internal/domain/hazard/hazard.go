@@ -1,7 +1,11 @@
 // Package hazard defines area-effect hazards: fire, purple, and blue fields.
 package hazard
 
-import "time"
+import (
+	"time"
+
+	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
+)
 
 // Kind enumerates the hazard variants.
 type Kind string
@@ -11,6 +15,7 @@ const (
 	KindFireField   Kind = "fire_field"
 	KindPurpleField Kind = "purple_field"
 	KindBlueFlame   Kind = "blue_flame"
+	KindFireball    Kind = "fireball"
 )
 
 // Tick parameters.
@@ -26,6 +31,7 @@ const (
 	PurpleTileStep      = 34
 	DefaultTTL          = 1800 * time.Millisecond
 	PurpleTTL           = 3000 * time.Millisecond
+	FireballTTL         = 400 * time.Millisecond
 )
 
 // Effect identifies the status effect applied by a hazard.
@@ -59,17 +65,22 @@ func TTLFor(k Kind) time.Duration {
 
 // Hazard is the runtime entity.
 type Hazard struct {
-	ID               string
-	X, Y             float64
-	Kind             Kind
-	TTL              time.Duration
-	Damage           int
-	BurningTicks     int
-	Tint             uint32
-	SourcePlayerID   string
-	HitsAllActors    bool
-	HitActorKeys     map[string]struct{}
-	IgnoredActorKeys map[string]struct{}
+	ID                string
+	X, Y              float64
+	Kind              Kind
+	TTL               time.Duration
+	Damage            int
+	BurningTicks      int
+	HitRadius         float64
+	Tint              uint32
+	Direction         domworld.Direction
+	Speed             float64
+	RemainingDistance float64
+	SourcePlayerID    string
+	HitsAllActors     bool
+	HitsPlayers       bool
+	HitActorKeys      map[string]struct{}
+	IgnoredActorKeys  map[string]struct{}
 }
 
 // New builds a hazard with default parameters for the kind.
@@ -77,9 +88,20 @@ func New(id string, x, y float64, kind Kind) *Hazard {
 	return &Hazard{
 		ID: id, X: x, Y: y, Kind: kind,
 		TTL: TTLFor(kind), Damage: BurningTickDamage, BurningTicks: BurningTicks,
+		HitRadius:        HitRadius,
 		HitActorKeys:     make(map[string]struct{}),
 		IgnoredActorKeys: make(map[string]struct{}),
 	}
+}
+
+// NewFireball builds a moving player fireball.
+func NewFireball(id string, x, y float64, direction domworld.Direction) *Hazard {
+	h := New(id, x, y, KindFireball)
+	h.TTL = FireballTTL
+	h.BurningTicks = 0
+	h.Direction = direction
+	h.HitsPlayers = true
+	return h
 }
 
 // NewTinted builds a hazard with an optional sprite tint.
@@ -91,8 +113,18 @@ func NewTinted(id string, x, y float64, kind Kind, tint uint32) *Hazard {
 
 // Tick advances the hazard. Returns true when the TTL expires.
 func (h *Hazard) Tick(dt time.Duration) bool {
+	if h.Speed > 0 && h.RemainingDistance > 0 {
+		dx, dy := hazardDirectionVector(h.Direction)
+		travel := h.Speed * dt.Seconds()
+		if travel > h.RemainingDistance {
+			travel = h.RemainingDistance
+		}
+		h.X += dx * travel
+		h.Y += dy * travel
+		h.RemainingDistance -= travel
+	}
 	h.TTL -= dt
-	return h.TTL <= 0
+	return h.TTL <= 0 || (h.Speed > 0 && h.RemainingDistance <= 0)
 }
 
 // MarkHit records an actor as hit to prevent multi-tick stacking.
@@ -114,9 +146,25 @@ func (h *Hazard) IgnoreActor(actorKey string) {
 
 // Snapshot is the wire projection.
 type Snapshot struct {
-	ID    string
-	X, Y  float64
-	Kind  Kind
-	TTLMs int64
-	Tint  uint32
+	ID        string
+	X, Y      float64
+	Kind      Kind
+	TTLMs     int64
+	Tint      uint32
+	Direction domworld.Direction
+}
+
+func hazardDirectionVector(direction domworld.Direction) (float64, float64) {
+	switch direction {
+	case domworld.DirectionUp:
+		return 0, -1
+	case domworld.DirectionDown:
+		return 0, 1
+	case domworld.DirectionLeft:
+		return -1, 0
+	case domworld.DirectionRight:
+		return 1, 0
+	default:
+		return 0, 0
+	}
 }

@@ -56,6 +56,7 @@ export interface GameStore {
   localPlayer: PlayerData | null;
   waveCooldownEndsAt: number | null;
   dashCooldownEndsAt: number | null;
+  fireballCooldownEndsAt: number | null;
   boss: BossData | null;
   connected: boolean;
   connectionState: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
@@ -70,6 +71,7 @@ export interface GameStore {
   setLocalPlayer: (p: PlayerData | null) => void;
   setWaveCooldownEndsAt: (time: number | null) => void;
   setDashCooldownEndsAt: (time: number | null) => void;
+  setFireballCooldownEndsAt: (time: number | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
   setConnectionState: (state: GameStore['connectionState']) => void;
@@ -88,6 +90,7 @@ export const useGameStore = create<GameStore>((set) => ({
   localPlayer: null,
   waveCooldownEndsAt: null,
   dashCooldownEndsAt: null,
+  fireballCooldownEndsAt: null,
   boss: null,
   connected: false,
   connectionState: 'DISCONNECTED',
@@ -102,6 +105,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setLocalPlayer: (p) => set({ localPlayer: p }),
   setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
   setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
+  setFireballCooldownEndsAt: (fireballCooldownEndsAt) => set({ fireballCooldownEndsAt }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),
   setConnectionState: (state) => set({ connectionState: state }),

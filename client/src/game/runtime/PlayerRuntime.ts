@@ -28,6 +28,9 @@ export class PlayerRuntime {
       },
       (time) => {
         this.ui.setDashCooldownEndsAt(time);
+      },
+      (time) => {
+        this.ui.setFireballCooldownEndsAt(time);
       }
     );
   }

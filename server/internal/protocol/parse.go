@@ -182,20 +182,22 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		attack, okAttack := getBool(record, "attack")
 		wave, okWave := getBool(record, "wave")
 		dash, okDash := getBool(record, "dash")
-		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okDash {
+		fireball, okFireball := getBool(record, "fireball")
+		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okDash || !okFireball {
 			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
 		}
 
 		return ClientMessageParseResult{
 			OK: true,
 			Value: NewInputMessage(seq, ClientInputState{
-				Up:     up,
-				Down:   down,
-				Left:   left,
-				Right:  right,
-				Attack: attack,
-				Wave:   wave,
-				Dash:   dash,
+				Up:       up,
+				Down:     down,
+				Left:     left,
+				Right:    right,
+				Attack:   attack,
+				Wave:     wave,
+				Dash:     dash,
+				Fireball: fireball,
 			}),
 		}
 	case ClientMessageTypeSnapshotResync:

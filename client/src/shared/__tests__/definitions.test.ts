@@ -30,8 +30,10 @@ describe('shared definitions', () => {
     for (const definition of Object.values(hazardDefinitions)) {
       expect(definition.ttlMs).toBeGreaterThan(0);
       expect(definition.hitRadius).toBeGreaterThan(0);
-      expect(definition.burningTicks).toBeGreaterThan(0);
-      expect(knownStatusEffects.has(definition.statusEffect)).toBe(true);
+      expect(definition.burningTicks).toBeGreaterThanOrEqual(0);
+      if (definition.statusEffect) {
+        expect(knownStatusEffects.has(definition.statusEffect)).toBe(true);
+      }
     }
   });
 });

@@ -294,6 +294,88 @@ func TestPlayerDashCanEndOnEnemyAndStillTakeContactDamage(t *testing.T) {
 	}
 }
 
+func TestPlayerFireballPiercesTargetsAcrossDashDistance(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1160.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e1 := enemy.New("e1", 1100, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	e2 := enemy.New("e2", 1240, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e1)
+	w.SpawnEnemy(e2)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Fireball: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
+
+	foundFireball := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindFireball {
+			foundFireball = true
+			if h.Direction != domworld.DirectionRight {
+				t.Fatalf("expected fireball direction right, got %s", h.Direction)
+			}
+			break
+		}
+	}
+	if !foundFireball {
+		t.Fatal("expected fireball hazard after cast")
+	}
+
+	for i := 0; i < 20; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := target.HP, player.MaxHP-player.FireballDamage; got != want {
+		t.Fatalf("expected target HP=%d after fireball, got %d", want, got)
+	}
+	if got, want := e1.HP, passiveConfig.MaxHP-player.FireballDamage; got != want {
+		t.Fatalf("expected first enemy HP=%d after fireball, got %d", want, got)
+	}
+	if got, want := e2.HP, passiveConfig.MaxHP-player.FireballDamage; got != want {
+		t.Fatalf("expected second enemy HP=%d after piercing fireball, got %d", want, got)
+	}
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindFireball {
+			t.Fatal("expected fireball to expire after traversing its range")
+		}
+	}
+}
+
+func TestPlayerFireballDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 200.0, 200.0
+	tx, ty := 360.0, 200.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	target.SafeZoneTimer = 0
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Fireball: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
+	for i := 0; i < 19; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected protected caster fireball to skip PvP damage, got target HP=%d", target.HP)
+	}
+	if attacker.HP != player.MaxHP {
+		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
+	}
+}
+
 func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	t.Parallel()
 

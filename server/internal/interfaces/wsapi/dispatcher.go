@@ -212,14 +212,15 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		return ErrNotJoined
 	}
 	d.manager.HandleInput(state.playerID, player.Input{
-		Seq:    msg.Seq,
-		Up:     msg.Up,
-		Down:   msg.Down,
-		Left:   msg.Left,
-		Right:  msg.Right,
-		Attack: msg.Attack,
-		Wave:   msg.Wave,
-		Dash:   msg.Dash,
+		Seq:      msg.Seq,
+		Up:       msg.Up,
+		Down:     msg.Down,
+		Left:     msg.Left,
+		Right:    msg.Right,
+		Attack:   msg.Attack,
+		Wave:     msg.Wave,
+		Dash:     msg.Dash,
+		Fireball: msg.Fireball,
 	})
 	return nil
 }
@@ -507,6 +508,9 @@ func hazardObj(h hazard.Snapshot) codec.Object {
 	}
 	if h.Tint != 0 {
 		obj = append(obj, codec.Field{Key: "tint", Value: int64(h.Tint)})
+	}
+	if h.Direction != "" {
+		obj = append(obj, codec.Field{Key: "direction", Value: string(h.Direction)})
 	}
 	return obj
 }

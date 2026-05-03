@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PLAYER_DASH_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@/game-core';
+import { PLAYER_DASH_COOLDOWN, PLAYER_FIREBALL_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@/game-core';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
@@ -20,6 +20,7 @@ export function HUD() {
   const playerCount = useGameStore((s) => s.playerCount);
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
+  const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
@@ -40,7 +41,7 @@ export function HUD() {
   }, []);
 
   useEffect(() => {
-    if (!waveCooldownEndsAt && !dashCooldownEndsAt) {
+    if (!waveCooldownEndsAt && !dashCooldownEndsAt && !fireballCooldownEndsAt) {
       setCooldownNowMs(Date.now());
       return;
     }
@@ -49,13 +50,17 @@ export function HUD() {
     const intervalId = window.setInterval(() => {
       const now = Date.now();
       setCooldownNowMs(now);
-      if (now >= (waveCooldownEndsAt ?? 0) && now >= (dashCooldownEndsAt ?? 0)) {
+      if (
+        now >= (waveCooldownEndsAt ?? 0) &&
+        now >= (dashCooldownEndsAt ?? 0) &&
+        now >= (fireballCooldownEndsAt ?? 0)
+      ) {
         window.clearInterval(intervalId);
       }
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [dashCooldownEndsAt, waveCooldownEndsAt]);
+  }, [dashCooldownEndsAt, fireballCooldownEndsAt, waveCooldownEndsAt]);
 
   useEffect(() => {
     const element = document.documentElement as HTMLElement & {
@@ -143,6 +148,11 @@ export function HUD() {
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
+  const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
+  const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
+  const fireballCooldownProgress = fireballReady
+    ? 1
+    : 1 - fireballCooldownRemainingMs / PLAYER_FIREBALL_COOLDOWN;
 
   return (
     <div
@@ -344,6 +354,51 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
+              <span>Fireball</span>
+              <span
+                style={{
+                  color: fireballReady ? '#ffbd84' : '#ffe3c8',
+                }}
+              >
+                {fireballReady ? 'READY' : `${(fireballCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(38, 20, 10, 0.92)',
+                border: '1px solid rgba(255, 170, 100, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(255, 149, 72, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${fireballCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: fireballReady
+                    ? 'linear-gradient(90deg, #ff9838 0%, #ffd084 100%)'
+                    : 'linear-gradient(90deg, #c7561d 0%, #ff8e3c 100%)',
+                  boxShadow: fireballReady ? '0 0 12px rgba(255, 164, 88, 0.5)' : 'none',
+                  transition: fireballReady
+                    ? 'width 0.08s linear, box-shadow 0.08s linear'
+                    : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
               <span>Wave</span>
               <span
                 style={{
@@ -409,7 +464,8 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | Space: attack | Tab: players
+          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | Space:
+          attack | Tab: players
         </div>
       )}
 

@@ -166,6 +166,36 @@ func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Left: true, Fireball: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.FireballCooldown != FireballCooldown {
+		t.Fatalf("expected fireball cooldown %s, got %s", FireballCooldown, p.FireballCooldown)
+	}
+	cx, cy, direction, ok := p.ConsumeFireballCast()
+	if !ok {
+		t.Fatal("expected queued fireball cast")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected fireball start at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if direction != world.DirectionLeft {
+		t.Fatalf("expected fireball direction left, got %s", direction)
+	}
+	if _, _, _, ok := p.ConsumeFireballCast(); ok {
+		t.Fatal("expected fireball cast to be consumed once")
+	}
+
+	p.ApplyInput(Input{Seq: 2, Left: true, Fireball: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, _, ok := p.ConsumeFireballCast(); ok {
+		t.Fatal("expected cooldown to block second fireball cast")
+	}
+}
+
 func TestAttackHitboxReturnsBoxOnlyWhileAttacking(t *testing.T) {
 	t.Parallel()
 

@@ -17,6 +17,7 @@ export interface InputState {
   attack: boolean;
   wave: boolean;
   dash: boolean;
+  fireball: boolean;
 }
 
 export interface ReconcileOptions {

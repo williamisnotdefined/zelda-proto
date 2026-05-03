@@ -55,7 +55,8 @@
         "right": true,
         "attack": true,
         "wave": false,
-        "dash": false
+        "dash": false,
+        "fireball": false
       },
       "canonical": {
         "protocolVersion": 7,
@@ -67,9 +68,10 @@
         "right": true,
         "attack": true,
         "wave": false,
-        "dash": false
+        "dash": false,
+        "fireball": false
       },
-      "msgpackBase64": "3gAKr3Byb3RvY29sVmVyc2lvbgekdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRkYXNowg=="
+      "msgpackBase64": "3gALr3Byb3RvY29sVmVyc2lvbgekdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRkYXNowqhmaXJlYmFsbMI="
     },
     {
       "name": "snapshot_resync_tick_gap",

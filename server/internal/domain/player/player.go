@@ -16,6 +16,7 @@ const (
 	Speed               float64 = 150
 	MaxHP                       = 100
 	MeleeDamage                 = 10
+	FireballDamage              = 20
 	WaveDamage                  = 3
 	WaveLifeStealRatio  float64 = 0.20
 	WaveWindup                  = 80 * time.Millisecond
@@ -26,10 +27,12 @@ const (
 	AttackCooldown              = 400 * time.Millisecond
 	WaveCooldown                = 500 * time.Millisecond
 	DashCooldown                = 1 * time.Second
+	FireballCooldown            = 400 * time.Millisecond
 	AttackStateDuration         = 300 * time.Millisecond
 	AttackSpeedPenalty  float64 = 0.5
 	WaveMaxRadius       float64 = 150
 	WaveSpeed           float64 = 900
+	FireballSpeed       float64 = 900
 	Width                       = 48
 	Height                      = 48
 	AttackRangeUp       float64 = 40
@@ -57,14 +60,15 @@ const (
 
 // Input is one client input frame (movement + attack).
 type Input struct {
-	Seq    int64
-	Up     bool
-	Down   bool
-	Left   bool
-	Right  bool
-	Attack bool
-	Wave   bool
-	Dash   bool
+	Seq      int64
+	Up       bool
+	Down     bool
+	Left     bool
+	Right    bool
+	Attack   bool
+	Wave     bool
+	Dash     bool
+	Fireball bool
 }
 
 // WaveExpandDuration returns how long the player wave spends expanding from
@@ -205,6 +209,7 @@ type Player struct {
 	AttackState           time.Duration
 	WaveCooldown          time.Duration
 	DashCooldown          time.Duration
+	FireballCooldown      time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
 	AttackMonsterKills    int
@@ -232,6 +237,10 @@ type Player struct {
 	dashStartX            float64
 	dashStartY            float64
 	dashDirection         world.Direction
+	fireballCastQueued    bool
+	fireballStartX        float64
+	fireballStartY        float64
+	fireballDirection     world.Direction
 
 	burning       BurningStatus
 	purpleBurning BurningStatus
@@ -315,6 +324,12 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.DashCooldown = 0
 		}
 	}
+	if p.FireballCooldown > 0 {
+		p.FireballCooldown -= dt
+		if p.FireballCooldown < 0 {
+			p.FireballCooldown = 0
+		}
+	}
 
 	input := p.pendingInput
 	if input == nil {
@@ -348,6 +363,15 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.waveCenterX = p.X
 		p.waveCenterY = p.Y
 		p.waveTargets = WaveTargets{}
+	}
+	if input.Fireball && p.FireballCooldown <= 0 {
+		if fireballDirection := dashDirectionFromInput(input, p.Direction); fireballDirection != "" {
+			p.FireballCooldown = FireballCooldown
+			p.fireballCastQueued = true
+			p.fireballStartX = p.X
+			p.fireballStartY = p.Y
+			p.fireballDirection = fireballDirection
+		}
 	}
 	triggeredDash := false
 	if input.Dash && p.DashCooldown <= 0 {
@@ -426,6 +450,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.HP = 0
 		p.resetWave()
 		p.resetDash()
+		p.resetFireball()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -465,6 +490,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetAttackTracking()
 	p.resetWave()
 	p.resetDash()
+	p.resetFireball()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -475,6 +501,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.lastReceivedInputSeq = -1
 	p.resetWave()
 	p.resetDash()
+	p.resetFireball()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
@@ -556,6 +583,15 @@ func (p *Player) ConsumeDashCast() (float64, float64, world.Direction, bool) {
 	}
 	p.dashCastQueued = false
 	return p.dashStartX, p.dashStartY, p.dashDirection, true
+}
+
+// ConsumeFireballCast returns a newly triggered fireball once.
+func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, bool) {
+	if !p.fireballCastQueued {
+		return 0, 0, "", false
+	}
+	p.fireballCastQueued = false
+	return p.fireballStartX, p.fireballStartY, p.fireballDirection, true
 }
 
 // WaveIndicator returns the active player wave visual, if any.
@@ -681,6 +717,14 @@ func (p *Player) resetDash() {
 	p.dashStartX = 0
 	p.dashStartY = 0
 	p.dashDirection = ""
+}
+
+func (p *Player) resetFireball() {
+	p.FireballCooldown = 0
+	p.fireballCastQueued = false
+	p.fireballStartX = 0
+	p.fireballStartY = 0
+	p.fireballDirection = ""
 }
 
 func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direction {

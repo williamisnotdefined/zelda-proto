@@ -2,6 +2,7 @@ import {
   PLAYER_ATTACK_SPEED_PENALTY,
   PLAYER_DASH_COOLDOWN,
   PLAYER_DASH_DOUBLE_TAP_WINDOW,
+  PLAYER_FIREBALL_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
   createInputMessage,
   hasDirectionalChange,
@@ -25,7 +26,9 @@ export class LocalInputController {
   private keyD!: Phaser.Input.Keyboard.Key;
   private waveKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
+  private fireballKey!: Phaser.Input.Keyboard.Key;
   private prevAttackDown = false;
+  private prevFireballDown = false;
   private prevWaveDown = false;
   private prevUpDown = false;
   private prevDownDown = false;
@@ -37,6 +40,7 @@ export class LocalInputController {
   private lastSentInputState: InputState | null = null;
   private waveCooldownEndsAtMs = 0;
   private dashCooldownEndsAtMs = 0;
+  private fireballCooldownEndsAtMs = 0;
   private readonly lastDirectionalTapAtMs: Record<Direction, number> = {
     up: 0,
     down: 0,
@@ -49,7 +53,8 @@ export class LocalInputController {
     private readonly scene: Phaser.Scene,
     private readonly connection: GameConnection,
     private readonly setWaveCooldownEndsAt: (time: number | null) => void,
-    private readonly setDashCooldownEndsAt: (time: number | null) => void
+    private readonly setDashCooldownEndsAt: (time: number | null) => void,
+    private readonly setFireballCooldownEndsAt: (time: number | null) => void
   ) {
     this.bindKeys();
   }
@@ -60,12 +65,15 @@ export class LocalInputController {
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
     this.prevAttackDown = false;
+    this.prevFireballDown = false;
     this.prevWaveDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
+    this.fireballCooldownEndsAtMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setDashCooldownEndsAt(null);
+    this.setFireballCooldownEndsAt(null);
   }
 
   reset(): void {
@@ -73,12 +81,15 @@ export class LocalInputController {
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
     this.prevAttackDown = false;
+    this.prevFireballDown = false;
     this.prevWaveDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
+    this.fireballCooldownEndsAtMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setDashCooldownEndsAt(null);
+    this.setFireballCooldownEndsAt(null);
   }
 
   reconcileLocalPlayer(
@@ -114,6 +125,10 @@ export class LocalInputController {
       this.dashCooldownEndsAtMs = 0;
       this.setDashCooldownEndsAt(null);
     }
+    if (localDead && this.fireballCooldownEndsAtMs !== 0) {
+      this.fireballCooldownEndsAtMs = 0;
+      this.setFireballCooldownEndsAt(null);
+    }
     if (localDead) {
       this.resetDirectionalTapState();
     }
@@ -121,6 +136,9 @@ export class LocalInputController {
     const rawAttackDown = this.attackKey.isDown || touchInput.attackPressed;
     const attack = rawAttackDown && !this.prevAttackDown;
     this.prevAttackDown = rawAttackDown;
+    const rawFireballDown = this.fireballKey.isDown;
+    const manualFireball = rawFireballDown && !this.prevFireballDown;
+    this.prevFireballDown = rawFireballDown;
     const rawUpDown = this.cursors.up.isDown || this.keyW.isDown || touchInput.move.up;
     const rawDownDown = this.cursors.down.isDown || this.keyS.isDown || touchInput.move.down;
     const rawLeftDown = this.cursors.left.isDown || this.keyA.isDown || touchInput.move.left;
@@ -139,9 +157,11 @@ export class LocalInputController {
     );
     const waveReady = nowMs >= this.waveCooldownEndsAtMs;
     const dashReady = nowMs >= this.dashCooldownEndsAtMs;
+    const fireballReady = nowMs >= this.fireballCooldownEndsAtMs;
     const manualWave = rawWaveDown && !this.prevWaveDown;
     const wave = manualWave && waveReady;
     const dash = dashDirection !== null && dashReady;
+    const fireball = manualFireball && fireballReady;
     this.prevWaveDown = rawWaveDown;
     if (wave) {
       this.waveCooldownEndsAtMs = nowMs + PLAYER_WAVE_COOLDOWN;
@@ -150,6 +170,10 @@ export class LocalInputController {
     if (dash) {
       this.dashCooldownEndsAtMs = nowMs + PLAYER_DASH_COOLDOWN;
       this.setDashCooldownEndsAt(this.dashCooldownEndsAtMs);
+    }
+    if (fireball) {
+      this.fireballCooldownEndsAtMs = nowMs + PLAYER_FIREBALL_COOLDOWN;
+      this.setFireballCooldownEndsAt(this.fireballCooldownEndsAtMs);
     }
 
     const inputState: InputState = {
@@ -160,6 +184,7 @@ export class LocalInputController {
       attack: !uiBlocked && !localDead && attack,
       wave: !uiBlocked && !localDead && wave,
       dash: !uiBlocked && !localDead && dash,
+      fireball: !uiBlocked && !localDead && fireball,
     };
 
     this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
@@ -173,7 +198,8 @@ export class LocalInputController {
       !changedSinceLastSend &&
       !inputState.attack &&
       !inputState.wave &&
-      !inputState.dash
+      !inputState.dash &&
+      !inputState.fireball
     ) {
       return;
     }
@@ -205,6 +231,7 @@ export class LocalInputController {
       attack: false,
       wave: false,
       dash: false,
+      fireball: false,
     };
     this.connection.send(input);
   }
@@ -217,6 +244,7 @@ export class LocalInputController {
     this.keyD = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D, false);
     this.waveKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R, false);
     this.attackKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
+    this.fireballKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F, false);
   }
 
   private consumeDashDirectionTap(

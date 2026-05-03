@@ -1,3 +1,4 @@
-- fireball (distance)
+- numb
+- collapse
 - granade (distance)
 - gun / machine gun (maybe cut it off)

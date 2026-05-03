@@ -275,6 +275,36 @@ func (PlayerWaveSystem) Resolve(
 // the blue flame trail after movement is resolved.
 type DashTrailSpawner func(sourcePlayerID string, startX, startY float64, direction domworld.Direction)
 
+// PlayerFireballSpawner receives a queued fireball cast so the world can spawn
+// the projectile entity after movement is resolved.
+type PlayerFireballSpawner func(
+	sourcePlayerID string,
+	startX, startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+)
+
+// PlayerFireballSystem resolves queued player fireball casts.
+type PlayerFireballSystem struct{}
+
+// Resolve emits every queued fireball cast.
+func (PlayerFireballSystem) Resolve(
+	players map[string]*player.Player,
+	zone safezone.Zone,
+	spawnFireball PlayerFireballSpawner,
+) {
+	if spawnFireball == nil {
+		return
+	}
+	for _, caster := range players {
+		startX, startY, direction, ok := caster.ConsumeFireballCast()
+		if !ok || direction == "" || caster.State == player.StateDead {
+			continue
+		}
+		spawnFireball(caster.ID, startX, startY, direction, !zone.Protects(caster))
+	}
+}
+
 // PlayerDashSystem resolves the player-triggered dash skill.
 type PlayerDashSystem struct{}
 

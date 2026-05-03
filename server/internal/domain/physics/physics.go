@@ -51,6 +51,22 @@ func CircleAABBOverlap(c Circle, b AABB) bool {
 	return dx*dx+dy*dy <= c.R*c.R
 }
 
+// SegmentCircleOverlap reports whether the segment from (x1, y1) to (x2, y2)
+// overlaps circle c.
+func SegmentCircleOverlap(x1, y1, x2, y2 float64, c Circle) bool {
+	dx := x2 - x1
+	dy := y2 - y1
+	denom := dx*dx + dy*dy
+	if denom == 0 {
+		return DistanceSquared(x1, y1, c.X, c.Y) <= c.R*c.R
+	}
+	t := ((c.X-x1)*dx + (c.Y-y1)*dy) / denom
+	t = Clamp(t, 0, 1)
+	nearestX := x1 + dx*t
+	nearestY := y1 + dy*t
+	return DistanceSquared(nearestX, nearestY, c.X, c.Y) <= c.R*c.R
+}
+
 // DistanceSquared returns the squared Euclidean distance between two points.
 func DistanceSquared(x1, y1, x2, y2 float64) float64 {
 	dx := x2 - x1

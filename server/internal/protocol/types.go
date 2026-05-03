@@ -5,13 +5,14 @@ type ClientMessage interface {
 }
 
 type ClientInputState struct {
-	Up     bool
-	Down   bool
-	Left   bool
-	Right  bool
-	Attack bool
-	Wave   bool
-	Dash   bool
+	Up       bool
+	Down     bool
+	Left     bool
+	Right    bool
+	Attack   bool
+	Wave     bool
+	Dash     bool
+	Fireball bool
 }
 
 type JoinMessage struct {
@@ -55,6 +56,7 @@ type InputMessage struct {
 	Attack          bool              `json:"attack" msgpack:"attack"`
 	Wave            bool              `json:"wave" msgpack:"wave"`
 	Dash            bool              `json:"dash" msgpack:"dash"`
+	Fireball        bool              `json:"fireball" msgpack:"fireball"`
 }
 
 func (InputMessage) MessageType() ClientMessageType {

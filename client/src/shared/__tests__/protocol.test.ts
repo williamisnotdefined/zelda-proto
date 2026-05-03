@@ -95,6 +95,7 @@ describe('message builders', () => {
         attack: false,
         wave: false,
         dash: false,
+        fireball: false,
       })
     ).toEqual({
       protocolVersion: PROTOCOL_VERSION,
@@ -107,6 +108,7 @@ describe('message builders', () => {
       attack: false,
       wave: false,
       dash: false,
+      fireball: false,
     });
 
     expect(
@@ -198,6 +200,7 @@ describe('parseClientMessage', () => {
         attack: false,
         wave: false,
         dash: false,
+        fireball: false,
       })
     ).toEqual({ ok: false, reason: 'invalid_message' });
     expect(
