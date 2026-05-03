@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOSS_KINDS } from '@gelehka/shared';
+import { BOSS_KINDS } from '@/shared';
 import { bossRegistry } from './bossRegistry';
 
 describe('bossRegistry', () => {

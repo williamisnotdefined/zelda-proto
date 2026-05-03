@@ -1,6 +1,6 @@
 ## Server Contract Fixtures
 
-These fixtures freeze the current Node `server/` contract before the Go port.
+These fixtures freeze the TypeScript-era wire contract that the Go runtime preserves.
 
 - `protocol/messages.json` stores raw client payloads, their canonical parse result or expected failure, and the exact MessagePack payload as base64.
 - `snapshot/messages.json` stores canonical snapshot inputs, expected server messages, and the exact MessagePack payload for each snapshot message as base64.

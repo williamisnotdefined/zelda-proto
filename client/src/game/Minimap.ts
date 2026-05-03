@@ -1,4 +1,4 @@
-import type { EnemySnapshot } from '@gelehka/shared';
+import type { EnemySnapshot } from '@/shared';
 import Phaser from 'phaser';
 import { BossDragonLordEntity } from '../entities/BossDragonLord';
 import { BossGelehkEntity } from '../entities/BossGelehk';

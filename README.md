@@ -18,40 +18,31 @@ Required for the current server runtime:
 # Run both client and server
 npm run dev
 
-# Go stack separately
+# Run each process separately
 npm run dev:server   # Go server on :3003
 npm run dev:client   # Vite dev server on :5174, proxying to :3003
-
-# Legacy Node stack
-npm run dev:node
-npm run dev:server:node   # Node server on :3002
-npm run dev:client:node   # Vite dev server on :5173, proxying to :3002
 
 DEV_STRESS_ENEMIES_PER_CHUNK=40 DEBUG_GAME_METRICS=1 npm run dev:server
 ```
 
-The Go server in `server_go/` is now the default runtime. The Node server in `server/` remains available as `:node`.
+Current source layout:
 
-## Server Runtimes
+- `server/`: authoritative Go runtime
+- `client/src/shared/`: protocol types, constants, definitions, and helpers
+- `client/src/game-core/`: prediction, interpolation, input, and network helpers
+
+## Server Runtime
 
 ```bash
-# Go server
 npm run dev:server
 npm run build:server
 npm run test:server
-
-# Legacy Node server
-npm run dev:server:node
-npm run build:server:node
-npm run test:server:node
 ```
 
 Default development ports:
 
-- Go server: `3003`
-- Go client: `5174`
-- Node server: `3002`
-- Node client: `5173`
+- Server: `3003`
+- Client: `5174`
 
 ## Production Deployment
 
@@ -66,18 +57,13 @@ npm start  # Server on port 3001 (serves client + WebSocket)
 
 # Open Cloudflare tunnel after build/start
 npm run live:start
-
-# Legacy Node production flow
-npm run build:node
-npm run start:node
-npm run live:start:node
 ```
 
 ### Cloudflare Tunnel Setup
 
 This project uses Cloudflare Tunnel (cloudflared) to expose the production server to the internet.
 
-**Important**: The production server runs on port **3001** (not 3002). Ensure your tunnel routes to the correct port.
+**Important**: The production server runs on port **3001** (not 3003). Ensure your tunnel routes to the correct port.
 
 #### Running the Tunnel
 
@@ -130,7 +116,7 @@ If users get stuck on "Connecting..." in production:
 4. **Verify Server is Running**
    ```bash
     # Check server process
-    ps aux | grep server_go
+    ps aux | grep server/bin/server
    
    # Check server is listening on port 3001
    lsof -i :3001
@@ -155,7 +141,7 @@ If users get stuck on "Connecting..." in production:
      - Connection/disconnection events
 
 7. **Common Issues**
-   - **Wrong Port**: Tunnel must route to port 3001, not 3002
+   - **Wrong Port**: Tunnel must route to port 3001, not 3003
    - **Server Not Running**: Ensure `npm start` is active
    - **Firewall**: Check if localhost:3001 is accessible
    - **SSL/TLS**: Cloudflare handles SSL, server uses plain HTTP

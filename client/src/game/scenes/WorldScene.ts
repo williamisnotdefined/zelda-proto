@@ -1,4 +1,4 @@
-import type { InstanceId, SnapshotMessage, WelcomeMessage } from '@gelehka/shared';
+import type { InstanceId, SnapshotMessage, WelcomeMessage } from '@/shared';
 import Phaser from 'phaser';
 import { gameConnection } from '../../network/gameConnection';
 import { BossRuntime } from '../runtime/bosses/BossRuntime';

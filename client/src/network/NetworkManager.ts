@@ -1,13 +1,13 @@
 import { pack, unpack } from 'msgpackr';
-import { resolveWebSocketUrl } from '@gelehka/game-core/network';
+import { resolveWebSocketUrl } from '@/game-core/network';
 import {
   createSnapshotNormalizationState,
   normalizeServerMessageResult,
-} from '@gelehka/game-core/snapshot';
-import { PROTOCOL_VERSION } from '@gelehka/shared';
-import { createSnapshotResyncMessage } from '@gelehka/shared/protocol';
-import { WS_MAX_BUFFERED_BYTES } from '@gelehka/shared/constants';
-import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+} from '@/game-core/snapshot';
+import { PROTOCOL_VERSION } from '@/shared';
+import { createSnapshotResyncMessage } from '@/shared/protocol';
+import { WS_MAX_BUFFERED_BYTES } from '@/shared/constants';
+import type { ClientMessage, ServerMessage } from '@/shared';
 import { logError } from '../monitoring/errorLogger';
 
 type MessageHandler = (msg: ServerMessage) => void;

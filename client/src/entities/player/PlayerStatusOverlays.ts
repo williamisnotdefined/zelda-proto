@@ -1,4 +1,4 @@
-import type { PlayerStatusSnapshot } from '@gelehka/shared';
+import type { PlayerStatusSnapshot } from '@/shared';
 import Phaser from 'phaser';
 import {
   BLUE_BURNING_GIF_PATH,

@@ -1,5 +1,5 @@
-import type { PortalKind } from '@gelehka/shared';
-import { PORTAL_KINDS } from '@gelehka/shared';
+import type { PortalKind } from '@/shared';
+import { PORTAL_KINDS } from '@/shared';
 
 const RETURN_PORTAL_GIF_PATH = '/assets/sprites/teleports/Magic_Forcefield_Blue.gif';
 const ADVANCE_PORTAL_GIF_PATH = '/assets/sprites/teleports/Energy_Portal.gif';

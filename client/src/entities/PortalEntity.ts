@@ -1,6 +1,6 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import Phaser from 'phaser';
-import type { PortalKind } from '@gelehka/shared';
+import type { PortalKind } from '@/shared';
 import { getPortalVisualConfig } from '../game/runtime/world/portalRegistry';
 
 const LERP_BASE = 0.3;

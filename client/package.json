@@ -10,8 +10,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@gelehka/game-core": "*",
-    "@gelehka/shared": "*",
     "lucide-react": "^0.577.0",
     "msgpackr": "^1.11.5",
     "phaser": "^3.90.0",

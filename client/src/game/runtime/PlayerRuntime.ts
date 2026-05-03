@@ -1,5 +1,5 @@
-import type { BossWaveIndicator, PlayerSnapshot } from '@gelehka/shared';
-import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@gelehka/shared/constants';
+import type { BossWaveIndicator, PlayerSnapshot } from '@/shared';
+import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@/shared/constants';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
 import type { GameConnection } from '../../network/gameConnection';

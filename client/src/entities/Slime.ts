@@ -1,4 +1,4 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import Phaser from 'phaser';
 import { EnemyHealthBar } from './EnemyHealthBar';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HAZARD_KINDS } from '@gelehka/shared';
+import { HAZARD_KINDS } from '@/shared';
 import { hazardRegistry } from './hazardRegistry';
 
 describe('hazardRegistry', () => {

@@ -2,8 +2,8 @@ import { resolve } from 'node:path';
 import { spawnManaged, waitForHttp, ManagedProcess } from './utils/processes';
 
 const REPO_ROOT = resolve(__dirname, '..');
-const SERVER_PORT = 3002;
-const CLIENT_PORT = 5173;
+const SERVER_PORT = 3003;
+const CLIENT_PORT = 5174;
 
 interface GlobalState {
   server: ManagedProcess;
@@ -13,11 +13,11 @@ interface GlobalState {
 let state: GlobalState | undefined;
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
-  // Use the Go server (this is what we're validating).
+  // Use the Go server directly and the standard Vite client dev port.
   const server = spawnManaged({
     cmd: 'go',
     args: ['run', './cmd/server'],
-    cwd: resolve(REPO_ROOT, 'server_go'),
+    cwd: resolve(REPO_ROOT, 'server'),
     env: { NODE_ENV: 'development', PORT: String(SERVER_PORT) },
     label: 'go-server',
   });

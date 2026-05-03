@@ -43,12 +43,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: server_go/go.mod
+          go-version-file: server/go.mod
 
       - name: Test Go scaffold
-        working-directory: server_go
+        working-directory: server
         run: go test ./...
 
       - name: Build Go scaffold
-        working-directory: server_go
-        run: go build -o ./bin/server_go ./cmd/server
+        working-directory: server
+        run: go build -o ./bin/server ./cmd/server

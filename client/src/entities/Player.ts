@@ -1,5 +1,5 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
-import type { BossWaveIndicator, PlayerStatusSnapshot } from '@gelehka/shared';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
+import type { BossWaveIndicator, PlayerStatusSnapshot } from '@/shared';
 import Phaser from 'phaser';
 import { PlayerAnimationController } from './player/PlayerAnimationController';
 import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';

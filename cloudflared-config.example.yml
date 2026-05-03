@@ -14,7 +14,7 @@ ingress:
   # Route traffic from your domain to the local server
   - hostname: wilho.com.br
     service: http://localhost:3001
-    # IMPORTANT: Use port 3001 for production (not 3002)
+    # IMPORTANT: Use port 3001 for production (not 3003)
     # This service handles both HTTP and WebSocket connections
   
   # Catch-all rule (required) - returns 404 for unmatched requests

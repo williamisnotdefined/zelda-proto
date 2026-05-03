@@ -1,11 +1,11 @@
-import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+import type { ClientMessage, ServerMessage } from '@/shared';
 import {
   createChatMessage,
   createJoinMessage,
   createResumeSessionMessage,
   parseChatText,
   parseNickname,
-} from '@gelehka/shared/protocol';
+} from '@/shared/protocol';
 import { ConnectionState, NetworkManager } from './NetworkManager';
 import type { NetworkPerformanceStats } from './NetworkManager';
 import {

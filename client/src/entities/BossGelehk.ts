@@ -1,4 +1,4 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import Phaser from 'phaser';
 
 /** Base lerp factors per 16.667ms (60fps) frame. */

@@ -1,4 +1,4 @@
-import type { Direction, PlayerSnapshot } from '@gelehka/shared';
+import type { Direction, PlayerSnapshot } from '@/shared';
 import {
   PLAYER_ATTACK_SPEED_PENALTY,
   PLAYER_SPEED,
@@ -7,11 +7,11 @@ import {
   getDeltaForInput,
   reconcilePredictedPosition,
   trimPendingInputs,
-} from '@gelehka/game-core';
+} from '@/game-core';
 import type {
   InputState as CoreInputState,
   PendingInput as CorePendingInput,
-} from '@gelehka/game-core';
+} from '@/game-core';
 import { PlayerEntity } from '../../entities/Player';
 
 export type PendingInput = CorePendingInput;

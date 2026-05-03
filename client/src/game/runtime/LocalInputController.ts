@@ -5,8 +5,8 @@ import {
   PLAYER_WAVE_COOLDOWN,
   createInputMessage,
   hasDirectionalChange,
-} from '@gelehka/game-core';
-import type { Direction, InputMessage } from '@gelehka/shared';
+} from '@/game-core';
+import type { Direction, InputMessage } from '@/shared';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
 import type { GameConnection } from '../../network/gameConnection';

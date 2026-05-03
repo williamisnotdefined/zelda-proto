@@ -1,4 +1,4 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import Phaser from 'phaser';
 
 const PURPLE_FIELD_SPRITE_OFFSET_X = -6;

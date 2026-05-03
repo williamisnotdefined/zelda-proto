@@ -4,8 +4,8 @@ import type {
   BossSnapshot,
   BossWaveIndicator,
   IceZone,
-} from '@gelehka/shared';
-import { BOSS_KINDS } from '@gelehka/shared';
+} from '@/shared';
+import { BOSS_KINDS } from '@/shared';
 import type Phaser from 'phaser';
 import { BossDragonLordEntity } from '../../../entities/BossDragonLord';
 import { BossGelehkEntity } from '../../../entities/BossGelehk';

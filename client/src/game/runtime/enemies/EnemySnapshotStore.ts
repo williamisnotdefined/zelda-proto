@@ -1,4 +1,4 @@
-import type { EnemyKind, EnemySnapshot } from '@gelehka/shared';
+import type { EnemyKind, EnemySnapshot } from '@/shared';
 import Phaser from 'phaser';
 
 const ENEMY_SNAPSHOT_GRID_CELL_SIZE = 512;

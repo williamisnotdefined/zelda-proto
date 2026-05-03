@@ -35,24 +35,6 @@ module.exports = {
       },
     },
     {
-      files: ['server/src/**/*.ts'],
-      env: {
-        node: true,
-      },
-    },
-    {
-      files: ['shared/src/**/*.ts'],
-      env: {
-        es2022: true,
-      },
-    },
-    {
-      files: ['game-core/src/**/*.ts'],
-      env: {
-        es2022: true,
-      },
-    },
-    {
       files: ['mobile/**/*.{ts,tsx}'],
       env: {
         es2022: true,

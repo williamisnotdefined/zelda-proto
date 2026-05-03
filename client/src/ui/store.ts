@@ -7,7 +7,7 @@ import type {
   PlayerLeaderboardEntry,
   PlayerState,
   ServerChatMessage,
-} from '@gelehka/shared';
+} from '@/shared';
 import { create } from 'zustand';
 import { readStoredConnectionContext } from '../network/sessionContext';
 

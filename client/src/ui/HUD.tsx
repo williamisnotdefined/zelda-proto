@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PLAYER_DASH_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@gelehka/game-core';
+import { PLAYER_DASH_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@/game-core';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
+import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@/shared';
 
 vi.mock('../../../entities/Blob', () => ({
   BlobEntity: class BlobEntity {},

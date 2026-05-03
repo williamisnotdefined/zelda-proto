@@ -6,7 +6,7 @@ import {
   INSTANCE_IDS,
   type SnapshotMessage,
   type WelcomeMessage,
-} from '@gelehka/shared';
+} from '@/shared';
 import type { GameConnection, GameConnectionEvent } from '../../network/gameConnection';
 import { WorldNetworkSession } from './WorldNetworkSession';
 import type { GameUiSink } from './ui/GameUiSink';

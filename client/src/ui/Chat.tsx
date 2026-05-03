@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_CHAT_LENGTH } from '@gelehka/shared/constants';
-import { parseChatText } from '@gelehka/shared/protocol';
+import { MAX_CHAT_LENGTH } from '@/shared/constants';
+import { parseChatText } from '@/shared/protocol';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { gameConnection } from '../network/gameConnection';
 import { useGameStore } from './store';

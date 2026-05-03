@@ -1,4 +1,4 @@
-import type { DropSnapshot, HazardSnapshot, PortalSnapshot } from '@gelehka/shared';
+import type { DropSnapshot, HazardSnapshot, PortalSnapshot } from '@/shared';
 import Phaser from 'phaser';
 import { DropEntity } from '../../../entities/DropEntity';
 import { PortalEntity } from '../../../entities/PortalEntity';

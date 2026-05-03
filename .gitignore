@@ -3,7 +3,7 @@ dist/
 .env
 *.log
 logs/
-server_go/bin/*
-!server_go/bin/.gitkeep
-server_go/.cache/
-server_go/coverage.out
+server/bin/*
+!server/bin/.gitkeep
+server/.cache/
+server/coverage.out

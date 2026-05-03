@@ -1,4 +1,4 @@
-import type { ServerChatMessage, PlayerLeaderboardEntry } from '@gelehka/shared';
+import type { ServerChatMessage, PlayerLeaderboardEntry } from '@/shared';
 import type { ConnectionState } from '../../../network/NetworkManager';
 import type { BossData, PlayerData } from '../../../ui/store';
 

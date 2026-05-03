@@ -1,5 +1,5 @@
-import type { InstanceId } from '@gelehka/shared';
-import { INSTANCE_IDS } from '@gelehka/shared';
+import type { InstanceId } from '@/shared';
+import { INSTANCE_IDS } from '@/shared';
 import Phaser from 'phaser';
 import { type BossEntity } from '../bosses/bossRegistry';
 import { EnemyRuntime } from '../enemies/EnemyRuntime';

@@ -1,5 +1,5 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
-import type { PacmanGhostVariant } from '@gelehka/shared';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
+import type { PacmanGhostVariant } from '@/shared';
 import Phaser from 'phaser';
 import { EnemyHealthBar } from './EnemyHealthBar';
 

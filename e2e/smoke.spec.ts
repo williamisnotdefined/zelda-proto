@@ -51,7 +51,8 @@ test.describe('Go server end-to-end smoke', () => {
       wsCount++;
       const url = ws.url();
       wsUrls.push(url);
-      // Vite dev server uses ws://localhost:5173/?token=... for HMR; skip it.
+      // The Vite dev server also opens an HMR socket; skip anything that is
+      // not the gameplay WebSocket.
       if (!url.endsWith('/ws') && !url.includes('/ws?')) return;
       ws.on('framereceived', ({ payload }) => {
         if (!payload) return;
@@ -313,7 +314,7 @@ test.describe('Go server end-to-end smoke', () => {
   });
 
   test('healthz reports the Go runtime', async ({ request }) => {
-    const res = await request.get('http://localhost:3002/healthz');
+    const res = await request.get('http://localhost:3003/healthz');
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.runtime).toBe('go');

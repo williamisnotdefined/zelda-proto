@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from '@gelehka/shared';
+import type { ClientMessage, ServerMessage } from '@/shared';
 import type { ConnectionState, NetworkPerformanceStats } from './NetworkManager';
 import {
   connect,

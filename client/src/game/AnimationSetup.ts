@@ -1,4 +1,4 @@
-import { PACMAN_GHOST_VARIANTS } from '@gelehka/shared';
+import { PACMAN_GHOST_VARIANTS } from '@/shared';
 import Phaser from 'phaser';
 
 function createRowAnims(

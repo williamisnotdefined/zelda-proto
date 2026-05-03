@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PORTAL_KINDS } from '@gelehka/shared';
+import { PORTAL_KINDS } from '@/shared';
 import { getPortalMinimapColor, getPortalVisualConfig, portalRegistry } from './portalRegistry';
 
 describe('portalRegistry', () => {

@@ -1,6 +1,6 @@
-import type { InstanceId } from '@gelehka/shared';
-import { INSTANCE_IDS } from '@gelehka/shared';
-import { seededRandom } from '@gelehka/shared/utils';
+import type { InstanceId } from '@/shared';
+import { INSTANCE_IDS } from '@/shared';
+import { seededRandom } from '@/shared/utils';
 import Phaser from 'phaser';
 
 const CHUNK_SIZE = 512;

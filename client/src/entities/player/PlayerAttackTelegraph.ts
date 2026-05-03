@@ -3,7 +3,7 @@ import {
   PLAYER_ATTACK_RANGE_LEFT,
   PLAYER_ATTACK_RANGE_RIGHT,
   PLAYER_ATTACK_RANGE_UP,
-} from '@gelehka/game-core/player';
+} from '@/game-core/player';
 import Phaser from 'phaser';
 import {
   ATTACK_CONE_RADIUS,

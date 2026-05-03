@@ -1,5 +1,5 @@
-import type { HazardKind, HazardSnapshot } from '@gelehka/shared';
-import { HAZARD_KINDS } from '@gelehka/shared';
+import type { HazardKind, HazardSnapshot } from '@/shared';
+import { HAZARD_KINDS } from '@/shared';
 import type Phaser from 'phaser';
 import { BlueFlameHazardEntity } from '../../../entities/BlueFlameHazardEntity';
 import { FireFieldHazardEntity } from '../../../entities/FireFieldHazardEntity';

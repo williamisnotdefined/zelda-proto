@@ -1,4 +1,4 @@
-import type { AoeIndicator, BossSnapshot, BossWaveIndicator, IceZone } from '@gelehka/shared';
+import type { AoeIndicator, BossSnapshot, BossWaveIndicator, IceZone } from '@/shared';
 import type Phaser from 'phaser';
 import { bossRegistry, type BossEntity } from './bossRegistry';
 import type { GameUiSink } from '../ui/GameUiSink';

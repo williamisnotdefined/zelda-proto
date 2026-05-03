@@ -1,12 +1,12 @@
-import { getExponentialInterpolationFactor } from '@gelehka/game-core/interpolation';
+import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import Phaser from 'phaser';
 
 const LERP_BASE = 0.35;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 120;
 
-import { DROP_KINDS } from '@gelehka/shared';
-import type { DropKind } from '@gelehka/shared';
+import { DROP_KINDS } from '@/shared';
+import type { DropKind } from '@/shared';
 
 export class DropEntity {
   sprite: Phaser.GameObjects.Sprite;

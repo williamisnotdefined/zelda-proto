@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { MAX_NICKNAME_LENGTH } from '@gelehka/shared/constants';
-import { parseNickname, type NicknameValidationReason } from '@gelehka/shared/protocol';
+import { MAX_NICKNAME_LENGTH } from '@/shared/constants';
+import { parseNickname, type NicknameValidationReason } from '@/shared/protocol';
 import { gameConnection } from '../network/gameConnection';
 import { useGameStore } from './store';
 

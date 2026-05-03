@@ -1,12 +1,13 @@
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const isProd = process.env.NODE_ENV === 'production';
 const appRelease = process.env.GIT_COMMIT_SHA || process.env.VITE_APP_RELEASE || 'dev';
-const devPort = Number(process.env.VITE_DEV_PORT || 5173);
-const serverPort = Number(process.env.VITE_SERVER_PORT || 3002);
+const devPort = Number(process.env.VITE_DEV_PORT || 5174);
+const serverPort = Number(process.env.VITE_SERVER_PORT || 3003);
 const clientPackageJson = JSON.parse(
   readFileSync(new URL('./package.json', import.meta.url), 'utf8')
 ) as {
@@ -14,6 +15,11 @@ const clientPackageJson = JSON.parse(
 };
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(clientPackageJson.version),
     __APP_RELEASE__: JSON.stringify(appRelease),
