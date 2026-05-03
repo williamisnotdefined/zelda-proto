@@ -105,7 +105,7 @@ describe('getPredictedPosition', () => {
     expect(result.y).toBe(0);
   });
 
-  it('replays a dash as an instant 150px jump', () => {
+  it('replays a dash as an instant 300px jump', () => {
     const result = getPredictedPosition(
       createPlayer({ x: 0, y: 0, direction: 'right' }),
       [

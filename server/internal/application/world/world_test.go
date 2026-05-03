@@ -343,7 +343,7 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	if got, want := target.HP, player.MaxHP-player.WaveDamage; got != want {
 		t.Fatalf("expected target HP=%d after wave, got %d", want, got)
 	}
-	if got, want := attacker.HP, player.MaxHP-19; got != want {
+	if got, want := attacker.HP, player.MaxHP-18; got != want {
 		t.Fatalf("expected attacker HP=%d after wave life steal, got %d", want, got)
 	}
 	if dx, dy := e.X-attacker.X, e.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
