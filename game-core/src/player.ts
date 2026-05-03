@@ -25,7 +25,7 @@ export const PLAYER_ATTACK_RANGE_RIGHT = 48;
 export const PLAYER_ATTACK_WIDTH = 72;
 export const PVP_DAMAGE = 25;
 export const SAFE_ZONE_DURATION = 3000;
-export const BURNING_TICK_DAMAGE = 4;
+export const BURNING_TICK_DAMAGE = 8;
 export const BURNING_TICKS = 3;
 export const BURNING_TICK_MS = 1000;
 

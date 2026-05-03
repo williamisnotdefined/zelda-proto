@@ -1306,7 +1306,7 @@ func (w *World) resolveCombat() {
 			w.spawnDashTrail(sourcePlayerID, startX, startY, direction)
 		},
 	) {
-		w.resolveBodyCollisionsLocked()
+		w.syncDynamicIndexesLocked()
 	}
 	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas, w.safeZone())
 }

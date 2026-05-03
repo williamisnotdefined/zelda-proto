@@ -219,7 +219,7 @@ func TestPlayerWaveRespectsSafezoneForPvP(t *testing.T) {
 	}
 }
 
-func TestPlayerDashPushesAllSupportedTargetKinds(t *testing.T) {
+func TestPlayerDashMovesCasterOnlyAndSpawnsTrail(t *testing.T) {
 	t.Parallel()
 
 	caster := newPlayerOutsideSafezone("att", 0, 0)
@@ -246,7 +246,7 @@ func TestPlayerDashPushesAllSupportedTargetKinds(t *testing.T) {
 		},
 	)
 	if !moved {
-		t.Fatal("expected dash knockback to move targets")
+		t.Fatal("expected dash to move the caster")
 	}
 	if !spawnedTrail {
 		t.Fatal("expected dash trail callback")
@@ -264,25 +264,25 @@ func TestPlayerDashPushesAllSupportedTargetKinds(t *testing.T) {
 		"vanessa": {v.X, v.Y},
 		"player":  {target.X, target.Y},
 	} {
-		if pos[0] <= 120 && name == "vanessa" {
-			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		if name == "enemy" && (pos[0] != 40 || pos[1] != 0) {
+			t.Fatalf("expected %s to stay in place, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
-		if pos[0] <= 90 && name == "gelehk" {
-			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		if name == "dragon" && (pos[0] != 60 || pos[1] != 10) {
+			t.Fatalf("expected %s to stay in place, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
-		if pos[0] <= 60 && name == "dragon" {
-			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		if name == "gelehk" && (pos[0] != 90 || pos[1] != -10) {
+			t.Fatalf("expected %s to stay in place, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
-		if pos[0] <= 40 && name == "enemy" {
-			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		if name == "vanessa" && (pos[0] != 120 || pos[1] != 0) {
+			t.Fatalf("expected %s to stay in place, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
-		if pos[0] <= 80 && name == "player" {
-			t.Fatalf("expected %s to be pushed forward, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		if name == "player" && (pos[0] != 80 || pos[1] != 0) {
+			t.Fatalf("expected %s to stay in place, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
 		}
 	}
 }
 
-func TestPlayerDashAlsoPushesProtectedPlayers(t *testing.T) {
+func TestPlayerDashDoesNotMoveProtectedPlayers(t *testing.T) {
 	t.Parallel()
 
 	protectedCaster := player.New("att", "n", 0, 0)
@@ -298,13 +298,13 @@ func TestPlayerDashAlsoPushesProtectedPlayers(t *testing.T) {
 		nil,
 	)
 	if !moved {
-		t.Fatal("expected protected caster dash to move target")
+		t.Fatal("expected protected caster dash to move caster")
 	}
 	if protectedTarget.HP != player.MaxHP {
 		t.Fatalf("expected dash to avoid direct damage, got %d", protectedTarget.HP)
 	}
-	if protectedTarget.X <= 80 {
-		t.Fatalf("expected protected target to be pushed, got X=%.1f", protectedTarget.X)
+	if protectedTarget.X != 80 {
+		t.Fatalf("expected protected target to stay in place, got X=%.1f", protectedTarget.X)
 	}
 }
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { HAZARD_KINDS } from '@gelehka/shared';
-import { BLOB_DAMAGE } from '../src/entities/Blob';
-import { Player, SAFE_ZONE_DURATION } from '../src/entities/Player';
+import { BURNING_TICK_DAMAGE, Player, SAFE_ZONE_DURATION } from '../src/entities/Player';
 import { HazardSystem } from '../src/game/systems/HazardSystem';
 import type { Hazard } from '../src/game/World';
 
@@ -22,7 +21,7 @@ function createHazard(overrides: Partial<Hazard> = {}): Hazard {
     y: 0,
     kind: HAZARD_KINDS.FIRE_FIELD,
     ttlMs: 1800,
-    damage: BLOB_DAMAGE,
+    damage: BURNING_TICK_DAMAGE,
     burningTicks: 3,
     hitPlayerIds: new Set<string>(),
     ...overrides,
@@ -93,7 +92,7 @@ describe('HazardSystem', () => {
     system.spawnPurpleField(hazards, 100, 100);
     system.update(0, 1000, players, hazards, FAR_SAFE_ZONE, forEachPlayerInRadius(players));
 
-    expect(player.hp).toBe(player.maxHp - BLOB_DAMAGE);
+    expect(player.hp).toBe(player.maxHp - BURNING_TICK_DAMAGE);
     expect(player.purpleBurningTicksRemaining).toBeGreaterThan(0);
   });
 
@@ -114,7 +113,7 @@ describe('HazardSystem', () => {
 
     system.update(0, 1000, players, hazards, FAR_SAFE_ZONE, forEachPlayerInRadius(players));
 
-    expect(player.hp).toBe(player.maxHp - BLOB_DAMAGE);
+    expect(player.hp).toBe(player.maxHp - BURNING_TICK_DAMAGE);
     expect(player.blueBurningTicksRemaining).toBe(3);
   });
 });

@@ -229,18 +229,19 @@ func TestDropsDespawnAfterConfiguredLifetime(t *testing.T) {
 	}
 }
 
-func TestPlayerDashMovesPushesTargetsAndSpawnsBlueTrail(t *testing.T) {
+func TestPlayerDashMovesCasterOnlyAndSpawnsBlueTrail(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
 	ax, ay := 1000.0, 1000.0
-	tx, ty := 1080.0, 1000.0
+	tx, ty := 1090.0, 1000.0
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
 	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
 	attacker.SafeZoneTimer = 0
 	target.SafeZoneTimer = 0
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
 	e := enemy.New("e1", 1040, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
 	w.SpawnEnemy(e)
 
@@ -250,14 +251,11 @@ func TestPlayerDashMovesPushesTargetsAndSpawnsBlueTrail(t *testing.T) {
 	if attacker.X <= ax+100 || attacker.Y != ay {
 		t.Fatalf("expected attacker to advance sharply on dash, got (%.1f, %.1f)", attacker.X, attacker.Y)
 	}
-	if target.X <= tx {
-		t.Fatalf("expected target pushed forward, got (%.1f, %.1f)", target.X, target.Y)
+	if target.X >= tx+20 || target.Y != ty {
+		t.Fatalf("expected target to avoid dash knockback, got (%.1f, %.1f)", target.X, target.Y)
 	}
-	if e.X <= 1040 {
-		t.Fatalf("expected enemy pushed forward, got (%.1f, %.1f)", e.X, e.Y)
-	}
-	if target.HP != player.MaxHP || e.HP != passiveConfig.MaxHP {
-		t.Fatal("dash body should not deal direct damage")
+	if e.X >= 1060 || e.Y != 1000 {
+		t.Fatalf("expected enemy to avoid dash knockback, got (%.1f, %.1f)", e.X, e.Y)
 	}
 	snap := w.Snapshot()
 	if len(snap.WaveIndicators) != 0 {
@@ -272,6 +270,27 @@ func TestPlayerDashMovesPushesTargetsAndSpawnsBlueTrail(t *testing.T) {
 	}
 	if !foundBlueFlame {
 		t.Fatal("expected blue flame hazards from dash trail")
+	}
+}
+
+func TestPlayerDashCanEndOnEnemyAndStillTakeContactDamage(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	px, py := 1000.0, 1000.0
+	p := w.AddPlayer("p1", "Link", &px, &py)
+	p.SafeZoneTimer = 0
+
+	contactConfig := enemy.BlobConfig
+	contactConfig.Damage = 7
+	e := enemy.New("e1", px+player.DashDistance, py, "0,0", contactConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Dash: true})
+	w.Tick(20 * time.Millisecond)
+
+	if got, want := p.HP, player.MaxHP-contactConfig.Damage; got != want {
+		t.Fatalf("expected dash end overlap to keep normal contact damage, want HP=%d got %d", want, got)
 	}
 }
 

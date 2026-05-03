@@ -37,7 +37,7 @@ const (
 	AttackWidth                 = 72
 	PvPDamage                   = 25
 	SafeZoneDuration            = 3000 * time.Millisecond
-	BurningTickDamage           = 4
+	BurningTickDamage           = 8
 	BurningTicks                = 3
 	BurningTickInterval         = 1000 * time.Millisecond
 )

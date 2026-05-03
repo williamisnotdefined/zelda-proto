@@ -22,7 +22,6 @@ import (
 
 const contactTouchMargin = 2.0
 const playerWavePushMargin = 12.0
-const playerDashPathMargin = 12.0
 
 // PlayerMeleeSystem resolves player melee swings against enemies and bosses.
 // Mirrors server/src/game/combat/PlayerAttackIntentSystem.ts (the TS server
@@ -279,9 +278,10 @@ type dashCast struct {
 	direction domworld.Direction
 }
 
-// Resolve completes every queued dash, then applies directional knockback to
-// players, enemies, and bosses caught in the path. Returns true when any
-// entity position changed and body collisions should be re-resolved.
+// Resolve completes every queued dash and spawns the matching blue flame trail.
+// Dash no longer pushes actors in its path; the caster simply passes through
+// them and normal contact damage still resolves afterward if the dash ends on a
+// hostile body.
 func (PlayerDashSystem) Resolve(
 	players map[string]*player.Player,
 	enemies map[string]*enemy.Enemy,
@@ -317,56 +317,6 @@ func (PlayerDashSystem) Resolve(
 		moved = true
 		if spawnTrail != nil {
 			spawnTrail(dash.caster.ID, dash.startX, dash.startY, dash.direction)
-		}
-	}
-
-	for _, dash := range dashes {
-		for _, e := range enemies {
-			if e.State == enemy.StateDead || !intersectsDashPath(dash, e.X, e.Y, e.CollisionRadius()) {
-				continue
-			}
-			if moveAlongDash(dash.direction, &e.X, &e.Y) {
-				e.TargetID = ""
-				e.State = enemy.StateIdle
-				moved = true
-			}
-		}
-		for _, d := range dragons {
-			if d.State == boss.StateDead || !intersectsDashPath(dash, d.X, d.Y, d.ContactRadius()) {
-				continue
-			}
-			if moveAlongDash(dash.direction, &d.X, &d.Y) {
-				d.TargetID = ""
-				d.State = boss.StateIdle
-				moved = true
-			}
-		}
-		for _, g := range gelehks {
-			if g.State == boss.StateDead || !intersectsDashPath(dash, g.X, g.Y, g.ContactRadius()) {
-				continue
-			}
-			if moveAlongDash(dash.direction, &g.X, &g.Y) {
-				g.StopChargeOnCollision()
-				moved = true
-			}
-		}
-		for _, v := range vanessas {
-			if v.State == boss.StateDead || !intersectsDashPath(dash, v.X, v.Y, v.ContactRadius()) {
-				continue
-			}
-			if moveAlongDash(dash.direction, &v.X, &v.Y) {
-				v.TargetID = ""
-				v.State = boss.StateIdle
-				moved = true
-			}
-		}
-		for _, target := range players {
-			if target.ID == dash.caster.ID || target.State == player.StateDead {
-				continue
-			}
-			if moveAlongDashIfHit(dash, target, player.Width/2) {
-				moved = true
-			}
 		}
 	}
 
@@ -511,50 +461,5 @@ func dashDestination(x, y float64, direction domworld.Direction) (float64, float
 		return x - player.DashDistance, y
 	default:
 		return x + player.DashDistance, y
-	}
-}
-
-func moveAlongDash(direction domworld.Direction, x, y *float64) bool {
-	if x == nil || y == nil {
-		return false
-	}
-	switch direction {
-	case domworld.DirectionUp:
-		*y -= player.DashPushDistance
-	case domworld.DirectionDown:
-		*y += player.DashPushDistance
-	case domworld.DirectionLeft:
-		*x -= player.DashPushDistance
-	case domworld.DirectionRight:
-		*x += player.DashPushDistance
-	default:
-		return false
-	}
-	return true
-}
-
-func moveAlongDashIfHit(dash dashCast, target *player.Player, bodyRadius float64) bool {
-	if target == nil || !intersectsDashPath(dash, target.X, target.Y, bodyRadius) {
-		return false
-	}
-	return moveAlongDash(dash.direction, &target.X, &target.Y)
-}
-
-func intersectsDashPath(dash dashCast, targetX, targetY, bodyRadius float64) bool {
-	minX := math.Min(dash.startX, dash.endX)
-	maxX := math.Max(dash.startX, dash.endX)
-	minY := math.Min(dash.startY, dash.endY)
-	maxY := math.Max(dash.startY, dash.endY)
-	crossAxisAllowance := player.DashHalfWidth + bodyRadius + playerDashPathMargin
-
-	switch dash.direction {
-	case domworld.DirectionLeft, domworld.DirectionRight:
-		return targetX >= minX-bodyRadius && targetX <= maxX+bodyRadius &&
-			math.Abs(targetY-dash.startY) <= crossAxisAllowance
-	case domworld.DirectionUp, domworld.DirectionDown:
-		return targetY >= minY-bodyRadius && targetY <= maxY+bodyRadius &&
-			math.Abs(targetX-dash.startX) <= crossAxisAllowance
-	default:
-		return false
 	}
 }

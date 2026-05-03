@@ -1,8 +1,7 @@
 import { HAZARD_KINDS } from '@gelehka/shared';
 import type { HazardKind } from '@gelehka/shared';
 import { nanoid } from 'nanoid';
-import { BLOB_DAMAGE } from '../../entities/Blob.js';
-import { Player, PLAYER_HEIGHT, PLAYER_WIDTH } from '../../entities/Player.js';
+import { BURNING_TICK_DAMAGE, Player, PLAYER_HEIGHT, PLAYER_WIDTH } from '../../entities/Player.js';
 import type { Hazard } from '../World.js';
 import { getHazardRuntimeDefinition } from '../registries/hazardRegistry.js';
 import type { SafeZoneArea } from './SafeZoneSystem.js';
@@ -56,7 +55,7 @@ export class HazardSystem {
           y: y + offsetY,
           kind: HAZARD_KINDS.PURPLE_FIELD,
           ttlMs: definition.ttlMs,
-          damage: BLOB_DAMAGE,
+          damage: BURNING_TICK_DAMAGE,
           burningTicks: definition.burningTicks,
           hitPlayerIds: new Set<string>(),
         });
@@ -121,7 +120,7 @@ export class HazardSystem {
       y: hy,
       kind,
       ttlMs: definition.ttlMs,
-      damage: BLOB_DAMAGE,
+      damage: BURNING_TICK_DAMAGE,
       burningTicks: definition.burningTicks,
       hitPlayerIds: new Set<string>(),
     });

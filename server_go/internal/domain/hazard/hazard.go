@@ -15,7 +15,7 @@ const (
 
 // Tick parameters.
 const (
-	BurningTickDamage   = 4
+	BurningTickDamage   = 8
 	BurningTicks        = 3
 	BurningTickInterval = 1000 * time.Millisecond
 	HitRadius           = 18
