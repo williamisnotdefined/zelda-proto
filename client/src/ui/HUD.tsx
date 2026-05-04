@@ -47,7 +47,7 @@ export function HUD() {
   }, []);
 
   useEffect(() => {
-    if (!waveCooldownEndsAt && !dashCooldownEndsAt && !fireballCooldownEndsAt) {
+    if (!waveCooldownEndsAt && !dashCooldownEndsAt && !fireballCooldownEndsAt && !landmineCooldownEndsAt) {
       setCooldownNowMs(Date.now());
       return;
     }
@@ -59,14 +59,15 @@ export function HUD() {
       if (
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
-        now >= (fireballCooldownEndsAt ?? 0)
+        now >= (fireballCooldownEndsAt ?? 0) &&
+        now >= (landmineCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
       }
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [dashCooldownEndsAt, fireballCooldownEndsAt, waveCooldownEndsAt]);
+  }, [dashCooldownEndsAt, fireballCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
 
   useEffect(() => {
     const element = document.documentElement as HTMLElement & {
