@@ -18,14 +18,32 @@ const LANDMINE_DISPLAY_WIDTH = 24;
 const LANDMINE_DISPLAY_HEIGHT = 34;
 const LANDMINE_EXPLOSION_DISPLAY_WIDTH = 221;
 const LANDMINE_EXPLOSION_DISPLAY_HEIGHT = 241;
+const LANDMINE_EXPLOSION_TEXTURE_KEYS = [
+  'explosion_0',
+  'explosion_1',
+  'explosion_2',
+  'explosion_3',
+  'explosion_4',
+  'explosion_5',
+  'explosion_6',
+] as const;
+const LANDMINE_EXPLOSION_FIRST_TEXTURE_KEY = LANDMINE_EXPLOSION_TEXTURE_KEYS[0];
+const LANDMINE_EXPLOSION_BOTTOM_TRIM_PX = 8;
+const LANDMINE_EXPLOSION_ORIGIN_Y =
+  1 -
+  (LANDMINE_DISPLAY_HEIGHT / 2 + LANDMINE_EXPLOSION_BOTTOM_TRIM_PX) /
+    LANDMINE_EXPLOSION_DISPLAY_HEIGHT;
+const LANDMINE_EXPLOSION_FRAME_DURATION_MS =
+  EXPLOSION_DURATION_MS / LANDMINE_EXPLOSION_TEXTURE_KEYS.length;
 
 export class LandmineHazardEntity {
-  sprite: Phaser.GameObjects.Sprite;
+  sprite: Phaser.GameObjects.Image;
   zone: Phaser.GameObjects.Arc;
   private targetX: number;
   private targetY: number;
   private readonly exploding: boolean;
   private explosionElapsedMs = 0;
+  private explosionFinished = false;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -37,21 +55,20 @@ export class LandmineHazardEntity {
     this.targetY = y;
     this.exploding = kind === HAZARD_KINDS.LANDMINE_EXPLOSION;
 
-    this.sprite = scene.add.sprite(
-      x,
-      y,
-      this.exploding ? 'explosion' : 'landmine',
-      this.exploding ? 0 : undefined
+    const spriteX = this.exploding ? Math.round(x) : x;
+    const spriteY = this.exploding ? Math.round(y) : y;
+
+    this.sprite = scene.add.image(
+      spriteX,
+      spriteY,
+      this.exploding ? LANDMINE_EXPLOSION_FIRST_TEXTURE_KEY : 'landmine'
     );
     this.sprite.setDisplaySize(
       this.exploding ? LANDMINE_EXPLOSION_DISPLAY_WIDTH : LANDMINE_DISPLAY_WIDTH,
       this.exploding ? LANDMINE_EXPLOSION_DISPLAY_HEIGHT : LANDMINE_DISPLAY_HEIGHT
     );
-    this.sprite.setOrigin(0.5, 0.5);
+    this.sprite.setOrigin(0.5, this.exploding ? LANDMINE_EXPLOSION_ORIGIN_Y : 0.5);
     this.sprite.setDepth(this.exploding ? 10.25 : 10.15);
-    if (this.exploding) {
-      this.sprite.play('explosion');
-    }
 
     this.zone = scene.add.circle(
       x,
@@ -82,9 +99,52 @@ export class LandmineHazardEntity {
   }
 
   update(dt: number, inView: boolean): void {
+    if (this.exploding && this.explosionFinished) {
+      this.sprite.setVisible(false);
+      this.zone.setVisible(false);
+      return;
+    }
+
     this.sprite.setVisible(inView);
     this.zone.setVisible(inView);
     if (!inView) {
+      return;
+    }
+
+    if (this.exploding) {
+      const spriteX = Math.round(this.targetX);
+      const spriteY = Math.round(this.targetY);
+
+      this.sprite.setPosition(spriteX, spriteY);
+      this.zone.x = spriteX;
+      this.zone.y = spriteY;
+
+      this.explosionElapsedMs = Math.min(this.explosionElapsedMs + dt, EXPLOSION_DURATION_MS);
+      const frameIndex = Math.min(
+        Math.floor(this.explosionElapsedMs / LANDMINE_EXPLOSION_FRAME_DURATION_MS),
+        LANDMINE_EXPLOSION_TEXTURE_KEYS.length - 1
+      );
+      const textureKey = LANDMINE_EXPLOSION_TEXTURE_KEYS[frameIndex];
+
+      if (this.sprite.texture.key !== textureKey) {
+        this.sprite.setTexture(textureKey);
+      }
+
+      const progress = this.explosionElapsedMs / EXPLOSION_DURATION_MS;
+      this.zone.setFillStyle(LANDMINE_EXPLOSION_COLOR, EXPLOSION_ALPHA * (1 - progress));
+      this.zone.setStrokeStyle(
+        2,
+        LANDMINE_EXPLOSION_COLOR,
+        EXPLOSION_STROKE_ALPHA * (1 - progress)
+      );
+      this.sprite.setAlpha(1 - progress * 0.22);
+
+      if (this.explosionElapsedMs >= EXPLOSION_DURATION_MS) {
+        this.explosionFinished = true;
+        this.sprite.setVisible(false);
+        this.zone.setVisible(false);
+      }
+
       return;
     }
 
@@ -103,19 +163,6 @@ export class LandmineHazardEntity {
 
     this.zone.x = this.sprite.x;
     this.zone.y = this.sprite.y;
-
-    if (this.exploding) {
-      this.explosionElapsedMs = Math.min(this.explosionElapsedMs + dt, EXPLOSION_DURATION_MS);
-      const progress = this.explosionElapsedMs / EXPLOSION_DURATION_MS;
-      this.zone.setFillStyle(LANDMINE_EXPLOSION_COLOR, EXPLOSION_ALPHA * (1 - progress));
-      this.zone.setStrokeStyle(
-        2,
-        LANDMINE_EXPLOSION_COLOR,
-        EXPLOSION_STROKE_ALPHA * (1 - progress)
-      );
-      this.sprite.setAlpha(1 - progress * 0.22);
-      return;
-    }
 
     const pulse = 0.08 + 0.02 * Math.sin(this.scene.time.now / 160);
     this.zone.setFillStyle(LANDMINE_COLOR, pulse);

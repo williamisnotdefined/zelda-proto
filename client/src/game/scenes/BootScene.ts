@@ -4,6 +4,50 @@ import { setupAnimations } from '../AnimationSetup';
 
 const EXPLOSION_FRAME_WIDTH = 221;
 const EXPLOSION_FRAME_HEIGHT = 241;
+const EXPLOSION_FRAME_COUNT = 7;
+const EXPLOSION_STRIP_TEXTURE_KEY = 'explosion_strip';
+const EXPLOSION_FRAME_TEXTURE_KEY_PREFIX = 'explosion_';
+
+function getExplosionFrameTextureKey(frameIndex: number): string {
+  return `${EXPLOSION_FRAME_TEXTURE_KEY_PREFIX}${frameIndex}`;
+}
+
+function registerExplosionTextures(scene: Phaser.Scene): void {
+  const stripTexture = scene.textures.get(EXPLOSION_STRIP_TEXTURE_KEY);
+  const sourceImage = stripTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+
+  for (let frameIndex = 0; frameIndex < EXPLOSION_FRAME_COUNT; frameIndex += 1) {
+    const textureKey = getExplosionFrameTextureKey(frameIndex);
+
+    if (scene.textures.exists(textureKey)) {
+      continue;
+    }
+
+    const frameTexture = scene.textures.createCanvas(
+      textureKey,
+      EXPLOSION_FRAME_WIDTH,
+      EXPLOSION_FRAME_HEIGHT
+    );
+
+    if (!frameTexture) {
+      continue;
+    }
+
+    frameTexture.context.imageSmoothingEnabled = false;
+    frameTexture.context.drawImage(
+      sourceImage,
+      frameIndex * EXPLOSION_FRAME_WIDTH,
+      0,
+      EXPLOSION_FRAME_WIDTH,
+      EXPLOSION_FRAME_HEIGHT,
+      0,
+      0,
+      EXPLOSION_FRAME_WIDTH,
+      EXPLOSION_FRAME_HEIGHT
+    );
+    frameTexture.refresh();
+  }
+}
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -110,10 +154,7 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 128,
     });
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
-    this.load.spritesheet('explosion', 'assets/sprites/attacks/explosion.png', {
-      frameWidth: EXPLOSION_FRAME_WIDTH,
-      frameHeight: EXPLOSION_FRAME_HEIGHT,
-    });
+    this.load.image(EXPLOSION_STRIP_TEXTURE_KEY, 'assets/sprites/attacks/explosion.png');
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
@@ -158,6 +199,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     try {
+      registerExplosionTextures(this);
       setupAnimations(this);
       this.scene.start('WorldScene');
     } catch (error) {

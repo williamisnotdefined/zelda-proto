@@ -224,11 +224,4 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'vanessa_up', start: 24, end: 31, frameRate: 10 },
   ]);
 
-  scene.anims.remove('explosion');
-  scene.anims.create({
-    key: 'explosion',
-    frames: scene.anims.generateFrameNumbers('explosion', { start: 0, end: 6 }),
-    frameRate: 16,
-    repeat: 0,
-  });
 }
