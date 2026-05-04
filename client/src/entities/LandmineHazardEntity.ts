@@ -40,7 +40,7 @@ export class LandmineHazardEntity {
     this.sprite = scene.add.sprite(
       x,
       y,
-      this.exploding ? 'landmine_explosion' : 'landmine_mine',
+      this.exploding ? 'explosion' : 'landmine',
       this.exploding ? '0' : undefined
     );
     this.sprite.setDisplaySize(
@@ -51,7 +51,7 @@ export class LandmineHazardEntity {
     this.sprite.setDepth(this.exploding ? 10.25 : 10.15);
     if (this.exploding) {
       this.sprite.setBlendMode('ADD');
-      this.sprite.play('landmine_explosion');
+      this.sprite.play('explosion');
     }
 
     this.zone = scene.add.circle(

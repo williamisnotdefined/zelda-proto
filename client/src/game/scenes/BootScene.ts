@@ -2,12 +2,11 @@ import Phaser from 'phaser';
 import { logError } from '../../monitoring/errorLogger';
 import { setupAnimations } from '../AnimationSetup';
 
-const LANDMINE_SOURCE_KEY = 'landmine_source';
-const LANDMINE_MINE_TEXTURE_KEY = 'landmine_mine';
-const LANDMINE_EXPLOSION_TEXTURE_KEY = 'landmine_explosion';
-const LANDMINE_SOURCE_FRAME_WIDTH = 183;
-const LANDMINE_SOURCE_FRAME_HEIGHT = 225;
-const LANDMINE_EXPLOSION_FRAME_COUNT = 7;
+const EXPLOSION_SOURCE_KEY = 'explosion_source';
+const EXPLOSION_TEXTURE_KEY = 'explosion';
+const EXPLOSION_FRAME_WIDTH = 183;
+const EXPLOSION_FRAME_HEIGHT = 225;
+const EXPLOSION_FRAME_COUNT = 7;
 
 type OpaqueBounds = {
   x: number;
@@ -59,15 +58,12 @@ function getOpaqueBounds(
   };
 }
 
-function buildLandmineTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists(LANDMINE_MINE_TEXTURE_KEY)) {
-    scene.textures.remove(LANDMINE_MINE_TEXTURE_KEY);
-  }
-  if (scene.textures.exists(LANDMINE_EXPLOSION_TEXTURE_KEY)) {
-    scene.textures.remove(LANDMINE_EXPLOSION_TEXTURE_KEY);
+function buildExplosionTexture(scene: Phaser.Scene): void {
+  if (scene.textures.exists(EXPLOSION_TEXTURE_KEY)) {
+    scene.textures.remove(EXPLOSION_TEXTURE_KEY);
   }
 
-  const sourceTexture = scene.textures.get(LANDMINE_SOURCE_KEY);
+  const sourceTexture = scene.textures.get(EXPLOSION_SOURCE_KEY);
   const sourceImage = sourceTexture.getSourceImage() as CanvasImageSource & {
     width: number;
     height: number;
@@ -79,72 +75,41 @@ function buildLandmineTextures(scene: Phaser.Scene): void {
 
   const analysisContext = analysisCanvas.getContext('2d');
   if (!analysisContext) {
-    throw new Error('Unable to create landmine texture analysis context');
+    throw new Error('Unable to create explosion texture analysis context');
   }
 
   analysisContext.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
   analysisContext.drawImage(sourceImage, 0, 0);
 
-  const mineBounds = getOpaqueBounds(
-    analysisContext,
-    0,
-    0,
-    LANDMINE_SOURCE_FRAME_WIDTH,
-    LANDMINE_SOURCE_FRAME_HEIGHT
-  );
-
-  const mineTexture = scene.textures.createCanvas(
-    LANDMINE_MINE_TEXTURE_KEY,
-    mineBounds.width,
-    mineBounds.height
-  );
-  if (!mineTexture) {
-    throw new Error('Unable to create landmine mine texture');
-  }
-  const mineContext = mineTexture.getContext();
-  mineContext.clearRect(0, 0, mineBounds.width, mineBounds.height);
-  mineContext.drawImage(
-    sourceImage,
-    mineBounds.x,
-    mineBounds.y,
-    mineBounds.width,
-    mineBounds.height,
-    0,
-    0,
-    mineBounds.width,
-    mineBounds.height
-  );
-  mineTexture.refresh();
-
   const explosionTexture = scene.textures.createCanvas(
-    LANDMINE_EXPLOSION_TEXTURE_KEY,
-    LANDMINE_SOURCE_FRAME_WIDTH * LANDMINE_EXPLOSION_FRAME_COUNT,
-    LANDMINE_SOURCE_FRAME_HEIGHT
+    EXPLOSION_TEXTURE_KEY,
+    EXPLOSION_FRAME_WIDTH * EXPLOSION_FRAME_COUNT,
+    EXPLOSION_FRAME_HEIGHT
   );
   if (!explosionTexture) {
-    throw new Error('Unable to create landmine explosion texture');
+    throw new Error('Unable to create explosion texture');
   }
+
   const explosionContext = explosionTexture.getContext();
   explosionContext.clearRect(
     0,
     0,
-    LANDMINE_SOURCE_FRAME_WIDTH * LANDMINE_EXPLOSION_FRAME_COUNT,
-    LANDMINE_SOURCE_FRAME_HEIGHT
+    EXPLOSION_FRAME_WIDTH * EXPLOSION_FRAME_COUNT,
+    EXPLOSION_FRAME_HEIGHT
   );
 
-  for (let frame = 0; frame < LANDMINE_EXPLOSION_FRAME_COUNT; frame += 1) {
-    const sourceFrameX = LANDMINE_SOURCE_FRAME_WIDTH * (frame + 1);
+  for (let frame = 0; frame < EXPLOSION_FRAME_COUNT; frame += 1) {
+    const sourceFrameX = EXPLOSION_FRAME_WIDTH * frame;
     const bounds = getOpaqueBounds(
       analysisContext,
       sourceFrameX,
       0,
-      LANDMINE_SOURCE_FRAME_WIDTH,
-      LANDMINE_SOURCE_FRAME_HEIGHT
+      EXPLOSION_FRAME_WIDTH,
+      EXPLOSION_FRAME_HEIGHT
     );
     const destinationX =
-      frame * LANDMINE_SOURCE_FRAME_WIDTH +
-      Math.floor((LANDMINE_SOURCE_FRAME_WIDTH - bounds.width) / 2);
-    const destinationY = Math.floor((LANDMINE_SOURCE_FRAME_HEIGHT - bounds.height) / 2);
+      frame * EXPLOSION_FRAME_WIDTH + Math.floor((EXPLOSION_FRAME_WIDTH - bounds.width) / 2);
+    const destinationY = Math.floor((EXPLOSION_FRAME_HEIGHT - bounds.height) / 2);
 
     explosionContext.drawImage(
       sourceImage,
@@ -160,10 +125,10 @@ function buildLandmineTextures(scene: Phaser.Scene): void {
     explosionTexture.add(
       String(frame),
       0,
-      frame * LANDMINE_SOURCE_FRAME_WIDTH,
+      frame * EXPLOSION_FRAME_WIDTH,
       0,
-      LANDMINE_SOURCE_FRAME_WIDTH,
-      LANDMINE_SOURCE_FRAME_HEIGHT
+      EXPLOSION_FRAME_WIDTH,
+      EXPLOSION_FRAME_HEIGHT
     );
   }
 
@@ -274,7 +239,8 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     });
-    this.load.image(LANDMINE_SOURCE_KEY, 'assets/sprites/attacks/landmine.png');
+    this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
+    this.load.image(EXPLOSION_SOURCE_KEY, 'assets/sprites/attacks/explosion.png');
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
@@ -319,7 +285,7 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     try {
-      buildLandmineTextures(this);
+      buildExplosionTexture(this);
       setupAnimations(this);
       this.scene.start('WorldScene');
     } catch (error) {
