@@ -5,6 +5,7 @@ import { WorldScene } from './scenes/WorldScene';
 export function createGame(parent: string): Phaser.Game {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
+    pixelArt: true,
     width: 800,
     height: 600,
     parent,

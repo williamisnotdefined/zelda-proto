@@ -16,8 +16,8 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 140;
 const LANDMINE_DISPLAY_WIDTH = 24;
 const LANDMINE_DISPLAY_HEIGHT = 34;
-const LANDMINE_EXPLOSION_DISPLAY_WIDTH = 183;
-const LANDMINE_EXPLOSION_DISPLAY_HEIGHT = 225;
+const LANDMINE_EXPLOSION_DISPLAY_WIDTH = 221;
+const LANDMINE_EXPLOSION_DISPLAY_HEIGHT = 241;
 
 export class LandmineHazardEntity {
   sprite: Phaser.GameObjects.Sprite;
@@ -41,7 +41,7 @@ export class LandmineHazardEntity {
       x,
       y,
       this.exploding ? 'explosion' : 'landmine',
-      this.exploding ? '0' : undefined
+      this.exploding ? 0 : undefined
     );
     this.sprite.setDisplaySize(
       this.exploding ? LANDMINE_EXPLOSION_DISPLAY_WIDTH : LANDMINE_DISPLAY_WIDTH,
@@ -50,7 +50,6 @@ export class LandmineHazardEntity {
     this.sprite.setOrigin(0.5, 0.5);
     this.sprite.setDepth(this.exploding ? 10.25 : 10.15);
     if (this.exploding) {
-      this.sprite.setBlendMode('ADD');
       this.sprite.play('explosion');
     }
 

@@ -227,7 +227,7 @@ export function setupAnimations(scene: Phaser.Scene): void {
   scene.anims.remove('explosion');
   scene.anims.create({
     key: 'explosion',
-    frames: scene.anims.generateFrameNames('explosion', { start: 0, end: 6 }),
+    frames: scene.anims.generateFrameNumbers('explosion', { start: 0, end: 6 }),
     frameRate: 16,
     repeat: 0,
   });

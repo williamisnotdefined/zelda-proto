@@ -2,138 +2,8 @@ import Phaser from 'phaser';
 import { logError } from '../../monitoring/errorLogger';
 import { setupAnimations } from '../AnimationSetup';
 
-const EXPLOSION_SOURCE_KEY = 'explosion_source';
-const EXPLOSION_TEXTURE_KEY = 'explosion';
-const EXPLOSION_FRAME_WIDTH = 183;
-const EXPLOSION_FRAME_HEIGHT = 225;
-const EXPLOSION_FRAME_COUNT = 7;
-
-type OpaqueBounds = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-function getOpaqueBounds(
-  context: CanvasRenderingContext2D,
-  frameX: number,
-  frameY: number,
-  frameWidth: number,
-  frameHeight: number
-): OpaqueBounds {
-  const { data } = context.getImageData(frameX, frameY, frameWidth, frameHeight);
-  let left = frameWidth;
-  let top = frameHeight;
-  let right = -1;
-  let bottom = -1;
-
-  for (let y = 0; y < frameHeight; y += 1) {
-    for (let x = 0; x < frameWidth; x += 1) {
-      if (data[(y * frameWidth + x) * 4 + 3] === 0) {
-        continue;
-      }
-
-      left = Math.min(left, x);
-      top = Math.min(top, y);
-      right = Math.max(right, x);
-      bottom = Math.max(bottom, y);
-    }
-  }
-
-  if (right === -1 || bottom === -1) {
-    return {
-      x: 0,
-      y: 0,
-      width: frameWidth,
-      height: frameHeight,
-    };
-  }
-
-  return {
-    x: left,
-    y: top,
-    width: right - left + 1,
-    height: bottom - top + 1,
-  };
-}
-
-function buildExplosionTexture(scene: Phaser.Scene): void {
-  if (scene.textures.exists(EXPLOSION_TEXTURE_KEY)) {
-    scene.textures.remove(EXPLOSION_TEXTURE_KEY);
-  }
-
-  const sourceTexture = scene.textures.get(EXPLOSION_SOURCE_KEY);
-  const sourceImage = sourceTexture.getSourceImage() as CanvasImageSource & {
-    width: number;
-    height: number;
-  };
-
-  const analysisCanvas = document.createElement('canvas');
-  analysisCanvas.width = sourceImage.width;
-  analysisCanvas.height = sourceImage.height;
-
-  const analysisContext = analysisCanvas.getContext('2d');
-  if (!analysisContext) {
-    throw new Error('Unable to create explosion texture analysis context');
-  }
-
-  analysisContext.clearRect(0, 0, analysisCanvas.width, analysisCanvas.height);
-  analysisContext.drawImage(sourceImage, 0, 0);
-
-  const explosionTexture = scene.textures.createCanvas(
-    EXPLOSION_TEXTURE_KEY,
-    EXPLOSION_FRAME_WIDTH * EXPLOSION_FRAME_COUNT,
-    EXPLOSION_FRAME_HEIGHT
-  );
-  if (!explosionTexture) {
-    throw new Error('Unable to create explosion texture');
-  }
-
-  const explosionContext = explosionTexture.getContext();
-  explosionContext.clearRect(
-    0,
-    0,
-    EXPLOSION_FRAME_WIDTH * EXPLOSION_FRAME_COUNT,
-    EXPLOSION_FRAME_HEIGHT
-  );
-
-  for (let frame = 0; frame < EXPLOSION_FRAME_COUNT; frame += 1) {
-    const sourceFrameX = EXPLOSION_FRAME_WIDTH * frame;
-    const bounds = getOpaqueBounds(
-      analysisContext,
-      sourceFrameX,
-      0,
-      EXPLOSION_FRAME_WIDTH,
-      EXPLOSION_FRAME_HEIGHT
-    );
-    const destinationX =
-      frame * EXPLOSION_FRAME_WIDTH + Math.floor((EXPLOSION_FRAME_WIDTH - bounds.width) / 2);
-    const destinationY = Math.floor((EXPLOSION_FRAME_HEIGHT - bounds.height) / 2);
-
-    explosionContext.drawImage(
-      sourceImage,
-      sourceFrameX + bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height,
-      destinationX,
-      destinationY,
-      bounds.width,
-      bounds.height
-    );
-    explosionTexture.add(
-      String(frame),
-      0,
-      frame * EXPLOSION_FRAME_WIDTH,
-      0,
-      EXPLOSION_FRAME_WIDTH,
-      EXPLOSION_FRAME_HEIGHT
-    );
-  }
-
-  explosionTexture.refresh();
-}
+const EXPLOSION_FRAME_WIDTH = 221;
+const EXPLOSION_FRAME_HEIGHT = 241;
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -240,7 +110,10 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 128,
     });
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
-    this.load.image(EXPLOSION_SOURCE_KEY, 'assets/sprites/attacks/explosion.png');
+    this.load.spritesheet('explosion', 'assets/sprites/attacks/explosion.png', {
+      frameWidth: EXPLOSION_FRAME_WIDTH,
+      frameHeight: EXPLOSION_FRAME_HEIGHT,
+    });
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');
@@ -285,7 +158,6 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     try {
-      buildExplosionTexture(this);
       setupAnimations(this);
       this.scene.start('WorldScene');
     } catch (error) {
