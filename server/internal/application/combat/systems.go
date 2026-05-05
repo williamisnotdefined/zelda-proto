@@ -335,6 +335,36 @@ func (PlayerFireballSystem) Resolve(
 	}
 }
 
+// PlayerGrenadeSpawner receives a queued grenade cast so the world can spawn
+// the projectile after movement is resolved.
+type PlayerGrenadeSpawner func(
+	sourcePlayerID string,
+	startX, startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+)
+
+// PlayerGrenadeSystem resolves queued player grenade casts.
+type PlayerGrenadeSystem struct{}
+
+// Resolve emits every queued grenade cast.
+func (PlayerGrenadeSystem) Resolve(
+	players map[string]*player.Player,
+	zone safezone.Zone,
+	spawnGrenade PlayerGrenadeSpawner,
+) {
+	if spawnGrenade == nil {
+		return
+	}
+	for _, caster := range players {
+		startX, startY, direction, ok := caster.ConsumeGrenadeCast()
+		if !ok || direction == "" || caster.State == player.StateDead {
+			continue
+		}
+		spawnGrenade(caster.ID, startX, startY, direction, !zone.Protects(caster))
+	}
+}
+
 // PlayerDashSystem resolves the player-triggered dash skill.
 type PlayerDashSystem struct{}
 

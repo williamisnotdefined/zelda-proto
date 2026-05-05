@@ -13,6 +13,7 @@ type ClientInputState struct {
 	Wave     bool
 	Dash     bool
 	Fireball bool
+	Grenade  bool
 	Landmine bool
 }
 
@@ -58,6 +59,7 @@ type InputMessage struct {
 	Wave            bool              `json:"wave" msgpack:"wave"`
 	Dash            bool              `json:"dash" msgpack:"dash"`
 	Fireball        bool              `json:"fireball" msgpack:"fireball"`
+	Grenade         bool              `json:"grenade" msgpack:"grenade"`
 	Landmine        bool              `json:"landmine" msgpack:"landmine"`
 }
 

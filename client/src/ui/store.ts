@@ -57,6 +57,7 @@ export interface GameStore {
   waveCooldownEndsAt: number | null;
   dashCooldownEndsAt: number | null;
   fireballCooldownEndsAt: number | null;
+  grenadeCooldownEndsAt: number | null;
   landmineCooldownEndsAt: number | null;
   boss: BossData | null;
   connected: boolean;
@@ -73,6 +74,7 @@ export interface GameStore {
   setWaveCooldownEndsAt: (time: number | null) => void;
   setDashCooldownEndsAt: (time: number | null) => void;
   setFireballCooldownEndsAt: (time: number | null) => void;
+  setGrenadeCooldownEndsAt: (time: number | null) => void;
   setLandmineCooldownEndsAt: (time: number | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
@@ -93,6 +95,7 @@ export const useGameStore = create<GameStore>((set) => ({
   waveCooldownEndsAt: null,
   dashCooldownEndsAt: null,
   fireballCooldownEndsAt: null,
+  grenadeCooldownEndsAt: null,
   landmineCooldownEndsAt: null,
   boss: null,
   connected: false,
@@ -109,6 +112,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
   setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
   setFireballCooldownEndsAt: (fireballCooldownEndsAt) => set({ fireballCooldownEndsAt }),
+  setGrenadeCooldownEndsAt: (grenadeCooldownEndsAt) => set({ grenadeCooldownEndsAt }),
   setLandmineCooldownEndsAt: (landmineCooldownEndsAt) => set({ landmineCooldownEndsAt }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),

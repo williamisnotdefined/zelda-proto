@@ -16,6 +16,7 @@ const (
 	KindPurpleField       Kind = "purple_field"
 	KindBlueFlame         Kind = "blue_flame"
 	KindFireball          Kind = "fireball"
+	KindGrenade           Kind = "grenade"
 	KindLandmine          Kind = "landmine"
 	KindLandmineExplosion Kind = "landmine_explosion"
 )
@@ -34,6 +35,7 @@ const (
 	DefaultTTL              = 1800 * time.Millisecond
 	PurpleTTL               = 3000 * time.Millisecond
 	FireballTTL             = 400 * time.Millisecond
+	GrenadeTTL              = 300 * time.Millisecond
 	LandmineTTL             = 30 * time.Second
 	LandmineExplosionTTL    = 420 * time.Millisecond
 	LandmineExplosionRadius = 180
@@ -67,6 +69,8 @@ func TTLFor(k Kind) time.Duration {
 		return PurpleTTL
 	case KindFireball:
 		return FireballTTL
+	case KindGrenade:
+		return GrenadeTTL
 	case KindLandmine:
 		return LandmineTTL
 	case KindLandmineExplosion:
@@ -113,6 +117,15 @@ func NewFireball(id string, x, y float64, direction domworld.Direction) *Hazard 
 	h.BurningTicks = 0
 	h.Direction = direction
 	h.HitsPlayers = true
+	return h
+}
+
+// NewGrenade builds a moving player grenade that only deals damage on landing.
+func NewGrenade(id string, x, y float64, direction domworld.Direction) *Hazard {
+	h := New(id, x, y, KindGrenade)
+	h.TTL = GrenadeTTL
+	h.BurningTicks = 0
+	h.Direction = direction
 	return h
 }
 

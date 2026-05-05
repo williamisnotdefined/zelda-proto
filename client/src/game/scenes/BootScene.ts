@@ -153,6 +153,7 @@ export class BootScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     });
+    this.load.image('grenade', 'assets/sprites/attacks/grenade_48x48.png');
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
     this.load.image(EXPLOSION_STRIP_TEXTURE_KEY, 'assets/sprites/attacks/explosion.png');
 

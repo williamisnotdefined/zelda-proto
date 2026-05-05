@@ -376,6 +376,75 @@ func TestPlayerFireballDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
 	}
 }
 
+func TestPlayerGrenadeExplodesOnLandingAndSkipsOwner(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := ax+player.GrenadeDistance, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Grenade: true})
+	w.Tick(20 * time.Millisecond)
+
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected grenade to stay airborne before landing, got target HP=%d", target.HP)
+	}
+	if e.HP != passiveConfig.MaxHP {
+		t.Fatalf("expected grenade to avoid mid-air monster damage, got HP=%d", e.HP)
+	}
+
+	foundGrenade := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindGrenade {
+			foundGrenade = true
+			if h.Direction != domworld.DirectionRight {
+				t.Fatalf("expected grenade direction right, got %s", h.Direction)
+			}
+			break
+		}
+	}
+	if !foundGrenade {
+		t.Fatal("expected grenade hazard after throw")
+	}
+
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := attacker.HP, player.MaxHP; got != want {
+		t.Fatalf("expected grenade owner to ignore own explosion, got HP=%d", got)
+	}
+	if got, want := target.HP, player.MaxHP-player.GrenadeDamage; got != want {
+		t.Fatalf("expected target HP=%d after grenade, got %d", want, got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.GrenadeDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after grenade, got %d", want, got)
+	}
+
+	foundExplosion := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindGrenade {
+			t.Fatal("expected landed grenade to be removed from snapshot")
+		}
+		if h.Kind == hazard.KindLandmineExplosion {
+			foundExplosion = true
+		}
+	}
+	if !foundExplosion {
+		t.Fatal("expected grenade landing to spawn the shared explosion hazard")
+	}
+}
+
 func TestPlayerLandmineExplodesOnContactAndSkipsOwner(t *testing.T) {
 	t.Parallel()
 
@@ -444,6 +513,39 @@ func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	}
 	if got, want := e.HP, passiveConfig.MaxHP-player.LandmineDamage; got != want {
 		t.Fatalf("expected protected caster landmine to still damage monsters, got HP=%d", got)
+	}
+	if attacker.HP != player.MaxHP {
+		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
+	}
+}
+
+func TestProtectedCasterGrenadeSkipsPvPButStillDamagesMonsters(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 200.0, 200.0
+	tx, ty := ax+player.GrenadeDistance, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Grenade: true})
+	w.Tick(20 * time.Millisecond)
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := target.HP, player.MaxHP; got != want {
+		t.Fatalf("expected protected caster grenade to skip PvP damage, got HP=%d", got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.GrenadeDamage; got != want {
+		t.Fatalf("expected protected caster grenade to still damage monsters, got HP=%d", got)
 	}
 	if attacker.HP != player.MaxHP {
 		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   PLAYER_DASH_COOLDOWN,
   PLAYER_FIREBALL_COOLDOWN,
+  PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
@@ -26,6 +27,7 @@ export function HUD() {
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
+  const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((s) => s.landmineCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
@@ -47,7 +49,13 @@ export function HUD() {
   }, []);
 
   useEffect(() => {
-    if (!waveCooldownEndsAt && !dashCooldownEndsAt && !fireballCooldownEndsAt && !landmineCooldownEndsAt) {
+    if (
+      !waveCooldownEndsAt &&
+      !dashCooldownEndsAt &&
+      !fireballCooldownEndsAt &&
+      !grenadeCooldownEndsAt &&
+      !landmineCooldownEndsAt
+    ) {
       setCooldownNowMs(Date.now());
       return;
     }
@@ -60,6 +68,7 @@ export function HUD() {
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
+        now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
@@ -67,7 +76,13 @@ export function HUD() {
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [dashCooldownEndsAt, fireballCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
+  }, [
+    dashCooldownEndsAt,
+    fireballCooldownEndsAt,
+    grenadeCooldownEndsAt,
+    landmineCooldownEndsAt,
+    waveCooldownEndsAt,
+  ]);
 
   useEffect(() => {
     const element = document.documentElement as HTMLElement & {
@@ -160,6 +175,11 @@ export function HUD() {
   const fireballCooldownProgress = fireballReady
     ? 1
     : 1 - fireballCooldownRemainingMs / PLAYER_FIREBALL_COOLDOWN;
+  const grenadeCooldownRemainingMs = Math.max(0, (grenadeCooldownEndsAt ?? 0) - cooldownNowMs);
+  const grenadeReady = !grenadeCooldownEndsAt || grenadeCooldownRemainingMs <= 0;
+  const grenadeCooldownProgress = grenadeReady
+    ? 1
+    : 1 - grenadeCooldownRemainingMs / PLAYER_GRENADE_COOLDOWN;
   const landmineCooldownRemainingMs = Math.max(0, (landmineCooldownEndsAt ?? 0) - cooldownNowMs);
   const landmineReady = !landmineCooldownEndsAt || landmineCooldownRemainingMs <= 0;
   const landmineCooldownProgress = landmineReady
@@ -366,6 +386,49 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
+              <span>Grenade</span>
+              <span
+                style={{
+                  color: grenadeReady ? '#c3ef8c' : '#ebffd0',
+                }}
+              >
+                {grenadeReady ? 'READY' : `${(grenadeCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(18, 31, 14, 0.92)',
+                border: '1px solid rgba(177, 232, 108, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(132, 209, 81, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${grenadeCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: grenadeReady
+                    ? 'linear-gradient(90deg, #8acb4d 0%, #d9f7a1 100%)'
+                    : 'linear-gradient(90deg, #4e7b2a 0%, #91c654 100%)',
+                  boxShadow: grenadeReady ? '0 0 12px rgba(178, 234, 119, 0.45)' : 'none',
+                  transition: grenadeReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
               <span>Landmine</span>
               <span
                 style={{
@@ -521,8 +584,8 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | E:
-          landmine | Space: attack | Tab: players
+          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | G:
+          grenade | E: landmine | Space: attack | Tab: players
         </div>
       )}
 

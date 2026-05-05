@@ -965,6 +965,16 @@ func (w *World) tickHazards(dt time.Duration) {
 			w.hazardIndex.Upsert(id, h.X, h.Y)
 			continue
 		}
+		if h.Kind == hazard.KindGrenade {
+			if expired {
+				delete(w.hazards, id)
+				w.hazardIndex.Remove(id)
+				w.detonatePlayerExplosive(h, playerHalfDiag)
+				continue
+			}
+			w.hazardIndex.Upsert(id, h.X, h.Y)
+			continue
+		}
 		if h.Kind == hazard.KindLandmine {
 			if expired {
 				delete(w.hazards, id)
@@ -974,7 +984,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			if w.landmineTriggered(h, playerHalfDiag) {
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
-				w.detonateLandmine(h, playerHalfDiag)
+				w.detonatePlayerExplosive(h, playerHalfDiag)
 				continue
 			}
 			w.hazardIndex.Upsert(id, h.X, h.Y)
@@ -1315,6 +1325,32 @@ func (w *World) spawnPlayerFireball(
 	w.hazardIndex.Upsert(id, h.X, h.Y)
 }
 
+func (w *World) spawnPlayerGrenade(
+	sourcePlayerID string,
+	startX,
+	startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	dirX, dirY := dashDirectionVector(direction)
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	id := w.cfg.IDs.NewID(string(hazard.KindGrenade))
+	h := hazard.NewGrenade(id, startX, startY, direction)
+	h.SourcePlayerID = sourcePlayerID
+	h.Damage = player.GrenadeDamage
+	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
+	h.RemainingDistance = player.GrenadeDistance
+	h.HitsPlayers = hitsPlayers
+	h.IgnoreActor(playerActorKey(sourcePlayerID))
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, h.X, h.Y)
+}
+
 func (w *World) spawnPlayerLandmine(
 	sourcePlayerID string,
 	startX,
@@ -1482,7 +1518,7 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerLandmine → PlayerFireball →
+	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerLandmine → PlayerGrenade → PlayerFireball →
 	// PlayerDash → ContactDamage. Each
 	// system is
 	// stateless and
@@ -1504,6 +1540,13 @@ func (w *World) resolveCombat() {
 		w.safeZone(),
 		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
 			w.spawnPlayerLandmine(sourcePlayerID, startX, startY, direction, hitsPlayers)
+		},
+	)
+	(appcombat.PlayerGrenadeSystem{}).Resolve(
+		w.players,
+		w.safeZone(),
+		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerGrenade(sourcePlayerID, startX, startY, direction, hitsPlayers)
 		},
 	)
 	(appcombat.PlayerFireballSystem{}).Resolve(
@@ -1760,7 +1803,7 @@ func (w *World) landmineTriggered(h *hazard.Hazard, playerHalfDiag float64) bool
 	return false
 }
 
-func (w *World) detonateLandmine(h *hazard.Hazard, playerHalfDiag float64) {
+func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64) {
 	w.spawnLandmineExplosion(h.SourcePlayerID, h.X, h.Y)
 
 	for _, p := range w.players {

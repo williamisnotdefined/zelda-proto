@@ -31,7 +31,7 @@ describe('snapshot contract fixtures', () => {
     const fixture = await readSnapshotFixture();
     const state = createSnapshotNormalizationState();
 
-    expect(fixture.protocolVersion).toBe(8);
+    expect(fixture.protocolVersion).toBe(9);
 
     expect(normalizeServerMessageResult(fixture.messages.initialFullSnapshot, state)).toMatchObject(
       {

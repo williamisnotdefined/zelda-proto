@@ -23,6 +23,9 @@ func TestEffectAndTTL(t *testing.T) {
 	if TTLFor(KindPurpleField) != PurpleTTL {
 		t.Fatal("purple ttl")
 	}
+	if TTLFor(KindGrenade) != GrenadeTTL {
+		t.Fatal("grenade ttl")
+	}
 	if TTLFor(KindLandmine) != LandmineTTL {
 		t.Fatal("landmine ttl")
 	}
@@ -64,6 +67,10 @@ func TestNewDefaults(t *testing.T) {
 	}
 	if h.TTL != DefaultTTL {
 		t.Fatalf("unexpected ttl %s", h.TTL)
+	}
+	grenade := NewGrenade("g1", 0, 0, "right")
+	if grenade.TTL != GrenadeTTL || grenade.BurningTicks != 0 || grenade.Direction != "right" {
+		t.Fatalf("unexpected grenade defaults: %+v", grenade)
 	}
 	mine := NewLandmine("m1", 0, 0)
 	if mine.TTL != LandmineTTL || mine.BurningTicks != 0 {

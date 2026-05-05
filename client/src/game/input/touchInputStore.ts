@@ -21,6 +21,7 @@ interface TouchInputStore {
   attackPressed: boolean;
   wavePressed: boolean;
   fireballPressed: boolean;
+  grenadePressed: boolean;
   landminePressed: boolean;
   setEnabled: (enabled: boolean) => void;
   setJoystickActive: (active: boolean) => void;
@@ -28,6 +29,7 @@ interface TouchInputStore {
   setAttackPressed: (attackPressed: boolean) => void;
   setWavePressed: (wavePressed: boolean) => void;
   setFireballPressed: (fireballPressed: boolean) => void;
+  setGrenadePressed: (grenadePressed: boolean) => void;
   setLandminePressed: (landminePressed: boolean) => void;
   resetTouchInput: () => void;
 }
@@ -39,6 +41,7 @@ export const useTouchInputStore = create<TouchInputStore>((set) => ({
   attackPressed: false,
   wavePressed: false,
   fireballPressed: false,
+  grenadePressed: false,
   landminePressed: false,
   setEnabled: (enabled) => set({ enabled }),
   setJoystickActive: (joystickActive) => set({ joystickActive }),
@@ -46,6 +49,7 @@ export const useTouchInputStore = create<TouchInputStore>((set) => ({
   setAttackPressed: (attackPressed) => set({ attackPressed }),
   setWavePressed: (wavePressed) => set({ wavePressed }),
   setFireballPressed: (fireballPressed) => set({ fireballPressed }),
+  setGrenadePressed: (grenadePressed) => set({ grenadePressed }),
   setLandminePressed: (landminePressed) => set({ landminePressed }),
   resetTouchInput: () =>
     set({
@@ -54,6 +58,7 @@ export const useTouchInputStore = create<TouchInputStore>((set) => ({
       attackPressed: false,
       wavePressed: false,
       fireballPressed: false,
+      grenadePressed: false,
       landminePressed: false,
     }),
 }));

@@ -10,6 +10,9 @@ const STATIC_ENTITY_CULL_MARGIN_PX = 260;
 type Destroyable = { destroy: () => void };
 type PositionSyncEntity = Destroyable & { updatePosition: (x: number, y: number) => void };
 type HazardEntity = ReturnType<(typeof hazardRegistry)[keyof typeof hazardRegistry]['create']>;
+type SnapshotSyncHazardEntity = HazardEntity & {
+  syncSnapshot: (snapshot: HazardSnapshot) => void;
+};
 
 export class StaticEntityRuntime {
   private readonly dropEntities = new Map<string, DropEntity>();
@@ -63,7 +66,11 @@ export class StaticEntityRuntime {
         entity = hazardRegistry[hazard.kind].create(this.scene, hazard);
         this.hazardEntities.set(hazard.id, entity);
       }
-      entity.updatePosition(hazard.x, hazard.y);
+      if (this.supportsSnapshotSync(entity)) {
+        entity.syncSnapshot(hazard);
+      } else {
+        entity.updatePosition(hazard.x, hazard.y);
+      }
     }
 
     for (const [id, entity] of this.hazardEntities) {
@@ -113,6 +120,10 @@ export class StaticEntityRuntime {
 
   getHazardCount(): number {
     return this.hazardEntities.size;
+  }
+
+  private supportsSnapshotSync(entity: HazardEntity): entity is SnapshotSyncHazardEntity {
+    return 'syncSnapshot' in entity;
   }
 
   private getPickupEntityView(): Phaser.Geom.Rectangle {

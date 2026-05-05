@@ -61,6 +61,7 @@ function createUiSink(): GameUiSink & {
   setWaveCooldownEndsAt: ReturnType<typeof vi.fn>;
   setDashCooldownEndsAt: ReturnType<typeof vi.fn>;
   setFireballCooldownEndsAt: ReturnType<typeof vi.fn>;
+  setGrenadeCooldownEndsAt: ReturnType<typeof vi.fn>;
   setLandmineCooldownEndsAt: ReturnType<typeof vi.fn>;
 } {
   return {
@@ -74,6 +75,7 @@ function createUiSink(): GameUiSink & {
     setWaveCooldownEndsAt: vi.fn(),
     setDashCooldownEndsAt: vi.fn(),
     setFireballCooldownEndsAt: vi.fn(),
+    setGrenadeCooldownEndsAt: vi.fn(),
     setLandmineCooldownEndsAt: vi.fn(),
     setBoss: vi.fn(),
     setLeaderboard: vi.fn(),

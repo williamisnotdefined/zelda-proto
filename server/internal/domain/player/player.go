@@ -13,41 +13,45 @@ import (
 // Combat and movement constants. Shared values mirror
 // client/src/game-core/player.ts.
 const (
-	Speed               float64 = 150
-	MaxHP                       = 100
-	MeleeDamage                 = 10
-	FireballDamage              = 20
-	LandmineDamage              = 20
-	WaveDamage                  = 3
-	WaveLifeStealRatio  float64 = 0.20
-	WaveWindup                  = 80 * time.Millisecond
-	WaveWindupRadius    float64 = 44
-	DashDistance        float64 = 300
-	DashPushDistance    float64 = 300
-	DashHalfWidth       float64 = 36
-	AttackCooldown              = 400 * time.Millisecond
-	WaveCooldown                = 500 * time.Millisecond
-	DashCooldown                = 1 * time.Second
-	FireballCooldown            = 400 * time.Millisecond
-	LandmineCooldown            = 3 * time.Second
-	AttackStateDuration         = 300 * time.Millisecond
-	AttackSpeedPenalty  float64 = 0.5
-	WaveMaxRadius       float64 = 150
-	WaveSpeed           float64 = 900
-	FireballSpeed       float64 = 900
-	LandmineSpawnOffset float64 = 34
-	Width                       = 48
-	Height                      = 48
-	AttackRangeUp       float64 = 40
-	AttackRangeDown     float64 = 56
-	AttackRangeLeft     float64 = 48
-	AttackRangeRight    float64 = 48
-	AttackWidth                 = 72
-	PvPDamage                   = 25
-	SafeZoneDuration            = 3000 * time.Millisecond
-	BurningTickDamage           = 8
-	BurningTicks                = 3
-	BurningTickInterval         = 1000 * time.Millisecond
+	Speed                 float64 = 150
+	MaxHP                         = 100
+	MeleeDamage                   = 10
+	FireballDamage                = 20
+	LandmineDamage                = 20
+	GrenadeDamage                 = 20
+	WaveDamage                    = 3
+	WaveLifeStealRatio    float64 = 0.20
+	WaveWindup                    = 80 * time.Millisecond
+	WaveWindupRadius      float64 = 44
+	DashDistance          float64 = 300
+	DashPushDistance      float64 = 300
+	DashHalfWidth         float64 = 36
+	AttackCooldown                = 400 * time.Millisecond
+	WaveCooldown                  = 500 * time.Millisecond
+	DashCooldown                  = 1 * time.Second
+	FireballCooldown              = 400 * time.Millisecond
+	GrenadeCooldown               = 3 * time.Second
+	LandmineCooldown              = 3 * time.Second
+	AttackStateDuration           = 300 * time.Millisecond
+	AttackSpeedPenalty    float64 = 0.5
+	WaveMaxRadius         float64 = 150
+	WaveSpeed             float64 = 900
+	FireballSpeed         float64 = 900
+	GrenadeDistance       float64 = 150
+	GrenadeFlightDuration         = 300 * time.Millisecond
+	LandmineSpawnOffset   float64 = 34
+	Width                         = 48
+	Height                        = 48
+	AttackRangeUp         float64 = 40
+	AttackRangeDown       float64 = 56
+	AttackRangeLeft       float64 = 48
+	AttackRangeRight      float64 = 48
+	AttackWidth                   = 72
+	PvPDamage                     = 25
+	SafeZoneDuration              = 3000 * time.Millisecond
+	BurningTickDamage             = 8
+	BurningTicks                  = 3
+	BurningTickInterval           = 1000 * time.Millisecond
 )
 
 // State enumerates the high-level player FSM states.
@@ -72,6 +76,7 @@ type Input struct {
 	Wave     bool
 	Dash     bool
 	Fireball bool
+	Grenade  bool
 	Landmine bool
 }
 
@@ -214,6 +219,7 @@ type Player struct {
 	WaveCooldown          time.Duration
 	DashCooldown          time.Duration
 	FireballCooldown      time.Duration
+	GrenadeCooldown       time.Duration
 	LandmineCooldown      time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
@@ -246,6 +252,10 @@ type Player struct {
 	fireballStartX        float64
 	fireballStartY        float64
 	fireballDirection     world.Direction
+	grenadeCastQueued     bool
+	grenadeStartX         float64
+	grenadeStartY         float64
+	grenadeDirection      world.Direction
 	landmineCastQueued    bool
 	landmineStartX        float64
 	landmineStartY        float64
@@ -339,6 +349,12 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.FireballCooldown = 0
 		}
 	}
+	if p.GrenadeCooldown > 0 {
+		p.GrenadeCooldown -= dt
+		if p.GrenadeCooldown < 0 {
+			p.GrenadeCooldown = 0
+		}
+	}
 	if p.LandmineCooldown > 0 {
 		p.LandmineCooldown -= dt
 		if p.LandmineCooldown < 0 {
@@ -386,6 +402,15 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.fireballStartX = p.X
 			p.fireballStartY = p.Y
 			p.fireballDirection = fireballDirection
+		}
+	}
+	if input.Grenade && p.GrenadeCooldown <= 0 {
+		if grenadeDirection := dashDirectionFromInput(input, p.Direction); grenadeDirection != "" {
+			p.GrenadeCooldown = GrenadeCooldown
+			p.grenadeCastQueued = true
+			p.grenadeStartX = p.X
+			p.grenadeStartY = p.Y
+			p.grenadeDirection = grenadeDirection
 		}
 	}
 	if input.Landmine && p.LandmineCooldown <= 0 {
@@ -475,6 +500,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetWave()
 		p.resetDash()
 		p.resetFireball()
+		p.resetGrenade()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -515,6 +541,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetWave()
 	p.resetDash()
 	p.resetFireball()
+	p.resetGrenade()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -526,6 +553,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetWave()
 	p.resetDash()
 	p.resetFireball()
+	p.resetGrenade()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
@@ -616,6 +644,15 @@ func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, bool)
 	}
 	p.fireballCastQueued = false
 	return p.fireballStartX, p.fireballStartY, p.fireballDirection, true
+}
+
+// ConsumeGrenadeCast returns a newly triggered grenade once.
+func (p *Player) ConsumeGrenadeCast() (float64, float64, world.Direction, bool) {
+	if !p.grenadeCastQueued {
+		return 0, 0, "", false
+	}
+	p.grenadeCastQueued = false
+	return p.grenadeStartX, p.grenadeStartY, p.grenadeDirection, true
 }
 
 // ConsumeLandmineCast returns a newly triggered landmine once.
@@ -758,6 +795,14 @@ func (p *Player) resetFireball() {
 	p.fireballStartX = 0
 	p.fireballStartY = 0
 	p.fireballDirection = ""
+}
+
+func (p *Player) resetGrenade() {
+	p.GrenadeCooldown = 0
+	p.grenadeCastQueued = false
+	p.grenadeStartX = 0
+	p.grenadeStartY = 0
+	p.grenadeDirection = ""
 }
 
 func (p *Player) resetLandmine() {

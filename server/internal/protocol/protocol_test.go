@@ -129,6 +129,7 @@ func TestMessageBuilders(t *testing.T) {
 		Wave:     false,
 		Dash:     false,
 		Fireball: false,
+		Grenade:  false,
 		Landmine: false,
 	})
 	if !reflect.DeepEqual(input, protocol.InputMessage{
@@ -143,6 +144,7 @@ func TestMessageBuilders(t *testing.T) {
 		Wave:            false,
 		Dash:            false,
 		Fireball:        false,
+		Grenade:         false,
 		Landmine:        false,
 	}) {
 		t.Fatalf("unexpected input message: %#v", input)
@@ -227,6 +229,7 @@ func TestParseClientMessage(t *testing.T) {
 			"wave":            false,
 			"dash":            false,
 			"fireball":        false,
+			"grenade":         false,
 			"landmine":        false,
 		}), protocol.ClientMessageParseFailureInvalidMessage)
 		assertParseFailure(t, protocol.ParseClientMessage(map[string]any{
@@ -295,6 +298,7 @@ func TestValidateClientMessage(t *testing.T) {
 			"wave":            false,
 			"dash":            false,
 			"fireball":        false,
+			"grenade":         false,
 			"landmine":        false,
 		}, false), protocol.ValidationFailureReasonJoinRequired)
 

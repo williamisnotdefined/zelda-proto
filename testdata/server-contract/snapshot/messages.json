@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 8,
+  "protocolVersion": 9,
   "inputs": {
     "initialBundle": {
       "instanceId": "phase1",
@@ -278,7 +278,7 @@
   },
   "messages": {
     "initialFullSnapshot": {
-      "protocolVersion": 8,
+      "protocolVersion": 9,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -408,7 +408,7 @@
       ]
     },
     "initialFullDelta": {
-      "protocolVersion": 8,
+      "protocolVersion": 9,
       "type": "snapshot_delta",
       "tick": 4,
       "full": true,
@@ -548,7 +548,7 @@
       ]
     },
     "updatedIncrementalDelta": {
-      "protocolVersion": 8,
+      "protocolVersion": 9,
       "type": "snapshot_delta",
       "tick": 5,
       "full": false,
@@ -698,7 +698,7 @@
       ]
     },
     "updatedFullSnapshot": {
-      "protocolVersion": 8,
+      "protocolVersion": 9,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [

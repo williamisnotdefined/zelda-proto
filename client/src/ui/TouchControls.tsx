@@ -8,6 +8,7 @@ const CONTROLS_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 72px)';
 const WAVE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 84px)';
 const FIREBALL_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 166px)';
 const LANDMINE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 248px)';
+const GRENADE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 330px)';
 
 interface KnobPosition {
   x: number;
@@ -31,6 +32,7 @@ export function TouchControls() {
   const enabled = useTouchInputStore((state) => state.enabled);
   const waveCooldownEndsAt = useGameStore((state) => state.waveCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((state) => state.fireballCooldownEndsAt);
+  const grenadeCooldownEndsAt = useGameStore((state) => state.grenadeCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((state) => state.landmineCooldownEndsAt);
   const setEnabled = useTouchInputStore((state) => state.setEnabled);
   const setJoystickActive = useTouchInputStore((state) => state.setJoystickActive);
@@ -38,6 +40,7 @@ export function TouchControls() {
   const setAttackPressed = useTouchInputStore((state) => state.setAttackPressed);
   const setWavePressed = useTouchInputStore((state) => state.setWavePressed);
   const setFireballPressed = useTouchInputStore((state) => state.setFireballPressed);
+  const setGrenadePressed = useTouchInputStore((state) => state.setGrenadePressed);
   const setLandminePressed = useTouchInputStore((state) => state.setLandminePressed);
   const resetTouchInput = useTouchInputStore((state) => state.resetTouchInput);
 
@@ -46,6 +49,7 @@ export function TouchControls() {
   const attackPointerId = useRef<number | null>(null);
   const wavePointerId = useRef<number | null>(null);
   const fireballPointerId = useRef<number | null>(null);
+  const grenadePointerId = useRef<number | null>(null);
   const landminePointerId = useRef<number | null>(null);
   const [knobPosition, setKnobPosition] = useState<KnobPosition>(KNOB_CENTER);
   const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
@@ -71,7 +75,12 @@ export function TouchControls() {
   }, [resetTouchInput, setEnabled]);
 
   useEffect(() => {
-    if (!waveCooldownEndsAt && !fireballCooldownEndsAt && !landmineCooldownEndsAt) {
+    if (
+      !waveCooldownEndsAt &&
+      !fireballCooldownEndsAt &&
+      !grenadeCooldownEndsAt &&
+      !landmineCooldownEndsAt
+    ) {
       setCooldownNowMs(Date.now());
       return;
     }
@@ -83,6 +92,7 @@ export function TouchControls() {
       if (
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
+        now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
@@ -90,7 +100,7 @@ export function TouchControls() {
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [fireballCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
+  }, [fireballCooldownEndsAt, grenadeCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
 
   const updateJoystick = (clientX: number, clientY: number) => {
     const element = joystickRef.current;
@@ -217,10 +227,20 @@ export function TouchControls() {
     setLandminePressed(false);
   };
 
+  const releaseGrenade = (target?: EventTarget | null) => {
+    if (target instanceof Element && grenadePointerId.current !== null) {
+      target.releasePointerCapture(grenadePointerId.current);
+    }
+    grenadePointerId.current = null;
+    setGrenadePressed(false);
+  };
+
   const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
   const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
   const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
   const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
+  const grenadeCooldownRemainingMs = Math.max(0, (grenadeCooldownEndsAt ?? 0) - cooldownNowMs);
+  const grenadeReady = !grenadeCooldownEndsAt || grenadeCooldownRemainingMs <= 0;
   const landmineCooldownRemainingMs = Math.max(0, (landmineCooldownEndsAt ?? 0) - cooldownNowMs);
   const landmineReady = !landmineCooldownEndsAt || landmineCooldownRemainingMs <= 0;
 
@@ -279,6 +299,25 @@ export function TouchControls() {
   const handleLandminePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.pointerId !== landminePointerId.current) return;
     releaseLandmine(event.currentTarget);
+  };
+
+  const handleGrenadePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!grenadeReady || grenadePointerId.current !== null) return;
+    event.preventDefault();
+    grenadePointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setGrenadePressed(true);
+  };
+
+  const handleGrenadePointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== grenadePointerId.current) return;
+    event.preventDefault();
+    releaseGrenade(event.currentTarget);
+  };
+
+  const handleGrenadePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== grenadePointerId.current) return;
+    releaseGrenade(event.currentTarget);
   };
 
   if (!enabled) return null;
@@ -434,6 +473,40 @@ export function TouchControls() {
         }}
       >
         {landmineReady ? 'Mine' : `${(landmineCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
+
+      <button
+        type="button"
+        onPointerDown={handleGrenadePointerDown}
+        onPointerUp={handleGrenadePointerUp}
+        onPointerCancel={handleGrenadePointerCancel}
+        onLostPointerCapture={() => releaseGrenade()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: GRENADE_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: grenadeReady
+            ? '2px solid rgba(186, 233, 118, 0.82)'
+            : '2px solid rgba(131, 169, 84, 0.55)',
+          background: grenadeReady ? 'rgba(101, 146, 38, 0.3)' : 'rgba(46, 71, 21, 0.46)',
+          color: '#efffd5',
+          fontSize: grenadeReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: grenadeReady ? 1 : 0.8,
+          boxShadow: grenadeReady ? '0 0 18px rgba(177, 232, 108, 0.18)' : 'none',
+        }}
+      >
+        {grenadeReady ? 'Gren' : `${(grenadeCooldownRemainingMs / 1000).toFixed(1)}s`}
       </button>
 
       <button

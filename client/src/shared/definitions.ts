@@ -179,6 +179,13 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     burningTicks: 0,
     idPrefix: 'hazard_fireball',
   },
+  [HAZARD_KINDS.GRENADE]: {
+    kind: HAZARD_KINDS.GRENADE,
+    ttlMs: 300,
+    hitRadius: 18,
+    burningTicks: 0,
+    idPrefix: 'hazard_grenade',
+  },
   [HAZARD_KINDS.LANDMINE]: {
     kind: HAZARD_KINDS.LANDMINE,
     ttlMs: 30000,

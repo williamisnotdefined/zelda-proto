@@ -33,6 +33,9 @@ export class PlayerRuntime {
         this.ui.setFireballCooldownEndsAt(time);
       },
       (time) => {
+        this.ui.setGrenadeCooldownEndsAt(time);
+      },
+      (time) => {
         this.ui.setLandmineCooldownEndsAt(time);
       }
     );

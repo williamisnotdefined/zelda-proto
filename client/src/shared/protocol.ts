@@ -32,7 +32,16 @@ export type ParseResult<T, R extends string> = { ok: true; value: T } | { ok: fa
 
 export type ClientInputState = Pick<
   InputMessage,
-  'up' | 'down' | 'left' | 'right' | 'attack' | 'wave' | 'dash' | 'fireball' | 'landmine'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'attack'
+  | 'wave'
+  | 'dash'
+  | 'fireball'
+  | 'grenade'
+  | 'landmine'
 >;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
 
@@ -162,6 +171,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     wave: input.wave,
     dash: input.dash,
     fireball: input.fireball,
+    grenade: input.grenade,
     landmine: input.landmine,
   };
 }
@@ -246,6 +256,7 @@ export function parseClientMessage(
         'wave',
         'dash',
         'fireball',
+        'grenade',
         'landmine',
       ])
     ) {
@@ -265,6 +276,7 @@ export function parseClientMessage(
         wave: input.wave,
         dash: input.dash,
         fireball: input.fireball,
+        grenade: input.grenade,
         landmine: input.landmine,
       }),
     };

@@ -196,6 +196,36 @@ func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestGrenadeTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Left: true, Grenade: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.GrenadeCooldown != GrenadeCooldown {
+		t.Fatalf("expected grenade cooldown %s, got %s", GrenadeCooldown, p.GrenadeCooldown)
+	}
+	cx, cy, direction, ok := p.ConsumeGrenadeCast()
+	if !ok {
+		t.Fatal("expected queued grenade cast")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected grenade start at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if direction != world.DirectionLeft {
+		t.Fatalf("expected grenade direction left, got %s", direction)
+	}
+	if _, _, _, ok := p.ConsumeGrenadeCast(); ok {
+		t.Fatal("expected grenade cast to be consumed once")
+	}
+
+	p.ApplyInput(Input{Seq: 2, Left: true, Grenade: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, _, ok := p.ConsumeGrenadeCast(); ok {
+		t.Fatal("expected cooldown to block second grenade cast")
+	}
+}
+
 func TestLandmineTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	t.Parallel()
 

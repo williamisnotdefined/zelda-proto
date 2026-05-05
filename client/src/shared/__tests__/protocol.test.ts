@@ -96,6 +96,7 @@ describe('message builders', () => {
         wave: false,
         dash: false,
         fireball: false,
+        grenade: false,
         landmine: false,
       })
     ).toEqual({
@@ -110,6 +111,7 @@ describe('message builders', () => {
       wave: false,
       dash: false,
       fireball: false,
+      grenade: false,
       landmine: false,
     });
 
@@ -203,6 +205,7 @@ describe('parseClientMessage', () => {
         wave: false,
         dash: false,
         fireball: false,
+        grenade: false,
         landmine: false,
       })
     ).toEqual({ ok: false, reason: 'invalid_message' });

@@ -3,6 +3,7 @@ import {
   PLAYER_DASH_COOLDOWN,
   PLAYER_DASH_DOUBLE_TAP_WINDOW,
   PLAYER_FIREBALL_COOLDOWN,
+  PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
   createInputMessage,
@@ -28,9 +29,11 @@ export class LocalInputController {
   private waveKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
   private fireballKey!: Phaser.Input.Keyboard.Key;
+  private grenadeKey!: Phaser.Input.Keyboard.Key;
   private landmineKey!: Phaser.Input.Keyboard.Key;
   private prevAttackDown = false;
   private prevFireballDown = false;
+  private prevGrenadeDown = false;
   private prevWaveDown = false;
   private prevLandmineDown = false;
   private prevUpDown = false;
@@ -44,6 +47,7 @@ export class LocalInputController {
   private waveCooldownEndsAtMs = 0;
   private dashCooldownEndsAtMs = 0;
   private fireballCooldownEndsAtMs = 0;
+  private grenadeCooldownEndsAtMs = 0;
   private landmineCooldownEndsAtMs = 0;
   private readonly lastDirectionalTapAtMs: Record<Direction, number> = {
     up: 0,
@@ -59,6 +63,7 @@ export class LocalInputController {
     private readonly setWaveCooldownEndsAt: (time: number | null) => void,
     private readonly setDashCooldownEndsAt: (time: number | null) => void,
     private readonly setFireballCooldownEndsAt: (time: number | null) => void,
+    private readonly setGrenadeCooldownEndsAt: (time: number | null) => void,
     private readonly setLandmineCooldownEndsAt: (time: number | null) => void
   ) {
     this.bindKeys();
@@ -71,16 +76,19 @@ export class LocalInputController {
     this.lastSentInputState = null;
     this.prevAttackDown = false;
     this.prevFireballDown = false;
+    this.prevGrenadeDown = false;
     this.prevWaveDown = false;
     this.prevLandmineDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
     this.fireballCooldownEndsAtMs = 0;
+    this.grenadeCooldownEndsAtMs = 0;
     this.landmineCooldownEndsAtMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setDashCooldownEndsAt(null);
     this.setFireballCooldownEndsAt(null);
+    this.setGrenadeCooldownEndsAt(null);
     this.setLandmineCooldownEndsAt(null);
   }
 
@@ -90,16 +98,19 @@ export class LocalInputController {
     this.lastSentInputState = null;
     this.prevAttackDown = false;
     this.prevFireballDown = false;
+    this.prevGrenadeDown = false;
     this.prevWaveDown = false;
     this.prevLandmineDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
     this.fireballCooldownEndsAtMs = 0;
+    this.grenadeCooldownEndsAtMs = 0;
     this.landmineCooldownEndsAtMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setDashCooldownEndsAt(null);
     this.setFireballCooldownEndsAt(null);
+    this.setGrenadeCooldownEndsAt(null);
     this.setLandmineCooldownEndsAt(null);
   }
 
@@ -140,6 +151,10 @@ export class LocalInputController {
       this.fireballCooldownEndsAtMs = 0;
       this.setFireballCooldownEndsAt(null);
     }
+    if (localDead && this.grenadeCooldownEndsAtMs !== 0) {
+      this.grenadeCooldownEndsAtMs = 0;
+      this.setGrenadeCooldownEndsAt(null);
+    }
     if (localDead && this.landmineCooldownEndsAtMs !== 0) {
       this.landmineCooldownEndsAtMs = 0;
       this.setLandmineCooldownEndsAt(null);
@@ -154,6 +169,9 @@ export class LocalInputController {
     const rawFireballDown = this.fireballKey.isDown || touchInput.fireballPressed;
     const manualFireball = rawFireballDown && !this.prevFireballDown;
     this.prevFireballDown = rawFireballDown;
+    const rawGrenadeDown = this.grenadeKey.isDown || touchInput.grenadePressed;
+    const manualGrenade = rawGrenadeDown && !this.prevGrenadeDown;
+    this.prevGrenadeDown = rawGrenadeDown;
     const rawLandmineDown = this.landmineKey.isDown || touchInput.landminePressed;
     const manualLandmine = rawLandmineDown && !this.prevLandmineDown;
     this.prevLandmineDown = rawLandmineDown;
@@ -176,11 +194,13 @@ export class LocalInputController {
     const waveReady = nowMs >= this.waveCooldownEndsAtMs;
     const dashReady = nowMs >= this.dashCooldownEndsAtMs;
     const fireballReady = nowMs >= this.fireballCooldownEndsAtMs;
+    const grenadeReady = nowMs >= this.grenadeCooldownEndsAtMs;
     const landmineReady = nowMs >= this.landmineCooldownEndsAtMs;
     const manualWave = rawWaveDown && !this.prevWaveDown;
     const wave = manualWave && waveReady;
     const dash = dashDirection !== null && dashReady;
     const fireball = manualFireball && fireballReady;
+    const grenade = manualGrenade && grenadeReady;
     const landmine = manualLandmine && landmineReady;
     this.prevWaveDown = rawWaveDown;
     if (wave) {
@@ -194,6 +214,10 @@ export class LocalInputController {
     if (fireball) {
       this.fireballCooldownEndsAtMs = nowMs + PLAYER_FIREBALL_COOLDOWN;
       this.setFireballCooldownEndsAt(this.fireballCooldownEndsAtMs);
+    }
+    if (grenade) {
+      this.grenadeCooldownEndsAtMs = nowMs + PLAYER_GRENADE_COOLDOWN;
+      this.setGrenadeCooldownEndsAt(this.grenadeCooldownEndsAtMs);
     }
     if (landmine) {
       this.landmineCooldownEndsAtMs = nowMs + PLAYER_LANDMINE_COOLDOWN;
@@ -209,6 +233,7 @@ export class LocalInputController {
       wave: !uiBlocked && !localDead && wave,
       dash: !uiBlocked && !localDead && dash,
       fireball: !uiBlocked && !localDead && fireball,
+      grenade: !uiBlocked && !localDead && grenade,
       landmine: !uiBlocked && !localDead && landmine,
     };
 
@@ -225,6 +250,7 @@ export class LocalInputController {
       !inputState.wave &&
       !inputState.dash &&
       !inputState.fireball &&
+      !inputState.grenade &&
       !inputState.landmine
     ) {
       return;
@@ -258,6 +284,7 @@ export class LocalInputController {
       wave: false,
       dash: false,
       fireball: false,
+      grenade: false,
       landmine: false,
     };
     this.connection.send(input);
@@ -272,6 +299,7 @@ export class LocalInputController {
     this.waveKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R, false);
     this.attackKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
     this.fireballKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F, false);
+    this.grenadeKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G, false);
     this.landmineKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E, false);
   }
 
