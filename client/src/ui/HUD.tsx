@@ -4,6 +4,7 @@ import {
   PLAYER_FIREBALL_COOLDOWN,
   PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
+  PLAYER_NUMB_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
 import { weaponDefinitions } from '@/shared/definitions';
@@ -26,6 +27,7 @@ export function HUD() {
   const connected = useGameStore((s) => s.connected);
   const playerCount = useGameStore((s) => s.playerCount);
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
+  const numbCooldownEndsAt = useGameStore((s) => s.numbCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
@@ -52,6 +54,7 @@ export function HUD() {
   useEffect(() => {
     if (
       !waveCooldownEndsAt &&
+      !numbCooldownEndsAt &&
       !dashCooldownEndsAt &&
       !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
@@ -67,6 +70,7 @@ export function HUD() {
       setCooldownNowMs(now);
       if (
         now >= (waveCooldownEndsAt ?? 0) &&
+        now >= (numbCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
@@ -82,6 +86,7 @@ export function HUD() {
     fireballCooldownEndsAt,
     grenadeCooldownEndsAt,
     landmineCooldownEndsAt,
+    numbCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
 
@@ -168,6 +173,9 @@ export function HUD() {
   const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
   const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
   const waveCooldownProgress = waveReady ? 1 : 1 - waveCooldownRemainingMs / PLAYER_WAVE_COOLDOWN;
+  const numbCooldownRemainingMs = Math.max(0, (numbCooldownEndsAt ?? 0) - cooldownNowMs);
+  const numbReady = !numbCooldownEndsAt || numbCooldownRemainingMs <= 0;
+  const numbCooldownProgress = numbReady ? 1 : 1 - numbCooldownRemainingMs / PLAYER_NUMB_COOLDOWN;
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
@@ -593,6 +601,48 @@ export function HUD() {
                 }}
               />
             </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
+              <span>Numb (T)</span>
+              <span
+                style={{
+                  color: numbReady ? '#d7dde4' : '#f2f5f8',
+                }}
+              >
+                {numbReady ? 'READY' : `${(numbCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(19, 22, 27, 0.92)',
+                border: '1px solid rgba(178, 186, 196, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(150, 160, 173, 0.1)',
+              }}
+            >
+              <div
+                style={{
+                  width: `${numbCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: numbReady
+                    ? 'linear-gradient(90deg, #aab3bc 0%, #e1e6eb 100%)'
+                    : 'linear-gradient(90deg, #5f6974 0%, #98a2ad 100%)',
+                  boxShadow: numbReady ? '0 0 12px rgba(207, 216, 225, 0.45)' : 'none',
+                  transition: numbReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -626,8 +676,8 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball |
-          R: wave | Space: attack | Tab: players
+          Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
+          wave | T: numb | Space: attack | Tab: players
         </div>
       )}
 

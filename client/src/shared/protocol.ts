@@ -38,6 +38,7 @@ export type ClientInputState = Pick<
   | 'right'
   | 'attack'
   | 'wave'
+  | 'numb'
   | 'dash'
   | 'fireball'
   | 'grenade'
@@ -169,6 +170,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     right: input.right,
     attack: input.attack,
     wave: input.wave,
+    numb: input.numb,
     dash: input.dash,
     fireball: input.fireball,
     grenade: input.grenade,
@@ -254,6 +256,7 @@ export function parseClientMessage(
         'right',
         'attack',
         'wave',
+        'numb',
         'dash',
         'fireball',
         'grenade',
@@ -274,6 +277,7 @@ export function parseClientMessage(
         right: input.right,
         attack: input.attack,
         wave: input.wave,
+        numb: input.numb,
         dash: input.dash,
         fireball: input.fireball,
         grenade: input.grenade,

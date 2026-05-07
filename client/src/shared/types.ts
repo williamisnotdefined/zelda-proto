@@ -142,6 +142,7 @@ export type BossState =
   | 'dead';
 
 export type BossWaveState = 'windup' | 'expanding';
+export type PlayerWaveKind = 'wave' | 'numb';
 
 export interface BurningStatus {
   ticksRemaining: number;
@@ -246,6 +247,7 @@ export interface BossWaveIndicator {
   y: number;
   radius: number;
   state: BossWaveState;
+  kind?: PlayerWaveKind;
 }
 
 export interface DropSnapshot {
@@ -367,6 +369,7 @@ export interface InputMessage {
   right: boolean;
   attack: boolean;
   wave: boolean;
+  numb: boolean;
   dash: boolean;
   fireball: boolean;
   grenade: boolean;

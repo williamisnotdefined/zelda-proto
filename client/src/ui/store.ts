@@ -57,6 +57,7 @@ export interface GameStore {
   localPlayerId: string | null;
   localPlayer: PlayerData | null;
   waveCooldownEndsAt: number | null;
+  numbCooldownEndsAt: number | null;
   dashCooldownEndsAt: number | null;
   fireballCooldownEndsAt: number | null;
   grenadeCooldownEndsAt: number | null;
@@ -74,6 +75,7 @@ export interface GameStore {
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
   setWaveCooldownEndsAt: (time: number | null) => void;
+  setNumbCooldownEndsAt: (time: number | null) => void;
   setDashCooldownEndsAt: (time: number | null) => void;
   setFireballCooldownEndsAt: (time: number | null) => void;
   setGrenadeCooldownEndsAt: (time: number | null) => void;
@@ -95,6 +97,7 @@ export const useGameStore = create<GameStore>((set) => ({
   localPlayerId: null,
   localPlayer: null,
   waveCooldownEndsAt: null,
+  numbCooldownEndsAt: null,
   dashCooldownEndsAt: null,
   fireballCooldownEndsAt: null,
   grenadeCooldownEndsAt: null,
@@ -112,6 +115,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
   setLocalPlayer: (p) => set({ localPlayer: p }),
   setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
+  setNumbCooldownEndsAt: (numbCooldownEndsAt) => set({ numbCooldownEndsAt }),
   setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
   setFireballCooldownEndsAt: (fireballCooldownEndsAt) => set({ fireballCooldownEndsAt }),
   setGrenadeCooldownEndsAt: (grenadeCooldownEndsAt) => set({ grenadeCooldownEndsAt }),

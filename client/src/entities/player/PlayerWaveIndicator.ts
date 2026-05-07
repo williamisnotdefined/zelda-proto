@@ -12,12 +12,15 @@ const WAVE_EDGE_SPRITE_ALPHA = 0.68;
 const WAVE_EDGE_STEP = 92;
 const WAVE_EDGE_MAX_SPRITES = 10;
 const PURPLE_FIELD_TILE_KEY = 'purple_field';
+const NUMB_RING_COLOR = 0x9aa3ad;
+const NUMB_EDGE_TINT = 0xd2d7dd;
 
 interface WaveData {
   x: number;
   y: number;
   radius: number;
   state: 'windup' | 'expanding';
+  kind?: 'wave' | 'numb';
 }
 
 export class PlayerWaveIndicator {
@@ -28,6 +31,7 @@ export class PlayerWaveIndicator {
   private waveCenterY = 0;
   private waveRadius = 0;
   private waveState: WaveData['state'] | null = null;
+  private waveKind: NonNullable<WaveData['kind']> = 'wave';
   private wavePulseTimeMs = 0;
   private active = false;
 
@@ -48,6 +52,7 @@ export class PlayerWaveIndicator {
     if (!wave) {
       this.active = false;
       this.waveState = null;
+      this.waveKind = 'wave';
       this.waveRing.setVisible(false);
       this.waveCore.setVisible(false);
       this.syncWaveEdgeSprites(0);
@@ -59,6 +64,7 @@ export class PlayerWaveIndicator {
     this.waveCenterY = wave.y;
     this.waveRadius = wave.radius;
     this.waveState = wave.state;
+    this.waveKind = wave.kind ?? 'wave';
     this.render();
   }
 
@@ -86,6 +92,9 @@ export class PlayerWaveIndicator {
       return;
     }
 
+    const ringColor = this.waveKind === 'numb' ? NUMB_RING_COLOR : WAVE_RING_COLOR;
+    const edgeTint = this.waveKind === 'numb' ? NUMB_EDGE_TINT : null;
+
     if (this.waveState === 'windup') {
       this.waveRing.setVisible(false);
       this.syncWaveEdgeSprites(0);
@@ -93,8 +102,8 @@ export class PlayerWaveIndicator {
         1 + Math.sin(this.wavePulseTimeMs * WAVE_CORE_PULSE_SPEED) * WAVE_CORE_PULSE_SIZE;
       this.waveCore.setPosition(this.waveCenterX, this.waveCenterY);
       this.waveCore.setRadius(Math.max(this.waveRadius + pulse, WAVE_RING_STROKE_WIDTH * 2));
-      this.waveCore.setFillStyle(WAVE_RING_COLOR, WAVE_CORE_FILL_ALPHA);
-      this.waveCore.setStrokeStyle(3, WAVE_RING_COLOR, WAVE_CORE_STROKE_ALPHA);
+      this.waveCore.setFillStyle(ringColor, WAVE_CORE_FILL_ALPHA);
+      this.waveCore.setStrokeStyle(3, ringColor, WAVE_CORE_STROKE_ALPHA);
       this.waveCore.setVisible(true);
       return;
     }
@@ -102,6 +111,7 @@ export class PlayerWaveIndicator {
     this.waveCore.setVisible(false);
     this.waveRing.setPosition(this.waveCenterX, this.waveCenterY);
     this.waveRing.setRadius(Math.max(this.waveRadius, WAVE_RING_STROKE_WIDTH));
+    this.waveRing.setStrokeStyle(WAVE_RING_STROKE_WIDTH, ringColor, WAVE_RING_ALPHA);
     this.waveRing.setVisible(true);
 
     const circumference = Math.max(this.waveRadius * Math.PI * 2, WAVE_EDGE_STEP * 4);
@@ -115,6 +125,11 @@ export class PlayerWaveIndicator {
     for (let index = 0; index < this.waveEdgeSprites.length; index += 1) {
       const sprite = this.waveEdgeSprites[index];
       const angle = angleOffset + (Math.PI * 2 * index) / this.waveEdgeSprites.length;
+      if (edgeTint === null) {
+        sprite.clearTint();
+      } else {
+        sprite.setTint(edgeTint);
+      }
       sprite.setPosition(
         this.waveCenterX + Math.cos(angle) * this.waveRadius,
         this.waveCenterY + Math.sin(angle) * this.waveRadius

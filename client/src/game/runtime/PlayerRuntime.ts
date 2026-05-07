@@ -27,6 +27,9 @@ export class PlayerRuntime {
         this.ui.setWaveCooldownEndsAt(time);
       },
       (time) => {
+        this.ui.setNumbCooldownEndsAt(time);
+      },
+      (time) => {
         this.ui.setDashCooldownEndsAt(time);
       },
       (time) => {

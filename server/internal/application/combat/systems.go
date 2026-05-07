@@ -157,6 +157,9 @@ func (PvPSystem) Resolve(players map[string]*player.Player, zone safezone.Zone) 
 // PlayerWaveSystem resolves the player-triggered knockback wave skill.
 type PlayerWaveSystem struct{}
 
+// PlayerNumbSystem resolves the gray wave variant that also stuns hostiles.
+type PlayerNumbSystem struct{}
+
 // Resolve applies player wave damage and knockback. Returns true when any
 // entity position changed and body collisions should be re-resolved.
 func (PlayerWaveSystem) Resolve(
@@ -167,9 +170,58 @@ func (PlayerWaveSystem) Resolve(
 	vanessas map[string]*boss.VanessaTheRuthless,
 	zone safezone.Zone,
 ) bool {
+	return resolvePlayerWaveLike(
+		players,
+		enemies,
+		dragons,
+		gelehks,
+		vanessas,
+		zone,
+		(*player.Player).ConsumeWaveRelease,
+		player.WaveDamage,
+		player.WaveLifeStealRatio,
+	)
+}
+
+// Resolve applies numb damage and knockback. Returns true when any entity
+// position changed and body collisions should be re-resolved.
+func (PlayerNumbSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	zone safezone.Zone,
+) bool {
+	return resolvePlayerWaveLike(
+		players,
+		enemies,
+		dragons,
+		gelehks,
+		vanessas,
+		zone,
+		(*player.Player).ConsumeNumbRelease,
+		player.NumbDamage,
+		player.NumbLifeStealRatio,
+	)
+}
+
+type waveReleaseConsumer func(*player.Player) (float64, float64, player.WaveTargets, uint64, bool)
+
+func resolvePlayerWaveLike(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	zone safezone.Zone,
+	consume waveReleaseConsumer,
+	damage int,
+	lifeStealRatio float64,
+) bool {
 	moved := false
 	for _, caster := range players {
-		cx, cy, targets, castID, ok := caster.ConsumeWaveRelease()
+		cx, cy, targets, castID, ok := consume(caster)
 		if !ok {
 			continue
 		}
@@ -181,7 +233,7 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			beforeHP := e.HP
-			e.TakeDamage(player.WaveDamage)
+			e.TakeDamage(damage)
 			totalDamage += beforeHP - e.HP
 			if e.State == enemy.StateDead {
 				caster.MonsterKills++
@@ -200,7 +252,7 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			beforeHP := d.HP
-			d.TakeDamage(player.WaveDamage)
+			d.TakeDamage(damage)
 			totalDamage += beforeHP - d.HP
 			if d.State == boss.StateDead {
 				caster.MonsterKills++
@@ -219,7 +271,7 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			beforeHP := g.HP
-			g.TakeDamage(player.WaveDamage)
+			g.TakeDamage(damage)
 			totalDamage += beforeHP - g.HP
 			if g.State == boss.StateDead {
 				caster.MonsterKills++
@@ -237,7 +289,7 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			beforeHP := v.HP
-			v.TakeDamage(player.WaveDamage)
+			v.TakeDamage(damage)
 			totalDamage += beforeHP - v.HP
 			if v.State == boss.StateDead {
 				caster.MonsterKills++
@@ -258,7 +310,7 @@ func (PlayerWaveSystem) Resolve(
 				continue
 			}
 			beforeHP := target.HP
-			target.TakeDamage(player.WaveDamage)
+			target.TakeDamage(damage)
 			totalDamage += beforeHP - target.HP
 			if target.State == player.StateDead {
 				caster.PlayerKills++
@@ -269,7 +321,7 @@ func (PlayerWaveSystem) Resolve(
 			}
 		}
 		if totalDamage > 0 {
-			caster.Heal(int(math.Ceil(float64(totalDamage) * player.WaveLifeStealRatio)))
+			caster.Heal(int(math.Ceil(float64(totalDamage) * lifeStealRatio)))
 		}
 		caster.FinishCast(castID)
 	}

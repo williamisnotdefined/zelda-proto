@@ -9,6 +9,7 @@ const WAVE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 84px)
 const FIREBALL_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 166px)';
 const LANDMINE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 248px)';
 const GRENADE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 330px)';
+const NUMB_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 412px)';
 
 interface KnobPosition {
   x: number;
@@ -31,6 +32,7 @@ function detectTouchDevice(): boolean {
 export function TouchControls() {
   const enabled = useTouchInputStore((state) => state.enabled);
   const waveCooldownEndsAt = useGameStore((state) => state.waveCooldownEndsAt);
+  const numbCooldownEndsAt = useGameStore((state) => state.numbCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((state) => state.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((state) => state.grenadeCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((state) => state.landmineCooldownEndsAt);
@@ -39,6 +41,7 @@ export function TouchControls() {
   const setMove = useTouchInputStore((state) => state.setMove);
   const setAttackPressed = useTouchInputStore((state) => state.setAttackPressed);
   const setWavePressed = useTouchInputStore((state) => state.setWavePressed);
+  const setNumbPressed = useTouchInputStore((state) => state.setNumbPressed);
   const setFireballPressed = useTouchInputStore((state) => state.setFireballPressed);
   const setGrenadePressed = useTouchInputStore((state) => state.setGrenadePressed);
   const setLandminePressed = useTouchInputStore((state) => state.setLandminePressed);
@@ -48,6 +51,7 @@ export function TouchControls() {
   const joystickPointerId = useRef<number | null>(null);
   const attackPointerId = useRef<number | null>(null);
   const wavePointerId = useRef<number | null>(null);
+  const numbPointerId = useRef<number | null>(null);
   const fireballPointerId = useRef<number | null>(null);
   const grenadePointerId = useRef<number | null>(null);
   const landminePointerId = useRef<number | null>(null);
@@ -77,6 +81,7 @@ export function TouchControls() {
   useEffect(() => {
     if (
       !waveCooldownEndsAt &&
+      !numbCooldownEndsAt &&
       !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
       !landmineCooldownEndsAt
@@ -91,6 +96,7 @@ export function TouchControls() {
       setCooldownNowMs(now);
       if (
         now >= (waveCooldownEndsAt ?? 0) &&
+        now >= (numbCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0)
@@ -100,7 +106,13 @@ export function TouchControls() {
     }, 50);
 
     return () => window.clearInterval(intervalId);
-  }, [fireballCooldownEndsAt, grenadeCooldownEndsAt, landmineCooldownEndsAt, waveCooldownEndsAt]);
+  }, [
+    fireballCooldownEndsAt,
+    grenadeCooldownEndsAt,
+    landmineCooldownEndsAt,
+    numbCooldownEndsAt,
+    waveCooldownEndsAt,
+  ]);
 
   const updateJoystick = (clientX: number, clientY: number) => {
     const element = joystickRef.current;
@@ -211,6 +223,14 @@ export function TouchControls() {
     setWavePressed(false);
   };
 
+  const releaseNumb = (target?: EventTarget | null) => {
+    if (target instanceof Element && numbPointerId.current !== null) {
+      target.releasePointerCapture(numbPointerId.current);
+    }
+    numbPointerId.current = null;
+    setNumbPressed(false);
+  };
+
   const releaseFireball = (target?: EventTarget | null) => {
     if (target instanceof Element && fireballPointerId.current !== null) {
       target.releasePointerCapture(fireballPointerId.current);
@@ -237,6 +257,8 @@ export function TouchControls() {
 
   const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
   const waveReady = !waveCooldownEndsAt || waveCooldownRemainingMs <= 0;
+  const numbCooldownRemainingMs = Math.max(0, (numbCooldownEndsAt ?? 0) - cooldownNowMs);
+  const numbReady = !numbCooldownEndsAt || numbCooldownRemainingMs <= 0;
   const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
   const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
   const grenadeCooldownRemainingMs = Math.max(0, (grenadeCooldownEndsAt ?? 0) - cooldownNowMs);
@@ -261,6 +283,25 @@ export function TouchControls() {
   const handleWavePointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.pointerId !== wavePointerId.current) return;
     releaseWave(event.currentTarget);
+  };
+
+  const handleNumbPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!numbReady || numbPointerId.current !== null) return;
+    event.preventDefault();
+    numbPointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setNumbPressed(true);
+  };
+
+  const handleNumbPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== numbPointerId.current) return;
+    event.preventDefault();
+    releaseNumb(event.currentTarget);
+  };
+
+  const handleNumbPointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== numbPointerId.current) return;
+    releaseNumb(event.currentTarget);
   };
 
   const handleFireballPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -372,6 +413,40 @@ export function TouchControls() {
           }}
         />
       </div>
+
+      <button
+        type="button"
+        onPointerDown={handleNumbPointerDown}
+        onPointerUp={handleNumbPointerUp}
+        onPointerCancel={handleNumbPointerCancel}
+        onLostPointerCapture={() => releaseNumb()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: NUMB_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: numbReady
+            ? '2px solid rgba(214, 222, 232, 0.82)'
+            : '2px solid rgba(141, 151, 162, 0.55)',
+          background: numbReady ? 'rgba(126, 137, 148, 0.32)' : 'rgba(58, 67, 76, 0.46)',
+          color: '#f3f6f8',
+          fontSize: numbReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: numbReady ? 1 : 0.8,
+          boxShadow: numbReady ? '0 0 18px rgba(216, 223, 230, 0.18)' : 'none',
+        }}
+      >
+        {numbReady ? 'Numb' : `${(numbCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
 
       <button
         type="button"

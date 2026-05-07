@@ -668,6 +668,9 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
 		t.Fatalf("expected player wave windup indicator, got %#v", windupSnap.WaveIndicators)
 	}
+	if windupSnap.WaveIndicators[0].Kind != "wave" {
+		t.Fatalf("expected wave indicator kind 'wave', got %#v", windupSnap.WaveIndicators[0])
+	}
 
 	w.Tick(player.WaveWindup)
 	expandingSnap := w.Snapshot()
@@ -684,7 +687,7 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	if got, want := target.HP, player.MaxHP-player.WaveDamage; got != want {
 		t.Fatalf("expected target HP=%d after wave, got %d", want, got)
 	}
-	if got, want := attacker.HP, player.MaxHP-16; got != want {
+	if got, want := attacker.HP, player.MaxHP-12; got != want {
 		t.Fatalf("expected attacker HP=%d after wave life steal, got %d", want, got)
 	}
 	if dx, dy := e.X-attacker.X, e.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {
@@ -695,6 +698,75 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	}
 	if len(w.Snapshot().WaveIndicators) != 0 {
 		t.Fatal("expected no player wave indicator after release")
+	}
+}
+
+func TestPlayerNumbDamagesPushesAndKeepsTargetsFrozen(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1070.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.TakeDamage(30)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 7
+	e := enemy.New("e1", 1000, 1049, "0,0", passiveConfig, drop.KindHeartSmall)
+	e.TargetID = attacker.ID
+	e.State = enemy.StateChasing
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Numb: true})
+	w.Tick(20 * time.Millisecond)
+	if got, want := attacker.HP, player.MaxHP-30; got != want {
+		t.Fatalf("expected numb freeze to suppress contact damage, want HP=%d got %d", want, got)
+	}
+	windupSnap := w.Snapshot()
+	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
+		t.Fatalf("expected player numb windup indicator, got %#v", windupSnap.WaveIndicators)
+	}
+	if windupSnap.WaveIndicators[0].Kind != "numb" {
+		t.Fatalf("expected numb indicator kind 'numb', got %#v", windupSnap.WaveIndicators[0])
+	}
+
+	w.Tick(player.WaveWindup)
+	expandingSnap := w.Snapshot()
+	if len(expandingSnap.WaveIndicators) == 0 || expandingSnap.WaveIndicators[0].State != boss.WaveExpanding {
+		t.Fatalf("expected expanding numb indicator, got %#v", expandingSnap.WaveIndicators)
+	}
+	if expandingSnap.WaveIndicators[0].Kind != "numb" {
+		t.Fatalf("expected expanding numb kind 'numb', got %#v", expandingSnap.WaveIndicators[0])
+	}
+
+	releaseAfter := player.WaveExpandDuration() + 20*time.Millisecond
+	w.Tick(releaseAfter)
+
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.NumbDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after numb, got %d", want, got)
+	}
+	if got, want := target.HP, player.MaxHP-player.NumbDamage; got != want {
+		t.Fatalf("expected target HP=%d after numb, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-22; got != want {
+		t.Fatalf("expected attacker HP=%d after numb life steal, got %d", want, got)
+	}
+	frozenX, frozenY := e.X, e.Y
+
+	w.Tick(1000 * time.Millisecond)
+	if e.X != frozenX || e.Y != frozenY {
+		t.Fatalf("expected enemy to stay frozen for numb, got moved to (%.1f, %.1f)", e.X, e.Y)
+	}
+
+	w.Tick(1000 * time.Millisecond)
+	w.Tick(120 * time.Millisecond)
+	if e.X == frozenX && e.Y == frozenY {
+		t.Fatalf("expected enemy to move again after numb freeze ends, still at (%.1f, %.1f)", e.X, e.Y)
+	}
+	if len(w.Snapshot().WaveIndicators) != 0 {
+		t.Fatal("expected no numb indicator after release")
 	}
 }
 

@@ -172,7 +172,7 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	if target.HP != player.MaxHP-player.WaveDamage {
 		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.WaveDamage, target.HP)
 	}
-	if got, want := caster.HP, player.MaxHP-11; got != want {
+	if got, want := caster.HP, player.MaxHP-2; got != want {
 		t.Fatalf("expected caster HP=%d after wave life steal, got %d", want, got)
 	}
 	for name, pos := range map[string][2]float64{
@@ -213,7 +213,7 @@ func TestPlayerWaveLifeStealUsesActualDamageAndRoundsUp(t *testing.T) {
 		zone,
 	)
 
-	if got, want := caster.HP, 43; got != want {
+	if got, want := caster.HP, 45; got != want {
 		t.Fatalf("expected caster HP=%d when life steal uses actual damage, got %d", want, got)
 	}
 }

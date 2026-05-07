@@ -725,47 +725,61 @@ func (w *World) tickPlayers(dt time.Duration) bool {
 func (w *World) preparePlayerWaves() {
 	for _, p := range w.players {
 		cx, cy, ok := p.ConsumeWaveStart()
+		if ok {
+			p.SetWaveTargets(w.capturePlayerWaveTargets(cx, cy, p.WaveRemainingDuration()))
+		}
+
+		cx, cy, ok = p.ConsumeNumbStart()
 		if !ok {
 			continue
 		}
-
-		targets := player.WaveTargets{}
-		freezeFor := p.WaveRemainingDuration()
-
-		w.enemyIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
-			e := w.enemies[id]
-			if e == nil || e.State == enemy.StateDead || !withinPlayerWave(cx, cy, e.X, e.Y, e.CollisionRadius()) {
-				return
-			}
-			targets.EnemyIDs = append(targets.EnemyIDs, e.ID)
-			armFreeze(w.waveFrozenEnemies, e.ID, freezeFor)
-			e.TargetID = ""
-			e.State = enemy.StateIdle
-		})
-
-		w.bossIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
-			if d := w.dragons[id]; d != nil {
-				if d.State != boss.StateDead && withinPlayerWave(cx, cy, d.X, d.Y, d.ContactRadius()) {
-					targets.DragonIDs = append(targets.DragonIDs, d.ID)
-					armFreeze(w.waveFrozenDragons, d.ID, freezeFor)
-				}
-				return
-			}
-			if g := w.gelehks[id]; g != nil {
-				if g.State != boss.StateDead && withinPlayerWave(cx, cy, g.X, g.Y, g.ContactRadius()) {
-					targets.GelehkIDs = append(targets.GelehkIDs, g.ID)
-					armFreeze(w.waveFrozenGelehks, g.ID, freezeFor)
-				}
-				return
-			}
-			if v := w.vanessas[id]; v != nil && v.State != boss.StateDead && withinPlayerWave(cx, cy, v.X, v.Y, v.ContactRadius()) {
-				targets.VanessaIDs = append(targets.VanessaIDs, v.ID)
-				armFreeze(w.waveFrozenVanessas, v.ID, freezeFor)
-			}
-		})
-
-		p.SetWaveTargets(targets)
+		p.SetNumbTargets(w.capturePlayerWaveTargets(cx, cy, p.NumbRemainingDuration()+player.NumbFreezeDuration))
 	}
+}
+
+func (w *World) capturePlayerWaveTargets(cx, cy float64, freezeFor time.Duration) player.WaveTargets {
+	targets := player.WaveTargets{}
+
+	w.enemyIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
+		e := w.enemies[id]
+		if e == nil || e.State == enemy.StateDead || !withinPlayerWave(cx, cy, e.X, e.Y, e.CollisionRadius()) {
+			return
+		}
+		targets.EnemyIDs = append(targets.EnemyIDs, e.ID)
+		armFreeze(w.waveFrozenEnemies, e.ID, freezeFor)
+		e.TargetID = ""
+		e.State = enemy.StateIdle
+	})
+
+	w.bossIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
+		if d := w.dragons[id]; d != nil {
+			if d.State != boss.StateDead && withinPlayerWave(cx, cy, d.X, d.Y, d.ContactRadius()) {
+				targets.DragonIDs = append(targets.DragonIDs, d.ID)
+				armFreeze(w.waveFrozenDragons, d.ID, freezeFor)
+				d.TargetID = ""
+				d.State = boss.StateIdle
+			}
+			return
+		}
+		if g := w.gelehks[id]; g != nil {
+			if g.State != boss.StateDead && withinPlayerWave(cx, cy, g.X, g.Y, g.ContactRadius()) {
+				targets.GelehkIDs = append(targets.GelehkIDs, g.ID)
+				armFreeze(w.waveFrozenGelehks, g.ID, freezeFor)
+				g.StopChargeOnCollision()
+				g.State = boss.StateIdle
+				g.StateTimer = 0
+			}
+			return
+		}
+		if v := w.vanessas[id]; v != nil && v.State != boss.StateDead && withinPlayerWave(cx, cy, v.X, v.Y, v.ContactRadius()) {
+			targets.VanessaIDs = append(targets.VanessaIDs, v.ID)
+			armFreeze(w.waveFrozenVanessas, v.ID, freezeFor)
+			v.TargetID = ""
+			v.State = boss.StateIdle
+		}
+	})
+
+	return targets
 }
 
 func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
@@ -944,6 +958,20 @@ func advanceFreeze(locks map[string]time.Duration, id string, dt time.Duration) 
 		locks[id] = remaining
 	}
 	return true
+}
+
+func filterFrozenMap[T any](items map[string]T, frozen map[string]time.Duration) map[string]T {
+	if len(frozen) == 0 {
+		return items
+	}
+	out := make(map[string]T, len(items))
+	for id, item := range items {
+		if _, locked := frozen[id]; locked {
+			continue
+		}
+		out[id] = item
+	}
+	return out
 }
 
 func (w *World) tickHazards(dt time.Duration) {
@@ -1564,7 +1592,7 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerPistol → PlayerWave → PlayerLandmine → PlayerGrenade →
+	// PlayerPistol → PlayerWave → PlayerNumb → PlayerLandmine → PlayerGrenade →
 	// PlayerFireball → PlayerDash → ContactDamage. Each system is stateless and
 	// reads/mutates only the slices it needs.
 	(appcombat.PlayerPistolSystem{}).Resolve(
@@ -1575,6 +1603,16 @@ func (w *World) resolveCombat() {
 		},
 	)
 	if (appcombat.PlayerWaveSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		w.safeZone(),
+	) {
+		w.resolveBodyCollisionsLocked()
+	}
+	if (appcombat.PlayerNumbSystem{}).Resolve(
 		w.players,
 		w.enemies,
 		w.dragons,
@@ -1617,7 +1655,14 @@ func (w *World) resolveCombat() {
 	) {
 		w.syncDynamicIndexesLocked()
 	}
-	appcombat.ContactDamageSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas, w.safeZone())
+	appcombat.ContactDamageSystem{}.Resolve(
+		w.players,
+		filterFrozenMap(w.enemies, w.waveFrozenEnemies),
+		filterFrozenMap(w.dragons, w.waveFrozenDragons),
+		filterFrozenMap(w.gelehks, w.waveFrozenGelehks),
+		filterFrozenMap(w.vanessas, w.waveFrozenVanessas),
+		w.safeZone(),
+	)
 }
 
 // playerViews builds a snapshot slice of players for AI consumption.
@@ -1703,7 +1748,7 @@ func (w *World) Snapshot() SnapshotView {
 	for _, p := range w.players {
 		view.Players = append(view.Players, p.Snapshot())
 		if wave := p.WaveIndicator(); wave != nil {
-			view.WaveIndicators = append(view.WaveIndicators, boss.WaveIndicator{OwnerID: p.ID, X: wave.X, Y: wave.Y, Radius: wave.Radius, State: boss.WaveState(wave.State)})
+			view.WaveIndicators = append(view.WaveIndicators, boss.WaveIndicator{OwnerID: p.ID, X: wave.X, Y: wave.Y, Radius: wave.Radius, State: boss.WaveState(wave.State), Kind: string(wave.Kind)})
 		}
 	}
 	for _, e := range w.enemies {

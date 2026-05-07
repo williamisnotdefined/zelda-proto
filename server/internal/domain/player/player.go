@@ -17,11 +17,13 @@ const (
 	MaxHP                         = 100
 	MeleeDamage                   = 10
 	PistolDamage                  = 2
-	FireballDamage                = 20
-	LandmineDamage                = 20
-	GrenadeDamage                 = 20
+	FireballDamage                = 5
+	LandmineDamage                = 10
+	GrenadeDamage                 = 10
 	WaveDamage                    = 3
-	WaveLifeStealRatio    float64 = 0.60
+	NumbDamage                    = WaveDamage
+	WaveLifeStealRatio    float64 = 1.20
+	NumbLifeStealRatio    float64 = WaveLifeStealRatio
 	WaveWindup                    = 80 * time.Millisecond
 	WaveWindupRadius      float64 = 44
 	DashDistance          float64 = 300
@@ -29,6 +31,8 @@ const (
 	DashHalfWidth         float64 = 36
 	AttackCooldown                = 500 * time.Millisecond
 	WaveCooldown                  = 5 * time.Second
+	NumbCooldown                  = WaveCooldown
+	NumbFreezeDuration            = 2 * time.Second
 	DashCooldown                  = 1 * time.Second
 	FireballCooldown              = 400 * time.Millisecond
 	GrenadeCooldown               = 2 * time.Second
@@ -86,6 +90,7 @@ type Input struct {
 	Right    bool
 	Attack   bool
 	Wave     bool
+	Numb     bool
 	Dash     bool
 	Fireball bool
 	Grenade  bool
@@ -185,11 +190,21 @@ type Snapshot struct {
 	EquippedWeapon        WeaponKind
 }
 
+// WaveKind identifies which wave-like player skill is currently visualized.
+type WaveKind string
+
+// Wave-like skill identifiers mirrored by the client indicator styling.
+const (
+	WaveKindWave WaveKind = "wave"
+	WaveKindNumb WaveKind = "numb"
+)
+
 // WaveIndicator is the active player wave visual state.
 type WaveIndicator struct {
 	X, Y   float64
 	Radius float64
 	State  WaveState
+	Kind   WaveKind
 }
 
 // WaveState is the current phase of the player wave visual.
@@ -232,6 +247,7 @@ type Player struct {
 	AttackCooldown        time.Duration
 	AttackState           time.Duration
 	WaveCooldown          time.Duration
+	NumbCooldown          time.Duration
 	DashCooldown          time.Duration
 	FireballCooldown      time.Duration
 	GrenadeCooldown       time.Duration
@@ -259,6 +275,14 @@ type Player struct {
 	waveCenterX           float64
 	waveCenterY           float64
 	waveTargets           WaveTargets
+	numbActive            bool
+	numbStartQueued       bool
+	numbReleaseQueued     bool
+	numbWindupRemaining   time.Duration
+	numbRadius            float64
+	numbCenterX           float64
+	numbCenterY           float64
+	numbTargets           WaveTargets
 	dashCastQueued        bool
 	dashStartX            float64
 	dashStartY            float64
@@ -281,6 +305,7 @@ type Player struct {
 	landmineDirection     world.Direction
 	nextCastID            uint64
 	waveCastID            uint64
+	numbCastID            uint64
 	pistolCastID          uint64
 	fireballCastID        uint64
 	grenadeCastID         uint64
@@ -351,7 +376,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	if p.State == StateDead {
 		return
 	}
-	defer p.advanceWave(dt)
+	defer p.advanceWaveLikeCasts(dt)
 
 	if p.AttackCooldown > 0 {
 		p.AttackCooldown -= dt
@@ -363,6 +388,12 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.WaveCooldown -= dt
 		if p.WaveCooldown < 0 {
 			p.WaveCooldown = 0
+		}
+	}
+	if p.NumbCooldown > 0 {
+		p.NumbCooldown -= dt
+		if p.NumbCooldown < 0 {
+			p.NumbCooldown = 0
 		}
 	}
 	if p.DashCooldown > 0 {
@@ -408,7 +439,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.pistolCastID = p.beginCast()
 		}
 	}
-	if input.Wave && p.WaveCooldown <= 0 {
+	if input.Wave && p.WaveCooldown <= 0 && !p.waveLikeActive() {
 		p.WaveCooldown = WaveCooldown
 		p.waveActive = true
 		p.waveStartQueued = true
@@ -419,6 +450,18 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.waveCenterY = p.Y
 		p.waveTargets = WaveTargets{}
 		p.waveCastID = p.beginCast()
+	}
+	if input.Numb && p.NumbCooldown <= 0 && !p.waveLikeActive() {
+		p.NumbCooldown = NumbCooldown
+		p.numbActive = true
+		p.numbStartQueued = true
+		p.numbReleaseQueued = false
+		p.numbWindupRemaining = WaveWindup
+		p.numbRadius = 0
+		p.numbCenterX = p.X
+		p.numbCenterY = p.Y
+		p.numbTargets = WaveTargets{}
+		p.numbCastID = p.beginCast()
 	}
 	if input.Fireball && p.FireballCooldown <= 0 {
 		if fireballDirection := dashDirectionFromInput(input, p.Direction); fireballDirection != "" {
@@ -516,6 +559,7 @@ func (p *Player) TakeDamage(amount int) {
 	if p.HP <= 0 {
 		p.HP = 0
 		p.resetWave()
+		p.resetNumb()
 		p.resetDash()
 		p.resetPistol()
 		p.resetFireball()
@@ -560,6 +604,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetAttackTracking()
 	p.resetCastTracking()
 	p.resetWave()
+	p.resetNumb()
 	p.resetDash()
 	p.resetPistol()
 	p.resetFireball()
@@ -574,6 +619,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.LastProcessedInputSeq = -1
 	p.lastReceivedInputSeq = -1
 	p.resetWave()
+	p.resetNumb()
 	p.resetDash()
 	p.resetPistol()
 	p.resetFireball()
@@ -653,9 +699,24 @@ func (p *Player) ConsumeWaveStart() (float64, float64, bool) {
 	return p.waveCenterX, p.waveCenterY, true
 }
 
+// ConsumeNumbStart returns the center of a newly triggered numb once so the
+// world can pre-lock affected hostiles before AI movement runs.
+func (p *Player) ConsumeNumbStart() (float64, float64, bool) {
+	if !p.numbStartQueued {
+		return 0, 0, false
+	}
+	p.numbStartQueued = false
+	return p.numbCenterX, p.numbCenterY, true
+}
+
 // SetWaveTargets stores the hostile IDs captured when the wave started.
 func (p *Player) SetWaveTargets(targets WaveTargets) {
 	p.waveTargets = targets
+}
+
+// SetNumbTargets stores the hostile IDs captured when numb started.
+func (p *Player) SetNumbTargets(targets WaveTargets) {
+	p.numbTargets = targets
 }
 
 // ConsumeWaveRelease returns the center and captured hostiles of a completed
@@ -672,15 +733,36 @@ func (p *Player) ConsumeWaveRelease() (float64, float64, WaveTargets, uint64, bo
 	return p.waveCenterX, p.waveCenterY, targets, castID, true
 }
 
+// ConsumeNumbRelease returns the center and captured hostiles of a completed
+// numb once.
+func (p *Player) ConsumeNumbRelease() (float64, float64, WaveTargets, uint64, bool) {
+	if !p.numbReleaseQueued {
+		return 0, 0, WaveTargets{}, 0, false
+	}
+	p.numbReleaseQueued = false
+	targets := p.numbTargets
+	castID := p.numbCastID
+	p.numbTargets = WaveTargets{}
+	p.numbCastID = 0
+	return p.numbCenterX, p.numbCenterY, targets, castID, true
+}
+
 // WaveRemainingDuration returns how long the current wave will keep hostiles
 // frozen before it releases.
 func (p *Player) WaveRemainingDuration() time.Duration {
 	if !p.waveActive {
 		return 0
 	}
-	remainingRadius := math.Max(0, WaveMaxRadius-p.waveRadius)
-	expandRemaining := time.Duration(float64(time.Second) * remainingRadius / WaveSpeed)
-	return p.waveWindupRemaining + expandRemaining
+	return remainingWaveLikeDuration(p.waveWindupRemaining, p.waveRadius)
+}
+
+// NumbRemainingDuration returns how long the current numb will keep hostiles
+// locked before the hit resolves.
+func (p *Player) NumbRemainingDuration() time.Duration {
+	if !p.numbActive {
+		return 0
+	}
+	return remainingWaveLikeDuration(p.numbWindupRemaining, p.numbRadius)
 }
 
 // ConsumeDashCast returns a newly triggered dash once.
@@ -738,13 +820,19 @@ func (p *Player) ConsumeLandmineCast() (float64, float64, world.Direction, uint6
 
 // WaveIndicator returns the active player wave visual, if any.
 func (p *Player) WaveIndicator() *WaveIndicator {
-	if !p.waveActive {
+	if p.waveActive {
+		if p.waveWindupRemaining > 0 {
+			return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindWave}
+		}
+		return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: p.waveRadius, State: WaveStateExpanding, Kind: WaveKindWave}
+	}
+	if !p.numbActive {
 		return nil
 	}
-	if p.waveWindupRemaining > 0 {
-		return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: WaveWindupRadius, State: WaveStateWindup}
+	if p.numbWindupRemaining > 0 {
+		return &WaveIndicator{X: p.numbCenterX, Y: p.numbCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindNumb}
 	}
-	return &WaveIndicator{X: p.waveCenterX, Y: p.waveCenterY, Radius: p.waveRadius, State: WaveStateExpanding}
+	return &WaveIndicator{X: p.numbCenterX, Y: p.numbCenterY, Radius: p.numbRadius, State: WaveStateExpanding, Kind: WaveKindNumb}
 }
 
 // Snapshot returns the wire projection for this player.
@@ -820,26 +908,9 @@ func (p *Player) resetAttackTracking() {
 	p.ToastyTriggered = false
 }
 
-func (p *Player) advanceWave(dt time.Duration) {
-	if !p.waveActive {
-		return
-	}
-	remaining := dt
-	if p.waveWindupRemaining > 0 {
-		if remaining < p.waveWindupRemaining {
-			p.waveWindupRemaining -= remaining
-			return
-		}
-		remaining -= p.waveWindupRemaining
-		p.waveWindupRemaining = 0
-	}
-	p.waveRadius += WaveSpeed * remaining.Seconds()
-	if p.waveRadius < WaveMaxRadius {
-		return
-	}
-	p.waveActive = false
-	p.waveReleaseQueued = true
-	p.waveRadius = 0
+func (p *Player) advanceWaveLikeCasts(dt time.Duration) {
+	advanceWaveLikeCast(&p.waveActive, &p.waveReleaseQueued, &p.waveWindupRemaining, &p.waveRadius, dt)
+	advanceWaveLikeCast(&p.numbActive, &p.numbReleaseQueued, &p.numbWindupRemaining, &p.numbRadius, dt)
 }
 
 func (p *Player) resetWave() {
@@ -852,6 +923,20 @@ func (p *Player) resetWave() {
 	p.waveCenterX = 0
 	p.waveCenterY = 0
 	p.waveTargets = WaveTargets{}
+	p.waveCastID = 0
+}
+
+func (p *Player) resetNumb() {
+	p.NumbCooldown = 0
+	p.numbActive = false
+	p.numbStartQueued = false
+	p.numbReleaseQueued = false
+	p.numbWindupRemaining = 0
+	p.numbRadius = 0
+	p.numbCenterX = 0
+	p.numbCenterY = 0
+	p.numbTargets = WaveTargets{}
+	p.numbCastID = 0
 }
 
 func (p *Player) resetDash() {
@@ -907,6 +992,7 @@ func (p *Player) resetCastTracking() {
 		delete(p.castMonsterKills, castID)
 	}
 	p.waveCastID = 0
+	p.numbCastID = 0
 	p.pistolCastID = 0
 	p.fireballCastID = 0
 	p.grenadeCastID = 0
@@ -921,6 +1007,44 @@ func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direct
 		return direction
 	}
 	return fallback
+}
+
+func (p *Player) waveLikeActive() bool {
+	return p.waveActive || p.numbActive
+}
+
+func remainingWaveLikeDuration(windupRemaining time.Duration, radius float64) time.Duration {
+	remainingRadius := math.Max(0, WaveMaxRadius-radius)
+	expandRemaining := time.Duration(float64(time.Second) * remainingRadius / WaveSpeed)
+	return windupRemaining + expandRemaining
+}
+
+func advanceWaveLikeCast(
+	active *bool,
+	releaseQueued *bool,
+	windupRemaining *time.Duration,
+	radius *float64,
+	dt time.Duration,
+) {
+	if !*active {
+		return
+	}
+	remaining := dt
+	if *windupRemaining > 0 {
+		if remaining < *windupRemaining {
+			*windupRemaining -= remaining
+			return
+		}
+		remaining -= *windupRemaining
+		*windupRemaining = 0
+	}
+	*radius += WaveSpeed * remaining.Seconds()
+	if *radius < WaveMaxRadius {
+		return
+	}
+	*active = false
+	*releaseQueued = true
+	*radius = 0
 }
 
 func (p *Player) transition(state State) {

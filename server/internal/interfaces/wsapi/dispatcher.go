@@ -219,6 +219,7 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Right:    msg.Right,
 		Attack:   msg.Attack,
 		Wave:     msg.Wave,
+		Numb:     msg.Numb,
 		Dash:     msg.Dash,
 		Fireball: msg.Fireball,
 		Grenade:  msg.Grenade,
@@ -541,6 +542,7 @@ func waveIndicatorObj(w bossdom.WaveIndicator) codec.Object {
 		{Key: "x", Value: w.X}, {Key: "y", Value: w.Y},
 		{Key: "radius", Value: w.Radius},
 		{Key: "state", Value: string(w.State)},
+		{Key: "kind", Value: string(w.Kind)},
 	}
 }
 

@@ -117,5 +117,5 @@ var DefaultBalancing = Balancing{
 	PlayerRespawnTime:   1500 * time.Millisecond,
 	SafeZoneDuration:    3000 * time.Millisecond,
 	SpawnSafeZoneRadius: 150,
-	HeartDropLifetime:   20 * time.Second,
+	HeartDropLifetime:   10 * time.Second,
 }

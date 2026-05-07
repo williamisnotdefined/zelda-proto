@@ -70,6 +70,7 @@ type WaveIndicator struct {
 	X, Y    float64
 	Radius  float64
 	State   WaveState
+	Kind    string
 }
 
 // Gelehk is the three-phase boss aggregate.
@@ -380,10 +381,10 @@ func (g *Gelehk) IsInIceZone(x, y float64) bool {
 // WaveIndicator returns the active wave indicator, if any.
 func (g *Gelehk) WaveIndicator() *WaveIndicator {
 	if g.waveActive {
-		return &WaveIndicator{OwnerID: g.ID, X: g.X, Y: g.Y, Radius: g.waveRadius, State: WaveExpanding}
+		return &WaveIndicator{OwnerID: g.ID, X: g.X, Y: g.Y, Radius: g.waveRadius, State: WaveExpanding, Kind: "wave"}
 	}
 	if g.State == StateWaveWindup {
-		return &WaveIndicator{OwnerID: g.ID, X: g.X, Y: g.Y, Radius: 44, State: WaveWindup}
+		return &WaveIndicator{OwnerID: g.ID, X: g.X, Y: g.Y, Radius: 44, State: WaveWindup, Kind: "wave"}
 	}
 	return nil
 }

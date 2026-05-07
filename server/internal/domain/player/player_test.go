@@ -150,6 +150,9 @@ func TestWaveTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if wave == nil || wave.Radius <= 0 || wave.State != WaveStateWindup {
 		t.Fatalf("expected active wave indicator, got %#v", wave)
 	}
+	if wave.Kind != WaveKindWave {
+		t.Fatalf("expected wave indicator kind %q, got %q", WaveKindWave, wave.Kind)
+	}
 
 	releaseAfter := WaveWindup + WaveExpandDuration()
 	p.Update(releaseAfter, 1)
@@ -171,6 +174,56 @@ func TestWaveTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	p.Update(10*time.Millisecond, 1)
 	if _, _, ok := p.ConsumeWaveStart(); ok {
 		t.Fatal("expected cooldown to block second wave cast")
+	}
+}
+
+func TestNumbTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Numb: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.NumbCooldown != NumbCooldown {
+		t.Fatalf("expected numb cooldown %s, got %s", NumbCooldown, p.NumbCooldown)
+	}
+	cx, cy, ok := p.ConsumeNumbStart()
+	if !ok {
+		t.Fatal("expected queued numb start")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected numb center at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if _, _, ok := p.ConsumeNumbStart(); ok {
+		t.Fatal("expected numb start to be consumed once")
+	}
+	wave := p.WaveIndicator()
+	if wave == nil || wave.Radius <= 0 || wave.State != WaveStateWindup {
+		t.Fatalf("expected active numb indicator, got %#v", wave)
+	}
+	if wave.Kind != WaveKindNumb {
+		t.Fatalf("expected numb indicator kind %q, got %q", WaveKindNumb, wave.Kind)
+	}
+
+	releaseAfter := WaveWindup + WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+	cx, cy, targets, castID, ok := p.ConsumeNumbRelease()
+	if !ok {
+		t.Fatal("expected queued numb release")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for numb release")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected numb release at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if len(targets.EnemyIDs)+len(targets.DragonIDs)+len(targets.GelehkIDs)+len(targets.VanessaIDs) != 0 {
+		t.Fatalf("expected no prelocked targets in unit test, got %#v", targets)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Numb: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, ok := p.ConsumeNumbStart(); ok {
+		t.Fatal("expected cooldown to block second numb cast")
 	}
 }
 
