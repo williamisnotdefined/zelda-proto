@@ -127,6 +127,7 @@ func TestMessageBuilders(t *testing.T) {
 		Right:    true,
 		Attack:   false,
 		Wave:     false,
+		Numb:     true,
 		Dash:     false,
 		Fireball: false,
 		Grenade:  false,
@@ -142,6 +143,7 @@ func TestMessageBuilders(t *testing.T) {
 		Right:           true,
 		Attack:          false,
 		Wave:            false,
+		Numb:            true,
 		Dash:            false,
 		Fireball:        false,
 		Grenade:         false,
@@ -203,6 +205,36 @@ func TestParseClientMessage(t *testing.T) {
 			InstanceID: &phase3,
 		})
 		assertParseResult(t, resync, expected, "")
+
+		input := protocol.ParseClientMessage(map[string]any{
+			"protocolVersion": int64(protocol.ProtocolVersion),
+			"type":            "input",
+			"seq":             int64(9),
+			"up":              false,
+			"down":            false,
+			"left":            false,
+			"right":           true,
+			"attack":          false,
+			"wave":            false,
+			"numb":            true,
+			"dash":            false,
+			"fireball":        false,
+			"grenade":         false,
+			"landmine":        false,
+		})
+		assertParseResult(t, input, protocol.NewInputMessage(9, protocol.ClientInputState{
+			Up:       false,
+			Down:     false,
+			Left:     false,
+			Right:    true,
+			Attack:   false,
+			Wave:     false,
+			Numb:     true,
+			Dash:     false,
+			Fireball: false,
+			Grenade:  false,
+			Landmine: false,
+		}), "")
 	})
 
 	t.Run("rejects invalid payloads and protocol mismatches", func(t *testing.T) {
@@ -227,6 +259,7 @@ func TestParseClientMessage(t *testing.T) {
 			"right":           false,
 			"attack":          false,
 			"wave":            false,
+			"numb":            false,
 			"dash":            false,
 			"fireball":        false,
 			"grenade":         false,
@@ -296,6 +329,7 @@ func TestValidateClientMessage(t *testing.T) {
 			"right":           true,
 			"attack":          false,
 			"wave":            false,
+			"numb":            false,
 			"dash":            false,
 			"fireball":        false,
 			"grenade":         false,

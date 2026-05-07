@@ -180,11 +180,12 @@ func (PlayerWaveSystem) Resolve(
 		(*player.Player).ConsumeWaveRelease,
 		player.WaveDamage,
 		player.WaveLifeStealRatio,
+		true,
 	)
 }
 
-// Resolve applies numb damage and knockback. Returns true when any entity
-// position changed and body collisions should be re-resolved.
+// Resolve applies numb damage without knockback. It only damages and leaves
+// targets frozen by the world-layer pre-lock.
 func (PlayerNumbSystem) Resolve(
 	players map[string]*player.Player,
 	enemies map[string]*enemy.Enemy,
@@ -203,6 +204,7 @@ func (PlayerNumbSystem) Resolve(
 		(*player.Player).ConsumeNumbRelease,
 		player.NumbDamage,
 		player.NumbLifeStealRatio,
+		false,
 	)
 }
 
@@ -218,6 +220,7 @@ func resolvePlayerWaveLike(
 	consume waveReleaseConsumer,
 	damage int,
 	lifeStealRatio float64,
+	pushTargets bool,
 ) bool {
 	moved := false
 	for _, caster := range players {
@@ -240,7 +243,7 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
+			if pushTargets && pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
 				e.TargetID = ""
 				e.State = enemy.StateIdle
 				moved = true
@@ -259,7 +262,7 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
+			if pushTargets && pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
 				d.TargetID = ""
 				d.State = boss.StateIdle
 				moved = true
@@ -278,7 +281,7 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
+			if pushTargets && pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
 				g.StopChargeOnCollision()
 				moved = true
 			}
@@ -296,7 +299,7 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
+			if pushTargets && pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
 				v.TargetID = ""
 				v.State = boss.StateIdle
 				moved = true
@@ -316,7 +319,7 @@ func resolvePlayerWaveLike(
 				caster.PlayerKills++
 				continue
 			}
-			if pushOutOfWave(cx, cy, &target.X, &target.Y, player.Width/2) {
+			if pushTargets && pushOutOfWave(cx, cy, &target.X, &target.Y, player.Width/2) {
 				moved = true
 			}
 		}

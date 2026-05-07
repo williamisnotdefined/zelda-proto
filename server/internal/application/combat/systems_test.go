@@ -27,6 +27,15 @@ func queuePlayerWaveRelease(p *player.Player, targets player.WaveTargets) {
 	p.Update(releaseAfter, 1)
 }
 
+func queuePlayerNumbRelease(p *player.Player, targets player.WaveTargets) {
+	p.ApplyInput(player.Input{Seq: 1, Numb: true})
+	p.Update(10*time.Millisecond, 1)
+	p.ConsumeNumbStart()
+	p.SetNumbTargets(targets)
+	releaseAfter := player.WaveWindup + player.WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+}
+
 func TestContactDamageRespectsSafezone(t *testing.T) {
 	t.Parallel()
 	zone := safezone.Zone{X: 100, Y: 100, Radius: 200}
@@ -215,6 +224,80 @@ func TestPlayerWaveLifeStealUsesActualDamageAndRoundsUp(t *testing.T) {
 
 	if got, want := caster.HP, 45; got != want {
 		t.Fatalf("expected caster HP=%d when life steal uses actual damage, got %d", want, got)
+	}
+}
+
+func TestPlayerNumbDamagesTargetsWithoutKnockback(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(20)
+	target := newPlayerOutsideSafezone("tgt", 70, 40)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 0, 50)
+	g := boss.NewGelehk("g1", -60, 0)
+	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+
+	enemyStart := [2]float64{e.X, e.Y}
+	dragonStart := [2]float64{d.X, d.Y}
+	gelehkStart := [2]float64{g.X, g.Y}
+	vanessaStart := [2]float64{v.X, v.Y}
+	playerStart := [2]float64{target.X, target.Y}
+
+	queuePlayerNumbRelease(caster, player.WaveTargets{
+		EnemyIDs:   []string{"e1"},
+		DragonIDs:  []string{"d1"},
+		GelehkIDs:  []string{"g1"},
+		VanessaIDs: []string{"v1"},
+	})
+
+	moved := PlayerNumbSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": e},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		zone,
+	)
+	if moved {
+		t.Fatal("expected numb to avoid knockback")
+	}
+	if e.HP != enemy.BlobConfig.MaxHP-player.NumbDamage {
+		t.Fatalf("expected enemy HP=%d, got %d", enemy.BlobConfig.MaxHP-player.NumbDamage, e.HP)
+	}
+	if d.HP != boss.DragonLordMaxHP-player.NumbDamage {
+		t.Fatalf("expected dragon HP=%d, got %d", boss.DragonLordMaxHP-player.NumbDamage, d.HP)
+	}
+	if g.HP != boss.GelehkMaxHP-player.NumbDamage {
+		t.Fatalf("expected gelehk HP=%d, got %d", boss.GelehkMaxHP-player.NumbDamage, g.HP)
+	}
+	if v.HP != boss.VanessaMaxHP-player.NumbDamage {
+		t.Fatalf("expected vanessa HP=%d, got %d", boss.VanessaMaxHP-player.NumbDamage, v.HP)
+	}
+	if target.HP != player.MaxHP-player.NumbDamage {
+		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.NumbDamage, target.HP)
+	}
+	if got, want := caster.HP, player.MaxHP-2; got != want {
+		t.Fatalf("expected caster HP=%d after numb life steal, got %d", want, got)
+	}
+	for name, got := range map[string][2]float64{
+		"enemy":   {e.X, e.Y},
+		"dragon":  {d.X, d.Y},
+		"gelehk":  {g.X, g.Y},
+		"vanessa": {v.X, v.Y},
+		"player":  {target.X, target.Y},
+	} {
+		want := map[string][2]float64{
+			"enemy":   enemyStart,
+			"dragon":  dragonStart,
+			"gelehk":  gelehkStart,
+			"vanessa": vanessaStart,
+			"player":  playerStart,
+		}[name]
+		if got != want {
+			t.Fatalf("expected %s position unchanged at (%.1f, %.1f), got (%.1f, %.1f)", name, want[0], want[1], got[0], got[1])
+		}
 	}
 }
 
