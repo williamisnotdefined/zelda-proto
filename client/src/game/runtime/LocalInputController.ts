@@ -22,10 +22,6 @@ const MAX_PENDING_INPUTS = 128;
 
 export class LocalInputController {
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private keyW!: Phaser.Input.Keyboard.Key;
-  private keyA!: Phaser.Input.Keyboard.Key;
-  private keyS!: Phaser.Input.Keyboard.Key;
-  private keyD!: Phaser.Input.Keyboard.Key;
   private waveKey!: Phaser.Input.Keyboard.Key;
   private attackKey!: Phaser.Input.Keyboard.Key;
   private fireballKey!: Phaser.Input.Keyboard.Key;
@@ -177,10 +173,10 @@ export class LocalInputController {
     const rawLandmineDown = this.landmineKey.isDown || touchInput.landminePressed;
     const manualLandmine = rawLandmineDown && !this.prevLandmineDown;
     this.prevLandmineDown = rawLandmineDown;
-    const rawUpDown = this.cursors.up.isDown || this.keyW.isDown || touchInput.move.up;
-    const rawDownDown = this.cursors.down.isDown || this.keyS.isDown || touchInput.move.down;
-    const rawLeftDown = this.cursors.left.isDown || this.keyA.isDown || touchInput.move.left;
-    const rawRightDown = this.cursors.right.isDown || this.keyD.isDown || touchInput.move.right;
+    const rawUpDown = this.cursors.up.isDown || touchInput.move.up;
+    const rawDownDown = this.cursors.down.isDown || touchInput.move.down;
+    const rawLeftDown = this.cursors.left.isDown || touchInput.move.left;
+    const rawRightDown = this.cursors.right.isDown || touchInput.move.right;
     const rawWaveDown = this.waveKey.isDown || touchInput.wavePressed;
     const dashDirection = this.consumeDashDirectionTap(
       nowMs,
@@ -293,15 +289,11 @@ export class LocalInputController {
 
   private bindKeys(): void {
     this.cursors = this.scene.input.keyboard!.createCursorKeys();
-    this.keyW = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W, false);
-    this.keyA = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A, false);
-    this.keyS = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S, false);
-    this.keyD = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D, false);
     this.waveKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R, false);
     this.attackKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
-    this.fireballKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F, false);
-    this.grenadeKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.G, false);
-    this.landmineKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E, false);
+    this.fireballKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E, false);
+    this.grenadeKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q, false);
+    this.landmineKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.W, false);
   }
 
   private consumeDashDirectionTap(

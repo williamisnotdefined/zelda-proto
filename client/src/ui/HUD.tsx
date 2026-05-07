@@ -428,7 +428,7 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
-              <span>Grenade</span>
+              <span>Grenade (Q)</span>
               <span
                 style={{
                   color: grenadeReady ? '#c3ef8c' : '#ebffd0',
@@ -471,7 +471,7 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
-              <span>Landmine</span>
+              <span>Landmine (W)</span>
               <span
                 style={{
                   color: landmineReady ? '#f6e38e' : '#fff1bf',
@@ -516,7 +516,7 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
-              <span>Fireball</span>
+              <span>Fireball (E)</span>
               <span
                 style={{
                   color: fireballReady ? '#ffbd84' : '#ffe3c8',
@@ -561,7 +561,7 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
-              <span>Wave</span>
+              <span>Wave (R)</span>
               <span
                 style={{
                   color: waveReady ? '#ffb7ff' : '#ffd9ff',
@@ -626,8 +626,8 @@ export function HUD() {
             opacity: 0.4,
           }}
         >
-          Arrow keys / WASD: move | Double tap arrows / WASD: dash | R: wave | F: fireball | G:
-          grenade | E: landmine | Space: attack | Tab: players
+          Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball |
+          R: wave | Space: attack | Tab: players
         </div>
       )}
 
