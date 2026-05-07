@@ -1,4 +1,5 @@
-- numb
 - collapse
-- granade (distance)
-- pistol (maybe cut it off)
+- machine gun
+- flamethrower
+- bazooka
+- net
