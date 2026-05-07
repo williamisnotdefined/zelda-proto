@@ -16,24 +16,27 @@ const (
 	Speed                 float64 = 150
 	MaxHP                         = 100
 	MeleeDamage                   = 10
+	PistolDamage                  = 2
 	FireballDamage                = 20
 	LandmineDamage                = 20
 	GrenadeDamage                 = 20
 	WaveDamage                    = 3
-	WaveLifeStealRatio    float64 = 0.20
+	WaveLifeStealRatio    float64 = 0.60
 	WaveWindup                    = 80 * time.Millisecond
 	WaveWindupRadius      float64 = 44
 	DashDistance          float64 = 300
 	DashPushDistance      float64 = 300
 	DashHalfWidth         float64 = 36
-	AttackCooldown                = 400 * time.Millisecond
-	WaveCooldown                  = 500 * time.Millisecond
+	AttackCooldown                = 500 * time.Millisecond
+	WaveCooldown                  = 5 * time.Second
 	DashCooldown                  = 1 * time.Second
 	FireballCooldown              = 400 * time.Millisecond
-	GrenadeCooldown               = 3 * time.Second
-	LandmineCooldown              = 3 * time.Second
+	GrenadeCooldown               = 2 * time.Second
+	LandmineCooldown              = 2 * time.Second
 	AttackStateDuration           = 300 * time.Millisecond
-	AttackSpeedPenalty    float64 = 0.5
+	AttackSpeedPenalty    float64 = 1
+	AttackProjectileSpeed float64 = 1500
+	AttackProjectileRange float64 = 300
 	WaveMaxRadius         float64 = 150
 	WaveSpeed             float64 = 900
 	FireballSpeed         float64 = 900
@@ -48,6 +51,7 @@ const (
 	AttackRangeRight      float64 = 48
 	AttackWidth                   = 72
 	PvPDamage                     = 25
+	PistolPvPDamage               = 5
 	SafeZoneDuration              = 3000 * time.Millisecond
 	BurningTickDamage             = 8
 	BurningTicks                  = 3
@@ -63,6 +67,14 @@ const (
 	StateMoving    State = "moving"
 	StateAttacking State = "attacking"
 	StateDead      State = "dead"
+)
+
+// WeaponKind identifies the currently equipped primary weapon.
+type WeaponKind string
+
+// Canonical weapon kinds mirrored by the client snapshot schema.
+const (
+	WeaponKindPistol WeaponKind = "pistol"
 )
 
 // Input is one client input frame (movement + attack).
@@ -170,6 +182,7 @@ type Snapshot struct {
 	ToastyCount           int
 	LastProcessedInputSeq int64
 	StatusEffects         map[StatusEffect]BurningSnapshot
+	EquippedWeapon        WeaponKind
 }
 
 // WaveIndicator is the active player wave visual state.
@@ -214,6 +227,8 @@ type Player struct {
 	State     State
 	Direction world.Direction
 
+	EquippedWeapon WeaponKind
+
 	AttackCooldown        time.Duration
 	AttackState           time.Duration
 	WaveCooldown          time.Duration
@@ -248,6 +263,10 @@ type Player struct {
 	dashStartX            float64
 	dashStartY            float64
 	dashDirection         world.Direction
+	pistolCastQueued      bool
+	pistolStartX          float64
+	pistolStartY          float64
+	pistolDirection       world.Direction
 	fireballCastQueued    bool
 	fireballStartX        float64
 	fireballStartY        float64
@@ -260,6 +279,13 @@ type Player struct {
 	landmineStartX        float64
 	landmineStartY        float64
 	landmineDirection     world.Direction
+	nextCastID            uint64
+	waveCastID            uint64
+	pistolCastID          uint64
+	fireballCastID        uint64
+	grenadeCastID         uint64
+	landmineCastID        uint64
+	castMonsterKills      map[uint64]int
 
 	burning       BurningStatus
 	purpleBurning BurningStatus
@@ -278,8 +304,10 @@ func New(id, nickname string, x, y float64) *Player {
 		Speed:                 Speed,
 		State:                 StateIdle,
 		Direction:             world.DirectionDown,
+		EquippedWeapon:        WeaponKindPistol,
 		AttackHitEnemyIDs:     make(map[string]struct{}),
 		AttackHitPlayerIDs:    make(map[string]struct{}),
+		castMonsterKills:      make(map[uint64]int),
 		SafeZoneTimer:         SafeZoneDuration,
 		LastProcessedInputSeq: -1,
 		lastReceivedInputSeq:  -1,
@@ -297,8 +325,8 @@ func (p *Player) ApplyInput(input Input) {
 	p.pendingInput = &cloned
 }
 
-// Update advances the player by dt. speedMultiplier is an external (e.g.
-// ice-zone) modifier applied on top of the attack-state penalty.
+// Update advances the player by dt. speedMultiplier is an external modifier
+// (for example from an ice zone).
 func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	if speedMultiplier <= 0 {
 		speedMultiplier = 1
@@ -369,20 +397,16 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	}
 	p.LastProcessedInputSeq = input.Seq
 
-	if p.State == StateAttacking {
-		p.AttackState -= dt
-		if p.AttackState <= 0 {
-			p.AttackState = 0
-			p.transition(StateIdle)
-			p.resetAttackTracking()
-		}
-	}
-
 	if input.Attack && p.AttackCooldown <= 0 {
-		p.transition(StateAttacking)
-		p.AttackCooldown = AttackCooldown
-		p.AttackState = AttackStateDuration
-		p.resetAttackTracking()
+		if attackDirection := dashDirectionFromInput(input, p.Direction); attackDirection != "" {
+			p.Direction = attackDirection
+			p.AttackCooldown = AttackCooldown
+			p.pistolCastQueued = true
+			p.pistolStartX = p.X
+			p.pistolStartY = p.Y
+			p.pistolDirection = attackDirection
+			p.pistolCastID = p.beginCast()
+		}
 	}
 	if input.Wave && p.WaveCooldown <= 0 {
 		p.WaveCooldown = WaveCooldown
@@ -394,6 +418,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.waveCenterX = p.X
 		p.waveCenterY = p.Y
 		p.waveTargets = WaveTargets{}
+		p.waveCastID = p.beginCast()
 	}
 	if input.Fireball && p.FireballCooldown <= 0 {
 		if fireballDirection := dashDirectionFromInput(input, p.Direction); fireballDirection != "" {
@@ -402,6 +427,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.fireballStartX = p.X
 			p.fireballStartY = p.Y
 			p.fireballDirection = fireballDirection
+			p.fireballCastID = p.beginCast()
 		}
 	}
 	if input.Grenade && p.GrenadeCooldown <= 0 {
@@ -411,6 +437,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.grenadeStartX = p.X
 			p.grenadeStartY = p.Y
 			p.grenadeDirection = grenadeDirection
+			p.grenadeCastID = p.beginCast()
 		}
 	}
 	if input.Landmine && p.LandmineCooldown <= 0 {
@@ -420,6 +447,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.landmineStartX = p.X
 			p.landmineStartY = p.Y
 			p.landmineDirection = landmineDirection
+			p.landmineCastID = p.beginCast()
 		}
 	}
 	triggeredDash := false
@@ -435,31 +463,21 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		}
 	}
 	if triggeredDash {
-		if p.State != StateAttacking {
-			p.transition(StateMoving)
-		}
+		p.transition(StateMoving)
 		return
 	}
 
 	if direction := input.Direction(); direction != "" {
-		multiplier := speedMultiplier
-		if p.State == StateAttacking {
-			multiplier *= AttackSpeedPenalty
-		}
-		dx, dy := input.MovementVector(dt, p.Speed, multiplier)
+		dx, dy := input.MovementVector(dt, p.Speed, speedMultiplier)
 		p.X += dx
 		p.Y += dy
 
-		if p.State != StateAttacking {
-			p.Direction = direction
-			p.transition(StateMoving)
-		}
+		p.Direction = direction
+		p.transition(StateMoving)
 		return
 	}
 
-	if p.State != StateAttacking {
-		p.transition(StateIdle)
-	}
+	p.transition(StateIdle)
 }
 
 // AttackHitbox returns the AABB of the current swing or false when the player
@@ -499,8 +517,10 @@ func (p *Player) TakeDamage(amount int) {
 		p.HP = 0
 		p.resetWave()
 		p.resetDash()
+		p.resetPistol()
 		p.resetFireball()
 		p.resetGrenade()
+		p.resetLandmine()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -538,10 +558,13 @@ func (p *Player) Respawn(x, y float64) {
 	p.AttackCooldown = 0
 	p.AttackState = 0
 	p.resetAttackTracking()
+	p.resetCastTracking()
 	p.resetWave()
 	p.resetDash()
+	p.resetPistol()
 	p.resetFireball()
 	p.resetGrenade()
+	p.resetLandmine()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -552,11 +575,14 @@ func (p *Player) SuspendForDisconnect() {
 	p.lastReceivedInputSeq = -1
 	p.resetWave()
 	p.resetDash()
+	p.resetPistol()
 	p.resetFireball()
 	p.resetGrenade()
+	p.resetLandmine()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
+		p.resetCastTracking()
 		p.transition(StateIdle)
 	}
 }
@@ -590,6 +616,33 @@ func (p *Player) RecordMonsterKillInCurrentAttack() {
 	}
 }
 
+// RecordMonsterKillInCast increments the per-cast kill counter and triggers
+// the toasty bonus once when the cast reaches the threshold.
+func (p *Player) RecordMonsterKillInCast(castID uint64) {
+	if castID == 0 {
+		return
+	}
+	count := p.castMonsterKills[castID]
+	if count < 0 {
+		return
+	}
+	count += 1
+	if count >= world.ToastyKillThreshold {
+		p.ToastyCount += 1
+		p.castMonsterKills[castID] = -1
+		return
+	}
+	p.castMonsterKills[castID] = count
+}
+
+// FinishCast clears any toasty bookkeeping for a completed cast.
+func (p *Player) FinishCast(castID uint64) {
+	if castID == 0 {
+		return
+	}
+	delete(p.castMonsterKills, castID)
+}
+
 // ConsumeWaveStart returns the center of a newly triggered wave once so the
 // world can pre-lock affected hostiles before AI movement runs.
 func (p *Player) ConsumeWaveStart() (float64, float64, bool) {
@@ -607,14 +660,16 @@ func (p *Player) SetWaveTargets(targets WaveTargets) {
 
 // ConsumeWaveRelease returns the center and captured hostiles of a completed
 // player wave once.
-func (p *Player) ConsumeWaveRelease() (float64, float64, WaveTargets, bool) {
+func (p *Player) ConsumeWaveRelease() (float64, float64, WaveTargets, uint64, bool) {
 	if !p.waveReleaseQueued {
-		return 0, 0, WaveTargets{}, false
+		return 0, 0, WaveTargets{}, 0, false
 	}
 	p.waveReleaseQueued = false
 	targets := p.waveTargets
+	castID := p.waveCastID
 	p.waveTargets = WaveTargets{}
-	return p.waveCenterX, p.waveCenterY, targets, true
+	p.waveCastID = 0
+	return p.waveCenterX, p.waveCenterY, targets, castID, true
 }
 
 // WaveRemainingDuration returns how long the current wave will keep hostiles
@@ -637,31 +692,48 @@ func (p *Player) ConsumeDashCast() (float64, float64, world.Direction, bool) {
 	return p.dashStartX, p.dashStartY, p.dashDirection, true
 }
 
+// ConsumePistolCast returns a newly triggered pistol shot once.
+func (p *Player) ConsumePistolCast() (float64, float64, world.Direction, uint64, bool) {
+	if !p.pistolCastQueued {
+		return 0, 0, "", 0, false
+	}
+	p.pistolCastQueued = false
+	castID := p.pistolCastID
+	p.pistolCastID = 0
+	return p.pistolStartX, p.pistolStartY, p.pistolDirection, castID, true
+}
+
 // ConsumeFireballCast returns a newly triggered fireball once.
-func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, bool) {
+func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, uint64, bool) {
 	if !p.fireballCastQueued {
-		return 0, 0, "", false
+		return 0, 0, "", 0, false
 	}
 	p.fireballCastQueued = false
-	return p.fireballStartX, p.fireballStartY, p.fireballDirection, true
+	castID := p.fireballCastID
+	p.fireballCastID = 0
+	return p.fireballStartX, p.fireballStartY, p.fireballDirection, castID, true
 }
 
 // ConsumeGrenadeCast returns a newly triggered grenade once.
-func (p *Player) ConsumeGrenadeCast() (float64, float64, world.Direction, bool) {
+func (p *Player) ConsumeGrenadeCast() (float64, float64, world.Direction, uint64, bool) {
 	if !p.grenadeCastQueued {
-		return 0, 0, "", false
+		return 0, 0, "", 0, false
 	}
 	p.grenadeCastQueued = false
-	return p.grenadeStartX, p.grenadeStartY, p.grenadeDirection, true
+	castID := p.grenadeCastID
+	p.grenadeCastID = 0
+	return p.grenadeStartX, p.grenadeStartY, p.grenadeDirection, castID, true
 }
 
 // ConsumeLandmineCast returns a newly triggered landmine once.
-func (p *Player) ConsumeLandmineCast() (float64, float64, world.Direction, bool) {
+func (p *Player) ConsumeLandmineCast() (float64, float64, world.Direction, uint64, bool) {
 	if !p.landmineCastQueued {
-		return 0, 0, "", false
+		return 0, 0, "", 0, false
 	}
 	p.landmineCastQueued = false
-	return p.landmineStartX, p.landmineStartY, p.landmineDirection, true
+	castID := p.landmineCastID
+	p.landmineCastID = 0
+	return p.landmineStartX, p.landmineStartY, p.landmineDirection, castID, true
 }
 
 // WaveIndicator returns the active player wave visual, if any.
@@ -703,6 +775,7 @@ func (p *Player) Snapshot() Snapshot {
 		ToastyCount:           p.ToastyCount,
 		LastProcessedInputSeq: p.LastProcessedInputSeq,
 		StatusEffects:         effects,
+		EquippedWeapon:        p.EquippedWeapon,
 	}
 }
 
@@ -789,12 +862,21 @@ func (p *Player) resetDash() {
 	p.dashDirection = ""
 }
 
+func (p *Player) resetPistol() {
+	p.pistolCastQueued = false
+	p.pistolStartX = 0
+	p.pistolStartY = 0
+	p.pistolDirection = ""
+	p.pistolCastID = 0
+}
+
 func (p *Player) resetFireball() {
 	p.FireballCooldown = 0
 	p.fireballCastQueued = false
 	p.fireballStartX = 0
 	p.fireballStartY = 0
 	p.fireballDirection = ""
+	p.fireballCastID = 0
 }
 
 func (p *Player) resetGrenade() {
@@ -803,6 +885,7 @@ func (p *Player) resetGrenade() {
 	p.grenadeStartX = 0
 	p.grenadeStartY = 0
 	p.grenadeDirection = ""
+	p.grenadeCastID = 0
 }
 
 func (p *Player) resetLandmine() {
@@ -811,6 +894,23 @@ func (p *Player) resetLandmine() {
 	p.landmineStartX = 0
 	p.landmineStartY = 0
 	p.landmineDirection = ""
+	p.landmineCastID = 0
+}
+
+func (p *Player) beginCast() uint64 {
+	p.nextCastID += 1
+	return p.nextCastID
+}
+
+func (p *Player) resetCastTracking() {
+	for castID := range p.castMonsterKills {
+		delete(p.castMonsterKills, castID)
+	}
+	p.waveCastID = 0
+	p.pistolCastID = 0
+	p.fireballCastID = 0
+	p.grenadeCastID = 0
+	p.landmineCastID = 0
 }
 
 func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direction {

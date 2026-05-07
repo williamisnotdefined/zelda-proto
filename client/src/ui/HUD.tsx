@@ -6,6 +6,7 @@ import {
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
+import { weaponDefinitions } from '@/shared/definitions';
 import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { useTouchInputStore } from '../game/input/touchInputStore';
 import { phaserGame } from '../game/instance';
@@ -185,6 +186,9 @@ export function HUD() {
   const landmineCooldownProgress = landmineReady
     ? 1
     : 1 - landmineCooldownRemainingMs / PLAYER_LANDMINE_COOLDOWN;
+  const equippedWeaponDefinition = localPlayer
+    ? weaponDefinitions[localPlayer.equippedWeapon]
+    : null;
 
   return (
     <div
@@ -305,6 +309,44 @@ export function HUD() {
       {/* Player HP */}
       {localPlayer && (
         <div style={{ position: 'absolute', top: 16, left: 16 }}>
+          {equippedWeaponDefinition && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                width: 200,
+                marginBottom: 12,
+                padding: '10px 12px',
+                background: 'rgba(10, 12, 18, 0.78)',
+                border: '1px solid rgba(255, 255, 255, 0.14)',
+                borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.24)',
+              }}
+            >
+              <div style={{ fontSize: '10px', letterSpacing: '0.08em', opacity: 0.68 }}>ARMA</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img
+                  src={equippedWeaponDefinition.iconSrc}
+                  alt={equippedWeaponDefinition.label}
+                  draggable={false}
+                  style={{
+                    width: 68,
+                    height: 48,
+                    objectFit: 'contain',
+                    imageRendering: 'pixelated',
+                    filter: 'drop-shadow(0 0 10px rgba(255, 190, 116, 0.22))',
+                  }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>
+                    {equippedWeaponDefinition.label}
+                  </div>
+                  <div style={{ fontSize: '10px', opacity: 0.62 }}>Equipada</div>
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: '12px', marginBottom: 4 }}>HP</div>
           <div
             style={{

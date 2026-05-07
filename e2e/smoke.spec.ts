@@ -81,11 +81,9 @@ test.describe('Go server end-to-end smoke', () => {
           }
         } catch (err) {
           if (decodeErrors.length < 3) {
-            const head = buf
-              .subarray(0, Math.min(16, buf.length))
-              .toString('hex');
+            const head = buf.subarray(0, Math.min(16, buf.length)).toString('hex');
             decodeErrors.push(
-              `${err instanceof Error ? err.message : String(err)} (typeof=${typeof payload}, len=${buf.length}, head=${head})`,
+              `${err instanceof Error ? err.message : String(err)} (typeof=${typeof payload}, len=${buf.length}, head=${head})`
             );
           }
         }
@@ -121,7 +119,7 @@ test.describe('Go server end-to-end smoke', () => {
     expect(snapshotFrames, `expected snapshot frames; ${diag}`).toBeGreaterThan(0);
     expect(
       snapshotWithEnemies,
-      `expected ≥1 snapshot with enemies (saw ${snapshotFrames} frames, ${enemiesSeen} enemy slots, ${bossesSeen} boss slots); ${diag}`,
+      `expected ≥1 snapshot with enemies (saw ${snapshotFrames} frames, ${enemiesSeen} enemy slots, ${bossesSeen} boss slots); ${diag}`
     ).toBeGreaterThan(0);
   });
 
@@ -195,7 +193,7 @@ test.describe('Go server end-to-end smoke', () => {
                 direction: String(p.direction),
                 deaths: Number(p.deaths ?? 0),
                 lastSeq: Number(p.lastProcessedInputSeq ?? -1),
-              })),
+              }))
             );
           }
           // Track enemy movement via either full enemies or deltas.
@@ -236,13 +234,11 @@ test.describe('Go server end-to-end smoke', () => {
       () => {
         const g: any = (window as any).__PHASER_GAME__;
         if (!g) return false;
-        const ws = g.scene?.scenes?.find(
-          (s: any) => s.scene?.settings?.key === 'WorldScene',
-        );
+        const ws = g.scene?.scenes?.find((s: any) => s.scene?.settings?.key === 'WorldScene');
         return ws?.scene?.settings?.status === 5;
       },
       undefined,
-      { timeout: 30_000 },
+      { timeout: 30_000 }
     );
     await page.waitForTimeout(500);
 
@@ -271,10 +267,16 @@ test.describe('Go server end-to-end smoke', () => {
     const maxSeq = Math.max(...lastSeqs);
     expect(
       maxSeq,
-      `server should have processed inputs; lastSeq trajectory=${lastSeqs.join(',')}; sentInputs=${sentInputs}; sentTypes=${[...sentTypes].join(',')}; myId=${myId}; pageErrors=${pageErrors.slice(0, 3).join(' | ')}`,
+      `server should have processed inputs; lastSeq trajectory=${lastSeqs.join(',')}; sentInputs=${sentInputs}; sentTypes=${[...sentTypes].join(',')}; myId=${myId}; pageErrors=${pageErrors.slice(0, 3).join(' | ')}`
     ).toBeGreaterThan(0);
-    expect(movedRight, `player should have moved right, x trajectory=${me.map((p) => p.x).join(',')}; lastSeq=${maxSeq}`).toBe(true);
-    expect(facedRight, `player should face right at some point, dirs=${[...new Set(me.map((p) => p.direction))]}`).toBe(true);
+    expect(
+      movedRight,
+      `player should have moved right, x trajectory=${me.map((p) => p.x).join(',')}; lastSeq=${maxSeq}`
+    ).toBe(true);
+    expect(
+      facedRight,
+      `player should face right at some point, dirs=${[...new Set(me.map((p) => p.direction))]}`
+    ).toBe(true);
 
     // Hold ArrowDown briefly to change direction.
     await page.keyboard.down('ArrowDown');
@@ -283,7 +285,13 @@ test.describe('Go server end-to-end smoke', () => {
     await page.waitForTimeout(300);
     me = selfFrames();
     const facedDown = me.slice(-30).some((p) => p.direction === 'down');
-    expect(facedDown, `player should face down after ArrowDown, dirs(tail)=${me.slice(-30).map((p) => p.direction).join(',')}`).toBe(true);
+    expect(
+      facedDown,
+      `player should face down after ArrowDown, dirs(tail)=${me
+        .slice(-30)
+        .map((p) => p.direction)
+        .join(',')}`
+    ).toBe(true);
 
     // === ATTACK ===
     await page.keyboard.down('Space');
@@ -296,7 +304,10 @@ test.describe('Go server end-to-end smoke', () => {
     await page.waitForTimeout(400);
     me = selfFrames();
     const attacked = me.some((p) => p.state === 'attacking');
-    expect(attacked, `player should enter attacking state, states=${[...new Set(me.map((p) => p.state))]}`).toBe(true);
+    expect(
+      attacked,
+      `player should keep pistol fire as a non-melee action, states=${[...new Set(me.map((p) => p.state))]}`
+    ).toBe(false);
 
     // === ENEMIES MOVING ===
     expect(enemyMovementCount, 'enemies should move').toBeGreaterThan(5);

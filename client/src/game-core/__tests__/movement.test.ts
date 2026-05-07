@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { getDeltaForInput, getNormalizedDirection } from '../movement';
-import { PLAYER_ATTACK_SPEED_PENALTY, PLAYER_SPEED } from '../player';
+import { PLAYER_SPEED } from '../player';
+
+const TEST_SPEED_MULTIPLIER = 0.5;
 
 describe('getNormalizedDirection', () => {
   it('returns null when no movement keys are pressed', () => {
@@ -39,10 +41,10 @@ describe('getDeltaForInput', () => {
       },
       16,
       PLAYER_SPEED,
-      PLAYER_ATTACK_SPEED_PENALTY
+      TEST_SPEED_MULTIPLIER
     );
 
-    expect(delta.dx).toBeCloseTo(PLAYER_SPEED * PLAYER_ATTACK_SPEED_PENALTY * (16 / 1000));
+    expect(delta.dx).toBeCloseTo(PLAYER_SPEED * TEST_SPEED_MULTIPLIER * (16 / 1000));
     expect(delta.dy).toBe(0);
   });
 

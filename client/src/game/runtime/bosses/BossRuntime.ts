@@ -1,6 +1,7 @@
 import type { AoeIndicator, BossSnapshot, BossWaveIndicator, IceZone } from '@/shared';
 import type Phaser from 'phaser';
 import { bossRegistry, type BossEntity } from './bossRegistry';
+import { FxController } from '../../fx/FxController';
 import type { GameUiSink } from '../ui/GameUiSink';
 
 export class BossRuntime {
@@ -9,7 +10,8 @@ export class BossRuntime {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly ui: GameUiSink
+    private readonly ui: GameUiSink,
+    private readonly fx: FxController
   ) {}
 
   syncSnapshots(
@@ -57,6 +59,7 @@ export class BossRuntime {
     localPlayer: { x: number; y: number } | null
   ): void {
     const seenBossIds = new Set<string>();
+    const newBossIds = new Set<string>();
     let nearestBoss: BossSnapshot | null = null;
     let nearestBossDist = Infinity;
 
@@ -66,6 +69,7 @@ export class BossRuntime {
       if (!entity) {
         entity = bossRegistry[boss.kind].create(this.scene, boss);
         this.bossEntities.set(boss.id, entity);
+        newBossIds.add(boss.id);
       }
     }
 
@@ -75,11 +79,19 @@ export class BossRuntime {
         continue;
       }
 
+      const previousHp = entity.hp;
+
       bossRegistry[boss.kind].update(entity, boss, {
         iceZones,
         aoeIndicators,
         waveIndicators,
       });
+      if (!newBossIds.has(boss.id)) {
+        const damageTaken = previousHp - boss.hp;
+        if (damageTaken > 0) {
+          this.fx.spawnFloatingDamage(boss.x, boss.y, damageTaken, 'enemy');
+        }
+      }
 
       if (localPlayer) {
         const dx = localPlayer.x - boss.x;

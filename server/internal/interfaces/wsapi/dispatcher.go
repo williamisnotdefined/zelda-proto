@@ -432,6 +432,7 @@ func playerObj(p player.Snapshot) codec.Object {
 		{Key: "toastyCount", Value: p.ToastyCount},
 		{Key: "lastProcessedInputSeq", Value: p.LastProcessedInputSeq},
 		{Key: "statusEffects", Value: statusEffects},
+		{Key: "equippedWeapon", Value: string(p.EquippedWeapon)},
 	}
 }
 

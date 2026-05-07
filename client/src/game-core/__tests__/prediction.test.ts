@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { PlayerSnapshot } from '@/shared';
 import { createInputMessage } from '../input';
 import { getPredictedPosition, reconcilePredictedPosition } from '../prediction';
-import { PLAYER_ATTACK_SPEED_PENALTY, PLAYER_DASH_DISTANCE, PLAYER_SPEED } from '../player';
+import { PLAYER_DASH_DISTANCE, PLAYER_SPEED } from '../player';
+
+const TEST_SPEED_MULTIPLIER = 0.5;
 
 function createPlayer(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
   return {
@@ -20,6 +22,7 @@ function createPlayer(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
     toastyCount: 0,
     lastProcessedInputSeq: -1,
     statusEffects: {},
+    equippedWeapon: 'pistol',
     ...overrides,
   };
 }
@@ -87,7 +90,7 @@ describe('getPredictedPosition', () => {
     expect(result.y).toBe(0);
   });
 
-  it('replays local attack slowdown with the shared multiplier', () => {
+  it('replays shared movement multipliers from pending inputs', () => {
     const result = getPredictedPosition(
       createPlayer({ x: 0, y: 0 }),
       [
@@ -106,14 +109,14 @@ describe('getPredictedPosition', () => {
           }),
           dtMs: 16,
           sentAtMs: 990,
-          speedMultiplier: PLAYER_ATTACK_SPEED_PENALTY,
+          speedMultiplier: TEST_SPEED_MULTIPLIER,
         },
       ],
       PLAYER_SPEED,
       1000
     );
 
-    expect(result.x).toBeCloseTo(PLAYER_SPEED * PLAYER_ATTACK_SPEED_PENALTY * (16 / 1000));
+    expect(result.x).toBeCloseTo(PLAYER_SPEED * TEST_SPEED_MULTIPLIER * (16 / 1000));
     expect(result.y).toBe(0);
   });
 

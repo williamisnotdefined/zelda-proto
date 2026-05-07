@@ -85,8 +85,8 @@ func TestPvPSystemRespectsSafezoneOnAttackerAndTarget(t *testing.T) {
 	// attacker is unprotected and attacking right; target is right next to
 	// attacker, but inside the safezone — must NOT take damage.
 	attacker := newPlayerOutsideSafezone("att", 500, 0)
-	attacker.ApplyInput(player.Input{Seq: 1, Right: true, Attack: true})
-	attacker.Update(50_000_000, 1) // 50ms — enters StateAttacking
+	attacker.State = player.StateAttacking
+	attacker.Direction = domworld.DirectionRight
 	target := player.New("tgt", "n", 510, 0)
 	// move the target into the zone
 	target.X, target.Y = 0, 0
@@ -112,8 +112,8 @@ func TestPvPSystemRespectsSafezoneOnAttackerAndTarget(t *testing.T) {
 func TestPlayerMeleeKillsCountForMonsterStats(t *testing.T) {
 	t.Parallel()
 	attacker := newPlayerOutsideSafezone("att", 0, 0)
-	attacker.ApplyInput(player.Input{Seq: 1, Right: true, Attack: true})
-	attacker.Update(50_000_000, 1)
+	attacker.State = player.StateAttacking
+	attacker.Direction = domworld.DirectionRight
 	weakConfig := enemy.BlobConfig
 	weakConfig.MaxHP = 1
 	e := enemy.New("e1", 20, 0, "0,0", weakConfig, drop.KindHeartSmall)
@@ -172,7 +172,7 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	if target.HP != player.MaxHP-player.WaveDamage {
 		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.WaveDamage, target.HP)
 	}
-	if got, want := caster.HP, player.MaxHP-17; got != want {
+	if got, want := caster.HP, player.MaxHP-11; got != want {
 		t.Fatalf("expected caster HP=%d after wave life steal, got %d", want, got)
 	}
 	for name, pos := range map[string][2]float64{
@@ -213,7 +213,7 @@ func TestPlayerWaveLifeStealUsesActualDamageAndRoundsUp(t *testing.T) {
 		zone,
 	)
 
-	if got, want := caster.HP, 41; got != want {
+	if got, want := caster.HP, 43; got != want {
 		t.Fatalf("expected caster HP=%d when life steal uses actual damage, got %d", want, got)
 	}
 }
@@ -368,7 +368,7 @@ func TestPlayerLandmineSystemCarriesDirectionAndSafezonePvPFlag(t *testing.T) {
 			unprotectedCaster.ID: unprotectedCaster,
 		},
 		zone,
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+		func(sourcePlayerID string, _ uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
 			spawns = append(spawns, struct {
 				sourceID    string
 				startX      float64
@@ -430,7 +430,7 @@ func TestPlayerGrenadeSystemCarriesDirectionAndSafezonePvPFlag(t *testing.T) {
 			unprotectedCaster.ID: unprotectedCaster,
 		},
 		zone,
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+		func(sourcePlayerID string, _ uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
 			spawns = append(spawns, struct {
 				sourceID    string
 				startX      float64

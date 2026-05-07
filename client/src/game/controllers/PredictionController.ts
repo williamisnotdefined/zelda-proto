@@ -1,6 +1,5 @@
 import type { Direction, PlayerSnapshot } from '@/shared';
 import {
-  PLAYER_ATTACK_SPEED_PENALTY,
   PLAYER_SPEED,
   getDashDelta,
   getDashDirection,
@@ -8,10 +7,7 @@ import {
   reconcilePredictedPosition,
   trimPendingInputs,
 } from '@/game-core';
-import type {
-  InputState as CoreInputState,
-  PendingInput as CorePendingInput,
-} from '@/game-core';
+import type { InputState as CoreInputState, PendingInput as CorePendingInput } from '@/game-core';
 import { PlayerEntity } from '../../entities/Player';
 
 export type PendingInput = CorePendingInput;
@@ -36,8 +32,7 @@ export class PredictionController {
       }
     }
 
-    const speedPenalty = entity.serverState === 'attacking' ? PLAYER_ATTACK_SPEED_PENALTY : 1;
-    const delta = getDeltaForInput(input, dtMs, PLAYER_SPEED, speedPenalty);
+    const delta = getDeltaForInput(input, dtMs, PLAYER_SPEED, 1);
     if (delta.dx === 0 && delta.dy === 0) return;
 
     entity.targetX += delta.dx;

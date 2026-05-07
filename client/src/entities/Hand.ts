@@ -43,8 +43,8 @@ export class HandEntity {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
     this.targetY = y;
-    this.hp = 38;
-    this.maxHp = 38;
+    this.hp = 20;
+    this.maxHp = 20;
     this.serverState = 'idle';
     this.prevX = x;
     this.prevY = y;
@@ -105,7 +105,13 @@ export class HandEntity {
     this.sprite.y = y;
     this.setSpriteVisible(true);
     this.animationTimeScale = 1;
-    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, this.serverState !== 'dead');
+    this.healthBar.sync(
+      this.sprite.x,
+      this.sprite.y,
+      this.hp,
+      this.maxHp,
+      this.serverState !== 'dead'
+    );
   }
 
   setDormant(): void {

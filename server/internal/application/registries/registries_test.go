@@ -25,8 +25,20 @@ func TestPhase1HasGelehkRegion(t *testing.T) {
 	if !def.BossRegion.Enabled {
 		t.Fatalf("phase1 must have an enabled boss region (Gelehk)")
 	}
+	if def.SpawnSystem.EnemiesPerChunk != config.DefaultBalancing.Phase1EnemiesPerChunk {
+		t.Fatalf("phase1 EnemiesPerChunk: got %d want %d",
+			def.SpawnSystem.EnemiesPerChunk, config.DefaultBalancing.Phase1EnemiesPerChunk)
+	}
 	if def.BossDeathPortal == nil {
 		t.Fatalf("phase1 must declare a boss-death portal to phase2")
+	}
+}
+
+func TestPhase2UsesDedicatedSlimeDensity(t *testing.T) {
+	def := All()[domworld.InstancePhase2]
+	if def.SpawnSystem.EnemiesPerChunk != config.DefaultBalancing.Phase2EnemiesPerChunk {
+		t.Fatalf("phase2 EnemiesPerChunk: got %d want %d",
+			def.SpawnSystem.EnemiesPerChunk, config.DefaultBalancing.Phase2EnemiesPerChunk)
 	}
 }
 

@@ -1,5 +1,5 @@
 import {
-  PLAYER_ATTACK_SPEED_PENALTY,
+  PLAYER_ATTACK_COOLDOWN,
   PLAYER_DASH_COOLDOWN,
   PLAYER_DASH_DOUBLE_TAP_WINDOW,
   PLAYER_FIREBALL_COOLDOWN,
@@ -31,7 +31,6 @@ export class LocalInputController {
   private fireballKey!: Phaser.Input.Keyboard.Key;
   private grenadeKey!: Phaser.Input.Keyboard.Key;
   private landmineKey!: Phaser.Input.Keyboard.Key;
-  private prevAttackDown = false;
   private prevFireballDown = false;
   private prevGrenadeDown = false;
   private prevWaveDown = false;
@@ -45,6 +44,7 @@ export class LocalInputController {
   private inputSendAccumulatorMs = 0;
   private lastSentInputState: InputState | null = null;
   private waveCooldownEndsAtMs = 0;
+  private attackCooldownEndsAtMs = 0;
   private dashCooldownEndsAtMs = 0;
   private fireballCooldownEndsAtMs = 0;
   private grenadeCooldownEndsAtMs = 0;
@@ -74,13 +74,13 @@ export class LocalInputController {
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
-    this.prevAttackDown = false;
     this.prevFireballDown = false;
     this.prevGrenadeDown = false;
     this.prevWaveDown = false;
     this.prevLandmineDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
+    this.attackCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
     this.fireballCooldownEndsAtMs = 0;
     this.grenadeCooldownEndsAtMs = 0;
@@ -96,13 +96,13 @@ export class LocalInputController {
     this.pendingInputs = [];
     this.inputSendAccumulatorMs = 0;
     this.lastSentInputState = null;
-    this.prevAttackDown = false;
     this.prevFireballDown = false;
     this.prevGrenadeDown = false;
     this.prevWaveDown = false;
     this.prevLandmineDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
+    this.attackCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
     this.fireballCooldownEndsAtMs = 0;
     this.grenadeCooldownEndsAtMs = 0;
@@ -138,10 +138,14 @@ export class LocalInputController {
 
     const localDead = localEntity.serverState === 'dead';
     const touchInput = useTouchInputStore.getState();
+    const nowMs = Date.now();
 
     if (localDead && this.waveCooldownEndsAtMs !== 0) {
       this.waveCooldownEndsAtMs = 0;
       this.setWaveCooldownEndsAt(null);
+    }
+    if (localDead && this.attackCooldownEndsAtMs !== 0) {
+      this.attackCooldownEndsAtMs = 0;
     }
     if (localDead && this.dashCooldownEndsAtMs !== 0) {
       this.dashCooldownEndsAtMs = 0;
@@ -164,8 +168,6 @@ export class LocalInputController {
     }
 
     const rawAttackDown = this.attackKey.isDown || touchInput.attackPressed;
-    const attack = rawAttackDown && !this.prevAttackDown;
-    this.prevAttackDown = rawAttackDown;
     const rawFireballDown = this.fireballKey.isDown || touchInput.fireballPressed;
     const manualFireball = rawFireballDown && !this.prevFireballDown;
     this.prevFireballDown = rawFireballDown;
@@ -180,7 +182,6 @@ export class LocalInputController {
     const rawLeftDown = this.cursors.left.isDown || this.keyA.isDown || touchInput.move.left;
     const rawRightDown = this.cursors.right.isDown || this.keyD.isDown || touchInput.move.right;
     const rawWaveDown = this.waveKey.isDown || touchInput.wavePressed;
-    const nowMs = Date.now();
     const dashDirection = this.consumeDashDirectionTap(
       nowMs,
       {
@@ -191,11 +192,13 @@ export class LocalInputController {
       },
       !uiBlocked && !localDead
     );
+    const attackReady = nowMs >= this.attackCooldownEndsAtMs;
     const waveReady = nowMs >= this.waveCooldownEndsAtMs;
     const dashReady = nowMs >= this.dashCooldownEndsAtMs;
     const fireballReady = nowMs >= this.fireballCooldownEndsAtMs;
     const grenadeReady = nowMs >= this.grenadeCooldownEndsAtMs;
     const landmineReady = nowMs >= this.landmineCooldownEndsAtMs;
+    const attack = !uiBlocked && !localDead && rawAttackDown && attackReady;
     const manualWave = rawWaveDown && !this.prevWaveDown;
     const wave = manualWave && waveReady;
     const dash = dashDirection !== null && dashReady;
@@ -203,6 +206,9 @@ export class LocalInputController {
     const grenade = manualGrenade && grenadeReady;
     const landmine = manualLandmine && landmineReady;
     this.prevWaveDown = rawWaveDown;
+    if (attack) {
+      this.attackCooldownEndsAtMs = nowMs + PLAYER_ATTACK_COOLDOWN;
+    }
     if (wave) {
       this.waveCooldownEndsAtMs = nowMs + PLAYER_WAVE_COOLDOWN;
       this.setWaveCooldownEndsAt(this.waveCooldownEndsAtMs);
@@ -229,7 +235,7 @@ export class LocalInputController {
       down: !uiBlocked && !localDead && rawDownDown,
       left: !uiBlocked && !localDead && rawLeftDown,
       right: !uiBlocked && !localDead && rawRightDown,
-      attack: !uiBlocked && !localDead && attack,
+      attack,
       wave: !uiBlocked && !localDead && wave,
       dash: !uiBlocked && !localDead && dash,
       fireball: !uiBlocked && !localDead && fireball,
@@ -260,16 +266,11 @@ export class LocalInputController {
     this.inputSendAccumulatorMs = 0;
 
     const input: InputMessage = createInputMessage(this.nextInputSeq++, inputState);
-    const speedMultiplier =
-      localEntity.serverState === 'attacking' || inputState.attack
-        ? PLAYER_ATTACK_SPEED_PENALTY
-        : 1;
 
     this.pendingInputs.push({
       input,
       dtMs: dtWindowMs,
       sentAtMs: this.scene.time.now,
-      speedMultiplier,
     });
     if (this.pendingInputs.length > MAX_PENDING_INPUTS) {
       this.pendingInputs.splice(0, this.pendingInputs.length - MAX_PENDING_INPUTS);

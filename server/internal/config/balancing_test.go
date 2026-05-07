@@ -9,6 +9,8 @@ func TestDefaultBalancingSanity(t *testing.T) {
 		ok   bool
 	}{
 		{"DefaultEnemiesPerChunk > 0", b.DefaultEnemiesPerChunk > 0},
+		{"Phase1EnemiesPerChunk > 0", b.Phase1EnemiesPerChunk > 0},
+		{"Phase2EnemiesPerChunk > 0", b.Phase2EnemiesPerChunk > 0},
 		{"Phase4EnemiesPerChunk >= DefaultEnemiesPerChunk", b.Phase4EnemiesPerChunk >= b.DefaultEnemiesPerChunk},
 		{"SpawnChunkSize > 0", b.SpawnChunkSize > 0},
 		{"SpawnActiveRange > 0", b.SpawnActiveRange > 0},

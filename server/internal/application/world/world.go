@@ -955,9 +955,10 @@ func (w *World) tickHazards(dt time.Duration) {
 	for id, h := range w.hazards {
 		startX, startY := h.X, h.Y
 		expired := h.Tick(dt)
-		if h.Kind == hazard.KindFireball {
+		if h.Kind == hazard.KindPistol || h.Kind == hazard.KindFireball {
 			w.tickFireball(h, startX, startY, playerHalfDiag)
 			if expired {
+				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
 				continue
@@ -970,6 +971,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
 				w.detonatePlayerExplosive(h, playerHalfDiag)
+				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
 				continue
 			}
 			w.hazardIndex.Upsert(id, h.X, h.Y)
@@ -977,6 +979,7 @@ func (w *World) tickHazards(dt time.Duration) {
 		}
 		if h.Kind == hazard.KindLandmine {
 			if expired {
+				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
 				continue
@@ -985,6 +988,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
 				w.detonatePlayerExplosive(h, playerHalfDiag)
+				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
 				continue
 			}
 			w.hazardIndex.Upsert(id, h.X, h.Y)
@@ -1067,7 +1071,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			wasAlive := e.State != enemy.StateDead
 			e.TakeDamage(h.Damage)
 			if wasAlive && e.State == enemy.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID)
+				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
 		}
 
@@ -1088,7 +1092,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			wasAlive := d.State != boss.StateDead
 			d.TakeDamage(h.Damage)
 			if wasAlive && d.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID)
+				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
 		}
 
@@ -1109,7 +1113,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			wasAlive := g.State != boss.StateDead
 			g.TakeDamage(h.Damage)
 			if wasAlive && g.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID)
+				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
 		}
 
@@ -1130,7 +1134,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			wasAlive := v.State != boss.StateDead
 			v.TakeDamage(h.Damage)
 			if wasAlive && v.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID)
+				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
 		}
 	}
@@ -1155,6 +1159,10 @@ func (w *World) tickHazards(dt time.Duration) {
 
 func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag float64) {
 	if h.HitsPlayers {
+		playerDamage := h.Damage
+		if h.PlayerDamage > 0 {
+			playerDamage = h.PlayerDamage
+		}
 		for _, p := range w.players {
 			if p.State == player.StateDead || w.isProtected(p) {
 				continue
@@ -1169,7 +1177,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 				continue
 			}
 			wasAlive := p.State != player.StateDead
-			p.TakeDamage(h.Damage)
+			p.TakeDamage(playerDamage)
 			if wasAlive && p.State == player.StateDead {
 				w.awardHazardPlayerKill(h.SourcePlayerID)
 			}
@@ -1192,7 +1200,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 		wasAlive := e.State != enemy.StateDead
 		e.TakeDamage(h.Damage)
 		if wasAlive && e.State == enemy.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 
@@ -1212,7 +1220,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 		wasAlive := d.State != boss.StateDead
 		d.TakeDamage(h.Damage)
 		if wasAlive && d.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 
@@ -1232,7 +1240,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 		wasAlive := g.State != boss.StateDead
 		g.TakeDamage(h.Damage)
 		if wasAlive && g.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 
@@ -1252,7 +1260,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 		wasAlive := v.State != boss.StateDead
 		v.TakeDamage(h.Damage)
 		if wasAlive && v.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 }
@@ -1296,8 +1304,41 @@ func (w *World) spawnDashTrail(
 	}
 }
 
+func (w *World) spawnPlayerPistol(
+	sourcePlayerID string,
+	sourceCastID uint64,
+	startX,
+	startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	dirX, dirY := dashDirectionVector(direction)
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	startX += dirX * (player.Width / 2)
+	startY += dirY * (player.Height / 2)
+	id := w.cfg.IDs.NewID(string(hazard.KindPistol))
+	h := hazard.NewPistol(id, startX, startY, direction)
+	h.SourcePlayerID = sourcePlayerID
+	h.SourceCastID = sourceCastID
+	h.Damage = player.PistolDamage
+	h.PlayerDamage = player.PistolPvPDamage
+	h.Speed = player.AttackProjectileSpeed
+	h.RemainingDistance = player.AttackProjectileRange
+	h.HitsAllActors = true
+	h.HitsPlayers = hitsPlayers
+	h.IgnoreActor(playerActorKey(sourcePlayerID))
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, h.X, h.Y)
+}
+
 func (w *World) spawnPlayerFireball(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX,
 	startY float64,
 	direction domworld.Direction,
@@ -1315,6 +1356,7 @@ func (w *World) spawnPlayerFireball(
 	id := w.cfg.IDs.NewID(string(hazard.KindFireball))
 	h := hazard.NewFireball(id, startX, startY, direction)
 	h.SourcePlayerID = sourcePlayerID
+	h.SourceCastID = sourceCastID
 	h.Damage = player.FireballDamage
 	h.Speed = player.FireballSpeed
 	h.RemainingDistance = player.DashDistance
@@ -1327,6 +1369,7 @@ func (w *World) spawnPlayerFireball(
 
 func (w *World) spawnPlayerGrenade(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX,
 	startY float64,
 	direction domworld.Direction,
@@ -1342,6 +1385,7 @@ func (w *World) spawnPlayerGrenade(
 	id := w.cfg.IDs.NewID(string(hazard.KindGrenade))
 	h := hazard.NewGrenade(id, startX, startY, direction)
 	h.SourcePlayerID = sourcePlayerID
+	h.SourceCastID = sourceCastID
 	h.Damage = player.GrenadeDamage
 	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
 	h.RemainingDistance = player.GrenadeDistance
@@ -1353,6 +1397,7 @@ func (w *World) spawnPlayerGrenade(
 
 func (w *World) spawnPlayerLandmine(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX,
 	startY float64,
 	direction domworld.Direction,
@@ -1370,6 +1415,7 @@ func (w *World) spawnPlayerLandmine(
 	id := w.cfg.IDs.NewID(string(hazard.KindLandmine))
 	h := hazard.NewLandmine(id, spawnX, spawnY)
 	h.SourcePlayerID = sourcePlayerID
+	h.SourceCastID = sourceCastID
 	h.Damage = player.LandmineDamage
 	h.HitsPlayers = hitsPlayers
 	h.IgnoreActor(playerActorKey(sourcePlayerID))
@@ -1518,13 +1564,16 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerMelee (PvE) → PvP → PlayerWave → PlayerLandmine → PlayerGrenade → PlayerFireball →
-	// PlayerDash → ContactDamage. Each
-	// system is
-	// stateless and
+	// PlayerPistol → PlayerWave → PlayerLandmine → PlayerGrenade →
+	// PlayerFireball → PlayerDash → ContactDamage. Each system is stateless and
 	// reads/mutates only the slices it needs.
-	appcombat.PlayerMeleeSystem{}.Resolve(w.players, w.enemies, w.dragons, w.gelehks, w.vanessas)
-	appcombat.PvPSystem{}.Resolve(w.players, w.safeZone())
+	(appcombat.PlayerPistolSystem{}).Resolve(
+		w.players,
+		w.safeZone(),
+		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerPistol(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
+		},
+	)
 	if (appcombat.PlayerWaveSystem{}).Resolve(
 		w.players,
 		w.enemies,
@@ -1538,22 +1587,22 @@ func (w *World) resolveCombat() {
 	(appcombat.PlayerLandmineSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerLandmine(sourcePlayerID, startX, startY, direction, hitsPlayers)
+		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerLandmine(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
 		},
 	)
 	(appcombat.PlayerGrenadeSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerGrenade(sourcePlayerID, startX, startY, direction, hitsPlayers)
+		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerGrenade(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
 		},
 	)
 	(appcombat.PlayerFireballSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerFireball(sourcePlayerID, startX, startY, direction, hitsPlayers)
+		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
+			w.spawnPlayerFireball(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
 		},
 	)
 	if (appcombat.PlayerDashSystem{}).Resolve(
@@ -1737,12 +1786,22 @@ func (w *World) Players() map[string]*player.Player {
 	return out
 }
 
-func (w *World) awardHazardMonsterKill(sourcePlayerID string) {
+func (w *World) awardHazardMonsterKill(sourcePlayerID string, sourceCastID uint64) {
 	if sourcePlayerID == "" {
 		return
 	}
 	if source, ok := w.players[sourcePlayerID]; ok {
 		source.MonsterKills++
+		source.RecordMonsterKillInCast(sourceCastID)
+	}
+}
+
+func (w *World) finishHazardCast(sourcePlayerID string, sourceCastID uint64) {
+	if sourcePlayerID == "" || sourceCastID == 0 {
+		return
+	}
+	if source, ok := w.players[sourcePlayerID]; ok {
+		source.FinishCast(sourceCastID)
 	}
 }
 
@@ -1829,7 +1888,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		wasAlive := e.State != enemy.StateDead
 		e.TakeDamage(h.Damage)
 		if wasAlive && e.State == enemy.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 	for _, d := range w.dragons {
@@ -1839,7 +1898,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		wasAlive := d.State != boss.StateDead
 		d.TakeDamage(h.Damage)
 		if wasAlive && d.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 	for _, g := range w.gelehks {
@@ -1849,7 +1908,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		wasAlive := g.State != boss.StateDead
 		g.TakeDamage(h.Damage)
 		if wasAlive && g.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 	for _, v := range w.vanessas {
@@ -1859,7 +1918,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		wasAlive := v.State != boss.StateDead
 		v.TakeDamage(h.Damage)
 		if wasAlive && v.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID)
+			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
 	}
 }

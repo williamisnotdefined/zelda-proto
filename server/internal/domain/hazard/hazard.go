@@ -15,6 +15,7 @@ const (
 	KindFireField         Kind = "fire_field"
 	KindPurpleField       Kind = "purple_field"
 	KindBlueFlame         Kind = "blue_flame"
+	KindPistol            Kind = "pistol"
 	KindFireball          Kind = "fireball"
 	KindGrenade           Kind = "grenade"
 	KindLandmine          Kind = "landmine"
@@ -34,10 +35,12 @@ const (
 	PurpleTileStep          = 34
 	DefaultTTL              = 1800 * time.Millisecond
 	PurpleTTL               = 3000 * time.Millisecond
+	PistolTTL               = 200 * time.Millisecond
 	FireballTTL             = 400 * time.Millisecond
 	GrenadeTTL              = 300 * time.Millisecond
 	LandmineTTL             = 30 * time.Second
 	LandmineExplosionTTL    = 420 * time.Millisecond
+	PistolHitRadius         = 12
 	LandmineExplosionRadius = 180
 )
 
@@ -67,6 +70,8 @@ func TTLFor(k Kind) time.Duration {
 	switch k {
 	case KindPurpleField:
 		return PurpleTTL
+	case KindPistol:
+		return PistolTTL
 	case KindFireball:
 		return FireballTTL
 	case KindGrenade:
@@ -86,6 +91,7 @@ type Hazard struct {
 	Kind              Kind
 	TTL               time.Duration
 	Damage            int
+	PlayerDamage      int
 	BurningTicks      int
 	HitRadius         float64
 	Tint              uint32
@@ -93,6 +99,7 @@ type Hazard struct {
 	Speed             float64
 	RemainingDistance float64
 	SourcePlayerID    string
+	SourceCastID      uint64
 	HitsAllActors     bool
 	HitsPlayers       bool
 	HitActorKeys      map[string]struct{}
@@ -108,6 +115,17 @@ func New(id string, x, y float64, kind Kind) *Hazard {
 		HitActorKeys:     make(map[string]struct{}),
 		IgnoredActorKeys: make(map[string]struct{}),
 	}
+}
+
+// NewPistol builds a moving player pistol projectile.
+func NewPistol(id string, x, y float64, direction domworld.Direction) *Hazard {
+	h := New(id, x, y, KindPistol)
+	h.TTL = PistolTTL
+	h.BurningTicks = 0
+	h.HitRadius = PistolHitRadius
+	h.Direction = direction
+	h.HitsPlayers = true
+	return h
 }
 
 // NewFireball builds a moving player fireball.

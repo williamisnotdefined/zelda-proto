@@ -7,6 +7,7 @@ import type {
   PlayerLeaderboardEntry,
   PlayerState,
   ServerChatMessage,
+  WeaponKind,
 } from '@/shared';
 import { create } from 'zustand';
 import { readStoredConnectionContext } from '../network/sessionContext';
@@ -22,6 +23,7 @@ export interface PlayerData {
   maxHp: number;
   state: PlayerState;
   direction: Direction;
+  equippedWeapon: WeaponKind;
 }
 
 export interface BlobData {

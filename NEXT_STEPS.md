@@ -1,4 +1,4 @@
 - numb
 - collapse
 - granade (distance)
-- gun / machine gun (maybe cut it off)
+- pistol (maybe cut it off)

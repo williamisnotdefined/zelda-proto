@@ -25,13 +25,7 @@ export class PlayerAnimationController {
     const dirSuffix = direction === 'left' ? 'right' : direction;
     flipX = direction === 'left';
 
-    if (state === 'attacking') {
-      animKey = `player_attack_${dirSuffix}`;
-      if (this.currentAnimKey.startsWith('player_attack_') && sprite.anims.isPlaying) {
-        sprite.setFlipX(flipX);
-        return;
-      }
-    } else if (state === 'moving') {
+    if (state === 'moving') {
       animKey = `player_move_${dirSuffix}`;
     } else {
       animKey = `player_idle_${dirSuffix}`;

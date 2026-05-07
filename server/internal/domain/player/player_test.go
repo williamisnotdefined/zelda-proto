@@ -24,6 +24,9 @@ func TestNewPlayerDefaults(t *testing.T) {
 	if p.LastProcessedInputSeq != -1 {
 		t.Fatalf("expected lastProcessedInputSeq=-1, got %d", p.LastProcessedInputSeq)
 	}
+	if p.EquippedWeapon != WeaponKindPistol {
+		t.Fatalf("expected default equipped weapon %q, got %q", WeaponKindPistol, p.EquippedWeapon)
+	}
 }
 
 func TestApplyInputIgnoresOutOfOrderAndNegative(t *testing.T) {
@@ -66,26 +69,61 @@ func TestUpdateMovesAndUpdatesDirection(t *testing.T) {
 	}
 }
 
-func TestUpdateAttackEntersStateAndConsumesCooldown(t *testing.T) {
+func TestUpdateAttackQueuesPistolCastAndConsumesCooldown(t *testing.T) {
 	t.Parallel()
 
 	p := New("p1", "Link", 0, 0)
-	p.ApplyInput(Input{Seq: 1, Attack: true})
+	p.ApplyInput(Input{Seq: 1, Right: true, Attack: true})
 	p.Update(10*time.Millisecond, 1)
-	if p.State != StateAttacking {
-		t.Fatalf("expected attacking, got %s", p.State)
+	if p.State != StateMoving {
+		t.Fatalf("expected moving while firing, got %s", p.State)
 	}
 
-	p.ApplyInput(Input{Seq: 2, Attack: true})
-	p.Update(10*time.Millisecond, 1)
+	cx, cy, direction, castID, ok := p.ConsumePistolCast()
+	if !ok {
+		t.Fatal("expected queued pistol cast")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for pistol shot")
+	}
+	if cx != 0 || cy != 0 {
+		t.Fatalf("expected pistol cast at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if direction != world.DirectionRight {
+		t.Fatalf("expected pistol direction right, got %s", direction)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Right: true, Attack: true})
+	p.Update(490*time.Millisecond, 1)
 	if p.AttackCooldown <= 0 {
 		t.Fatal("expected cooldown to be active")
 	}
+	if _, _, _, _, ok := p.ConsumePistolCast(); ok {
+		t.Fatal("expected cooldown to block pistol cast before 500ms")
+	}
+
+	p.Update(10*time.Millisecond, 1)
+	if _, _, _, secondCastID, ok := p.ConsumePistolCast(); !ok {
+		t.Fatal("expected second pistol cast after 500ms")
+	} else if secondCastID == castID {
+		t.Fatal("expected a fresh cast id for the second pistol shot")
+	}
 
 	p.ApplyInput(Input{Seq: 3})
-	p.Update(AttackStateDuration+50*time.Millisecond, 1)
+	p.Update(50*time.Millisecond, 1)
 	if p.State != StateIdle {
-		t.Fatalf("expected idle after attack, got %s", p.State)
+		t.Fatalf("expected idle after firing stops, got %s", p.State)
+	}
+}
+
+func TestAttackDoesNotReduceMovementSpeed(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 0, 0)
+	p.ApplyInput(Input{Seq: 1, Right: true, Attack: true})
+	p.Update(time.Second, 1)
+	if math.Abs(p.X-Speed) > 1e-9 {
+		t.Fatalf("expected attack movement speed to stay at %v, got %v", Speed, p.X)
 	}
 }
 
@@ -115,9 +153,12 @@ func TestWaveTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 
 	releaseAfter := WaveWindup + WaveExpandDuration()
 	p.Update(releaseAfter, 1)
-	cx, cy, targets, ok := p.ConsumeWaveRelease()
+	cx, cy, targets, castID, ok := p.ConsumeWaveRelease()
 	if !ok {
 		t.Fatal("expected queued wave release")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for wave release")
 	}
 	if cx != 10 || cy != 20 {
 		t.Fatalf("expected wave release at player position, got (%.1f, %.1f)", cx, cy)
@@ -175,9 +216,12 @@ func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if p.FireballCooldown != FireballCooldown {
 		t.Fatalf("expected fireball cooldown %s, got %s", FireballCooldown, p.FireballCooldown)
 	}
-	cx, cy, direction, ok := p.ConsumeFireballCast()
+	cx, cy, direction, castID, ok := p.ConsumeFireballCast()
 	if !ok {
 		t.Fatal("expected queued fireball cast")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for fireball")
 	}
 	if cx != 10 || cy != 20 {
 		t.Fatalf("expected fireball start at player position, got (%.1f, %.1f)", cx, cy)
@@ -185,13 +229,13 @@ func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if direction != world.DirectionLeft {
 		t.Fatalf("expected fireball direction left, got %s", direction)
 	}
-	if _, _, _, ok := p.ConsumeFireballCast(); ok {
+	if _, _, _, _, ok := p.ConsumeFireballCast(); ok {
 		t.Fatal("expected fireball cast to be consumed once")
 	}
 
 	p.ApplyInput(Input{Seq: 2, Left: true, Fireball: true})
 	p.Update(10*time.Millisecond, 1)
-	if _, _, _, ok := p.ConsumeFireballCast(); ok {
+	if _, _, _, _, ok := p.ConsumeFireballCast(); ok {
 		t.Fatal("expected cooldown to block second fireball cast")
 	}
 }
@@ -205,9 +249,12 @@ func TestGrenadeTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if p.GrenadeCooldown != GrenadeCooldown {
 		t.Fatalf("expected grenade cooldown %s, got %s", GrenadeCooldown, p.GrenadeCooldown)
 	}
-	cx, cy, direction, ok := p.ConsumeGrenadeCast()
+	cx, cy, direction, castID, ok := p.ConsumeGrenadeCast()
 	if !ok {
 		t.Fatal("expected queued grenade cast")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for grenade")
 	}
 	if cx != 10 || cy != 20 {
 		t.Fatalf("expected grenade start at player position, got (%.1f, %.1f)", cx, cy)
@@ -215,13 +262,13 @@ func TestGrenadeTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if direction != world.DirectionLeft {
 		t.Fatalf("expected grenade direction left, got %s", direction)
 	}
-	if _, _, _, ok := p.ConsumeGrenadeCast(); ok {
+	if _, _, _, _, ok := p.ConsumeGrenadeCast(); ok {
 		t.Fatal("expected grenade cast to be consumed once")
 	}
 
 	p.ApplyInput(Input{Seq: 2, Left: true, Grenade: true})
 	p.Update(10*time.Millisecond, 1)
-	if _, _, _, ok := p.ConsumeGrenadeCast(); ok {
+	if _, _, _, _, ok := p.ConsumeGrenadeCast(); ok {
 		t.Fatal("expected cooldown to block second grenade cast")
 	}
 }
@@ -235,9 +282,12 @@ func TestLandmineTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if p.LandmineCooldown != LandmineCooldown {
 		t.Fatalf("expected landmine cooldown %s, got %s", LandmineCooldown, p.LandmineCooldown)
 	}
-	cx, cy, direction, ok := p.ConsumeLandmineCast()
+	cx, cy, direction, castID, ok := p.ConsumeLandmineCast()
 	if !ok {
 		t.Fatal("expected queued landmine cast")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for landmine")
 	}
 	if cx != 10 || cy != 20 {
 		t.Fatalf("expected landmine start at player position, got (%.1f, %.1f)", cx, cy)
@@ -245,13 +295,13 @@ func TestLandmineTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	if direction != world.DirectionRight {
 		t.Fatalf("expected landmine direction right, got %s", direction)
 	}
-	if _, _, _, ok := p.ConsumeLandmineCast(); ok {
+	if _, _, _, _, ok := p.ConsumeLandmineCast(); ok {
 		t.Fatal("expected landmine cast to be consumed once")
 	}
 
 	p.ApplyInput(Input{Seq: 2, Right: true, Landmine: true})
 	p.Update(10*time.Millisecond, 1)
-	if _, _, _, ok := p.ConsumeLandmineCast(); ok {
+	if _, _, _, _, ok := p.ConsumeLandmineCast(); ok {
 		t.Fatal("expected cooldown to block second landmine cast")
 	}
 }
@@ -429,27 +479,30 @@ func TestMarkPhaseTransferCooldownUsesMax(t *testing.T) {
 	}
 }
 
-func TestToastyTriggersOncePerSwing(t *testing.T) {
+func TestToastyTriggersOncePerCast(t *testing.T) {
 	t.Parallel()
 
 	p := New("p1", "Link", 0, 0)
-	p.RecordMonsterKillInCurrentAttack()
-	if p.AttackMonsterKills != 0 {
-		t.Fatal("expected idle player to skip kill record")
-	}
-
-	p.ApplyInput(Input{Seq: 1, Attack: true})
-	p.Update(10*time.Millisecond, 1)
+	firstCastID := p.beginCast()
 	for i := 0; i < world.ToastyKillThreshold; i += 1 {
-		p.RecordMonsterKillInCurrentAttack()
+		p.RecordMonsterKillInCast(firstCastID)
 	}
 	if p.ToastyCount != 1 {
 		t.Fatalf("expected toasty count=1, got %d", p.ToastyCount)
 	}
 
-	p.RecordMonsterKillInCurrentAttack()
+	p.RecordMonsterKillInCast(firstCastID)
 	if p.ToastyCount != 1 {
-		t.Fatal("expected toasty to fire only once per swing")
+		t.Fatal("expected toasty to fire only once per cast")
+	}
+	p.FinishCast(firstCastID)
+
+	secondCastID := p.beginCast()
+	for i := 0; i < world.ToastyKillThreshold; i += 1 {
+		p.RecordMonsterKillInCast(secondCastID)
+	}
+	if p.ToastyCount != 2 {
+		t.Fatalf("expected second cast to award another toasty, got %d", p.ToastyCount)
 	}
 }
 
@@ -470,6 +523,9 @@ func TestSnapshotProjectsStatusEffects(t *testing.T) {
 	}
 	if snap.StatusEffects[StatusBurning].TicksRemaining != BurningTicks {
 		t.Fatal("burning ticks mismatch")
+	}
+	if snap.EquippedWeapon != WeaponKindPistol {
+		t.Fatalf("expected snapshot equipped weapon %q, got %q", WeaponKindPistol, snap.EquippedWeapon)
 	}
 }
 

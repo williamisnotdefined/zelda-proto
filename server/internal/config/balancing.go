@@ -17,9 +17,14 @@ import "time"
 // should live here.
 type Balancing struct {
 	// --- Per-phase enemy density ---------------------------------------
-	// EnemiesPerChunk controls the chunk-based spawner population. Used by
-	// phases 1, 2, and 3 (which all share DefaultEnemiesPerChunk).
+	// DefaultEnemiesPerChunk controls the chunk-based spawner population used by
+	// Phase 3. Earlier phases expose dedicated overrides so their density can be
+	// tuned independently.
 	DefaultEnemiesPerChunk int
+	// Phase1EnemiesPerChunk overrides the chunk population for Phase 1 blobs.
+	Phase1EnemiesPerChunk int
+	// Phase2EnemiesPerChunk overrides the chunk population for Phase 2 slimes.
+	Phase2EnemiesPerChunk int
 	// Phase4EnemiesPerChunk overrides DefaultEnemiesPerChunk for the pacman
 	// ghost phase, which intentionally feels denser.
 	Phase4EnemiesPerChunk int
@@ -86,15 +91,17 @@ type Balancing struct {
 // DefaultBalancing is the canonical gameplay tuning set. Tune here.
 var DefaultBalancing = Balancing{
 	DefaultEnemiesPerChunk: 4,
+	Phase1EnemiesPerChunk:  6,
+	Phase2EnemiesPerChunk:  6,
 	Phase4EnemiesPerChunk:  7 * 3,
 	SpawnChunkSize:         512,
 	SpawnActiveRange:       1024,
 	SpawnDespawnTimeMS:     30000,
 
-	Phase2StarterSlimes:       8,
+	Phase2StarterSlimes:       12,
 	Phase2StarterSlimeRadius:  240,
 	Phase2NearbyRadius:        900,
-	Phase2MinNearbySlimes:     4,
+	Phase2MinNearbySlimes:     6,
 	Phase2DragonNearbyRadius:  1800,
 	Phase4StarterPacmans:      14 * 3,
 	Phase4StarterPacmanRadius: 600,
@@ -110,5 +117,5 @@ var DefaultBalancing = Balancing{
 	PlayerRespawnTime:   1500 * time.Millisecond,
 	SafeZoneDuration:    3000 * time.Millisecond,
 	SpawnSafeZoneRadius: 150,
-	HeartDropLifetime:   40 * time.Second,
+	HeartDropLifetime:   20 * time.Second,
 }

@@ -6,12 +6,14 @@ import { FireFieldHazardEntity } from '../../../entities/FireFieldHazardEntity';
 import { FireballHazardEntity } from '../../../entities/FireballHazardEntity';
 import { GrenadeHazardEntity } from '../../../entities/GrenadeHazardEntity';
 import { LandmineHazardEntity } from '../../../entities/LandmineHazardEntity';
+import { PistolHazardEntity } from '../../../entities/PistolHazardEntity';
 import { PurpleFieldHazardEntity } from '../../../entities/PurpleFieldHazardEntity';
 
 type HazardEntity =
   | FireFieldHazardEntity
   | PurpleFieldHazardEntity
   | BlueFlameHazardEntity
+  | PistolHazardEntity
   | FireballHazardEntity
   | GrenadeHazardEntity
   | LandmineHazardEntity;
@@ -29,6 +31,10 @@ export const hazardRegistry: Record<
   },
   [HAZARD_KINDS.BLUE_FLAME]: {
     create: (scene, snapshot) => new BlueFlameHazardEntity(scene, snapshot.x, snapshot.y),
+  },
+  [HAZARD_KINDS.PISTOL]: {
+    create: (scene, snapshot) =>
+      new PistolHazardEntity(scene, snapshot.x, snapshot.y, snapshot.direction ?? 'right'),
   },
   [HAZARD_KINDS.FIREBALL]: {
     create: (scene, snapshot) =>

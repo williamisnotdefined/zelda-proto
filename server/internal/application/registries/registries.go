@@ -148,7 +148,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			InstanceID: domworld.InstancePhase1,
 			SpawnX:     p1.X, SpawnY: p1.Y,
 			SpawnSystem: SpawnSystemConfig{
-				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.DefaultEnemiesPerChunk,
+				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.Phase1EnemiesPerChunk,
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "blob",
 				EnemyKind:   enemy.KindBlob, EnemyConfig: enemy.BlobConfig,
@@ -173,7 +173,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			InstanceID: domworld.InstancePhase2,
 			SpawnX:     p2.X, SpawnY: p2.Y,
 			SpawnSystem: SpawnSystemConfig{
-				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.DefaultEnemiesPerChunk,
+				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.Phase2EnemiesPerChunk,
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "slime",
 				EnemyKind:   enemy.KindSlime, EnemyConfig: enemy.SlimeConfig,

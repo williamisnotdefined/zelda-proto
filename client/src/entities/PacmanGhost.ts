@@ -7,7 +7,7 @@ const LERP_BASE = 0.3;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 const PACMAN_GHOST_SCALE = 0.35;
-const PACMAN_GHOST_HP = 38;
+const PACMAN_GHOST_HP = 40;
 const HP_BAR_WIDTH = 24;
 const HP_BAR_OFFSET_Y = 16;
 
@@ -111,7 +111,13 @@ export class PacmanGhostEntity {
     this.sprite.y = y;
     this.setSpriteVisible(true);
     this.animationTimeScale = 1;
-    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, this.serverState !== 'dead');
+    this.healthBar.sync(
+      this.sprite.x,
+      this.sprite.y,
+      this.hp,
+      this.maxHp,
+      this.serverState !== 'dead'
+    );
   }
 
   setDormant(): void {

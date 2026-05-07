@@ -11,6 +11,12 @@ const TOASTY_SLIDE_IN_DURATION_MS = 120;
 const TOASTY_HOLD_DURATION_MS = 550;
 const TOASTY_SLIDE_OUT_DURATION_MS = 120;
 const SAFE_ZONE_VISUAL_DURATION_MS = 3000;
+const DAMAGE_NUMBER_DEPTH = 40;
+const DAMAGE_NUMBER_DURATION_MS = 650;
+const DAMAGE_NUMBER_RISE_PX = 42;
+const DAMAGE_NUMBER_VIEW_MARGIN_PX = 180;
+
+type DamageNumberTone = 'player' | 'enemy';
 
 export class FxController {
   private readonly scene: Phaser.Scene;
@@ -90,6 +96,34 @@ export class FxController {
     this.lastLocalToastyCount = null;
   }
 
+  spawnFloatingDamage(x: number, y: number, amount: number, tone: DamageNumberTone): void {
+    if (amount <= 0 || !this.isWithinDamageNumberView(x, y)) {
+      return;
+    }
+
+    const text = this.scene.add.text(x + Phaser.Math.Between(-10, 10), y - 26, String(amount), {
+      fontSize: '18px',
+      fontStyle: 'bold',
+      color: tone === 'player' ? '#ff6b6b' : '#ffffff',
+      stroke: '#111111',
+      strokeThickness: 4,
+    });
+    text.setOrigin(0.5, 1);
+    text.setDepth(DAMAGE_NUMBER_DEPTH);
+
+    this.scene.tweens.add({
+      targets: text,
+      x: text.x + Phaser.Math.FloatBetween(-6, 6),
+      y: text.y - DAMAGE_NUMBER_RISE_PX,
+      alpha: 0,
+      duration: DAMAGE_NUMBER_DURATION_MS,
+      ease: 'Cubic.Out',
+      onComplete: () => {
+        text.destroy();
+      },
+    });
+  }
+
   destroy(): void {
     this.destroySafeZone();
     if (this.toastyTween) {
@@ -167,5 +201,15 @@ export class FxController {
       });
       this.toastyHideTimer = null;
     });
+  }
+
+  private isWithinDamageNumberView(x: number, y: number): boolean {
+    const view = this.scene.cameras.main.worldView;
+    return (
+      x >= view.left - DAMAGE_NUMBER_VIEW_MARGIN_PX &&
+      x <= view.right + DAMAGE_NUMBER_VIEW_MARGIN_PX &&
+      y >= view.top - DAMAGE_NUMBER_VIEW_MARGIN_PX &&
+      y <= view.bottom + DAMAGE_NUMBER_VIEW_MARGIN_PX
+    );
   }
 }

@@ -80,12 +80,12 @@ var (
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	HandConfig = Config{
-		Kind: KindHand, MaxHP: 10, Speed: 90, Damage: 8,
+		Kind: KindHand, MaxHP: 20, Speed: 90, Damage: 8,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	PacmanGhostConfig = Config{
-		Kind: KindPacmanGhost, MaxHP: 10, Speed: 90, Damage: 5,
+		Kind: KindPacmanGhost, MaxHP: 40, Speed: 90, Damage: 5,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}

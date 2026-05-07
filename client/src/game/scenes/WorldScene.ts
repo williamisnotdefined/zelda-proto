@@ -34,8 +34,8 @@ export class WorldScene extends Phaser.Scene {
     this.environmentRenderer.create(this.currentInstanceId);
     this.fx = new FxController(this);
     this.playerRuntime = new PlayerRuntime(this, zustandGameUiSink, this.fx, gameConnection);
-    this.enemyRuntime = new EnemyRuntime(this);
-    this.bossRuntime = new BossRuntime(this, zustandGameUiSink);
+    this.enemyRuntime = new EnemyRuntime(this, this.fx);
+    this.bossRuntime = new BossRuntime(this, zustandGameUiSink, this.fx);
     this.staticEntityRuntime = new StaticEntityRuntime(this);
     this.overlayController = new WorldOverlayController(this, () =>
       this.networkSession.getNetworkStats()

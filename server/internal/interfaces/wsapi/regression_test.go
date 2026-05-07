@@ -41,14 +41,24 @@ func TestPlayerActuallyMovesAndAttacks(t *testing.T) {
 		t.Fatalf("expected Y unchanged, got %.1f vs %.1f", p.Y, startY)
 	}
 
-	// Press attack — should enter attacking state for one tick at least.
+	// Press attack — should spawn a pistol shot without entering a melee state.
 	if err := d.HandleInput("c1", protocol.InputMessage{Seq: 2, Attack: true}); err != nil {
 		t.Fatal(err)
 	}
 	d.Sim(16 * time.Millisecond)
 	p = w.Players()[playerID]
-	if string(p.State) != "attacking" {
-		t.Fatalf("expected state=attacking after Attack input, got %q", p.State)
+	if string(p.State) == "attacking" {
+		t.Fatalf("expected pistol fire to avoid attacking state, got %q", p.State)
+	}
+	foundPistol := false
+	for _, h := range w.Snapshot().Hazards {
+		if string(h.Kind) == "pistol" {
+			foundPistol = true
+			break
+		}
+	}
+	if !foundPistol {
+		t.Fatal("expected pistol hazard after Attack input")
 	}
 
 	// Direction change: press up.

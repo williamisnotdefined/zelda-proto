@@ -6,6 +6,7 @@ import {
   filterSnapshotMessage,
   normalizeServerMessageResult,
 } from '../snapshot';
+import { PROTOCOL_VERSION } from '@/shared';
 import type { ServerMessage, SnapshotDeltaMessage, SnapshotMessage } from '@/shared';
 
 interface SnapshotFixture {
@@ -31,7 +32,7 @@ describe('snapshot contract fixtures', () => {
     const fixture = await readSnapshotFixture();
     const state = createSnapshotNormalizationState();
 
-    expect(fixture.protocolVersion).toBe(9);
+    expect(fixture.protocolVersion).toBe(PROTOCOL_VERSION);
 
     expect(normalizeServerMessageResult(fixture.messages.initialFullSnapshot, state)).toMatchObject(
       {

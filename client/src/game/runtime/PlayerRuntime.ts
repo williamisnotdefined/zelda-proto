@@ -138,6 +138,7 @@ export class PlayerRuntime {
     waveIndicator: BossWaveIndicator | null
   ): void {
     let entity = this.playerEntities.get(player.id);
+    const isNewEntity = !entity;
     if (!entity) {
       entity = new PlayerEntity(
         this.scene,
@@ -148,6 +149,7 @@ export class PlayerRuntime {
       );
       this.playerEntities.set(player.id, entity);
     }
+    const damageTaken = isNewEntity ? 0 : Math.max(0, entity.hp - player.hp);
 
     entity.setNickname(player.nickname);
 
@@ -173,8 +175,12 @@ export class PlayerRuntime {
         maxHp: player.maxHp,
         state: player.state,
         direction: player.direction,
+        equippedWeapon: player.equippedWeapon,
       });
       entity.syncWaveIndicator(waveIndicator);
+      if (damageTaken > 0) {
+        this.fx.spawnFloatingDamage(player.x, player.y, damageTaken, 'player');
+      }
       return;
     }
 
@@ -188,6 +194,9 @@ export class PlayerRuntime {
       player.statusEffects
     );
     entity.syncWaveIndicator(waveIndicator);
+    if (damageTaken > 0) {
+      this.fx.spawnFloatingDamage(player.x, player.y, damageTaken, 'player');
+    }
   }
 
   private removePlayerEntity(id: string): void {

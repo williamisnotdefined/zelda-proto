@@ -169,7 +169,7 @@ func (PlayerWaveSystem) Resolve(
 ) bool {
 	moved := false
 	for _, caster := range players {
-		cx, cy, targets, ok := caster.ConsumeWaveRelease()
+		cx, cy, targets, castID, ok := caster.ConsumeWaveRelease()
 		if !ok {
 			continue
 		}
@@ -185,6 +185,7 @@ func (PlayerWaveSystem) Resolve(
 			totalDamage += beforeHP - e.HP
 			if e.State == enemy.StateDead {
 				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
 			if pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
@@ -203,6 +204,7 @@ func (PlayerWaveSystem) Resolve(
 			totalDamage += beforeHP - d.HP
 			if d.State == boss.StateDead {
 				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
 			if pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
@@ -221,6 +223,7 @@ func (PlayerWaveSystem) Resolve(
 			totalDamage += beforeHP - g.HP
 			if g.State == boss.StateDead {
 				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
 			if pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
@@ -238,6 +241,7 @@ func (PlayerWaveSystem) Resolve(
 			totalDamage += beforeHP - v.HP
 			if v.State == boss.StateDead {
 				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
 			if pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
@@ -267,6 +271,7 @@ func (PlayerWaveSystem) Resolve(
 		if totalDamage > 0 {
 			caster.Heal(int(math.Ceil(float64(totalDamage) * player.WaveLifeStealRatio)))
 		}
+		caster.FinishCast(castID)
 	}
 	return moved
 }
@@ -275,10 +280,42 @@ func (PlayerWaveSystem) Resolve(
 // the blue flame trail after movement is resolved.
 type DashTrailSpawner func(sourcePlayerID string, startX, startY float64, direction domworld.Direction)
 
+// PlayerPistolSpawner receives a queued base-attack shot so the world can
+// spawn the projectile after movement is resolved.
+type PlayerPistolSpawner func(
+	sourcePlayerID string,
+	sourceCastID uint64,
+	startX, startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+)
+
+// PlayerPistolSystem resolves queued pistol shots.
+type PlayerPistolSystem struct{}
+
+// Resolve emits every queued pistol shot.
+func (PlayerPistolSystem) Resolve(
+	players map[string]*player.Player,
+	zone safezone.Zone,
+	spawnPistol PlayerPistolSpawner,
+) {
+	if spawnPistol == nil {
+		return
+	}
+	for _, caster := range players {
+		startX, startY, direction, castID, ok := caster.ConsumePistolCast()
+		if !ok || direction == "" || caster.State == player.StateDead {
+			continue
+		}
+		spawnPistol(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
+	}
+}
+
 // PlayerLandmineSpawner receives a queued landmine cast so the world can spawn
 // the hazard after movement is resolved.
 type PlayerLandmineSpawner func(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX, startY float64,
 	direction domworld.Direction,
 	hitsPlayers bool,
@@ -297,11 +334,11 @@ func (PlayerLandmineSystem) Resolve(
 		return
 	}
 	for _, caster := range players {
-		startX, startY, direction, ok := caster.ConsumeLandmineCast()
+		startX, startY, direction, castID, ok := caster.ConsumeLandmineCast()
 		if !ok || direction == "" || caster.State == player.StateDead {
 			continue
 		}
-		spawnLandmine(caster.ID, startX, startY, direction, !zone.Protects(caster))
+		spawnLandmine(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
 	}
 }
 
@@ -309,6 +346,7 @@ func (PlayerLandmineSystem) Resolve(
 // the projectile entity after movement is resolved.
 type PlayerFireballSpawner func(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX, startY float64,
 	direction domworld.Direction,
 	hitsPlayers bool,
@@ -327,11 +365,11 @@ func (PlayerFireballSystem) Resolve(
 		return
 	}
 	for _, caster := range players {
-		startX, startY, direction, ok := caster.ConsumeFireballCast()
+		startX, startY, direction, castID, ok := caster.ConsumeFireballCast()
 		if !ok || direction == "" || caster.State == player.StateDead {
 			continue
 		}
-		spawnFireball(caster.ID, startX, startY, direction, !zone.Protects(caster))
+		spawnFireball(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
 	}
 }
 
@@ -339,6 +377,7 @@ func (PlayerFireballSystem) Resolve(
 // the projectile after movement is resolved.
 type PlayerGrenadeSpawner func(
 	sourcePlayerID string,
+	sourceCastID uint64,
 	startX, startY float64,
 	direction domworld.Direction,
 	hitsPlayers bool,
@@ -357,11 +396,11 @@ func (PlayerGrenadeSystem) Resolve(
 		return
 	}
 	for _, caster := range players {
-		startX, startY, direction, ok := caster.ConsumeGrenadeCast()
+		startX, startY, direction, castID, ok := caster.ConsumeGrenadeCast()
 		if !ok || direction == "" || caster.State == player.StateDead {
 			continue
 		}
-		spawnGrenade(caster.ID, startX, startY, direction, !zone.Protects(caster))
+		spawnGrenade(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
 	}
 }
 

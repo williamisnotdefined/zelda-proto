@@ -52,6 +52,12 @@ export const DROP_KINDS = {
 
 export type DropKind = (typeof DROP_KINDS)[keyof typeof DROP_KINDS];
 
+export const WEAPON_KINDS = {
+  PISTOL: 'pistol',
+} as const;
+
+export type WeaponKind = (typeof WEAPON_KINDS)[keyof typeof WEAPON_KINDS];
+
 export const PORTAL_KINDS = {
   PHASE1_TO_PHASE2: 'phase1_to_phase2',
   PHASE2_TO_PHASE1: 'phase2_to_phase1',
@@ -67,6 +73,7 @@ export const HAZARD_KINDS = {
   FIRE_FIELD: 'fire_field',
   PURPLE_FIELD: 'purple_field',
   BLUE_FLAME: 'blue_flame',
+  PISTOL: 'pistol',
   FIREBALL: 'fireball',
   GRENADE: 'grenade',
   LANDMINE: 'landmine',
@@ -75,7 +82,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 9 as const;
+export const PROTOCOL_VERSION = 11 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -173,6 +180,7 @@ export interface PlayerSnapshot {
   toastyCount: number;
   lastProcessedInputSeq: number;
   statusEffects: PlayerStatusSnapshot;
+  equippedWeapon: WeaponKind;
 }
 
 export interface EnemySnapshot {

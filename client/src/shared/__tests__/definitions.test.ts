@@ -6,6 +6,7 @@ import {
   HAZARD_KINDS,
   PLAYER_STATUS_EFFECTS,
   PORTAL_KINDS,
+  WEAPON_KINDS,
 } from '../types';
 import {
   bossDefinitions,
@@ -13,6 +14,7 @@ import {
   enemyDefinitions,
   hazardDefinitions,
   portalDefinitions,
+  weaponDefinitions,
 } from '../definitions';
 
 describe('shared definitions', () => {
@@ -20,6 +22,7 @@ describe('shared definitions', () => {
     expect(Object.keys(enemyDefinitions).sort()).toEqual(Object.values(ENEMY_KINDS).sort());
     expect(Object.keys(bossDefinitions).sort()).toEqual(Object.values(BOSS_KINDS).sort());
     expect(Object.keys(dropDefinitions).sort()).toEqual(Object.values(DROP_KINDS).sort());
+    expect(Object.keys(weaponDefinitions).sort()).toEqual(Object.values(WEAPON_KINDS).sort());
     expect(Object.keys(portalDefinitions).sort()).toEqual(Object.values(PORTAL_KINDS).sort());
     expect(Object.keys(hazardDefinitions).sort()).toEqual(Object.values(HAZARD_KINDS).sort());
   });

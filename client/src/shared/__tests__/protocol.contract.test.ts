@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { pack, unpack } from 'msgpackr';
+import { PROTOCOL_VERSION } from '../types';
 import { parseClientMessage } from '../protocol';
 
 interface ProtocolFixtureCase {
@@ -28,7 +29,7 @@ describe('protocol contract fixtures', () => {
   it('keeps protocol fixtures aligned with MessagePack bytes and canonical parsing', async () => {
     const fixture = await readProtocolFixture();
 
-    expect(fixture.protocolVersion).toBe(9);
+    expect(fixture.protocolVersion).toBe(PROTOCOL_VERSION);
 
     for (const testCase of fixture.cases) {
       const bytes = Buffer.from(testCase.msgpackBase64, 'base64');

@@ -7,17 +7,18 @@ import (
 // PlayerSnapshot mirrors the wire layout of a player on a snapshot. Keep
 // fields ordered to match the MessagePack object order expected by the client.
 type PlayerSnapshot struct {
-	ID            string
-	Nickname      string
-	X             float64
-	Y             float64
-	HP            int
-	MaxHP         int
-	State         string
-	Direction     string
-	MonsterKills  int
-	PlayerKills   int
-	Toasty        bool
+	ID             string
+	Nickname       string
+	X              float64
+	Y              float64
+	HP             int
+	MaxHP          int
+	State          string
+	Direction      string
+	MonsterKills   int
+	PlayerKills    int
+	Toasty         bool
+	EquippedWeapon string
 }
 
 // EnemySnapshot mirrors enemy fields on the wire.
@@ -130,16 +131,16 @@ type SnapshotDeltaInput struct {
 	Players          []codec.Object
 	RemovedPlayerIDs []string
 
-	Enemies          []codec.Object
-	EnemyTransforms  []codec.Object
-	EnemyStates      []codec.Object
-	RemovedEnemyIDs  []string
+	Enemies         []codec.Object
+	EnemyTransforms []codec.Object
+	EnemyStates     []codec.Object
+	RemovedEnemyIDs []string
 
-	Bosses           []codec.Object
-	RemovedBossIDs   []string
+	Bosses         []codec.Object
+	RemovedBossIDs []string
 
-	Drops            []codec.Object
-	RemovedDropIDs   []string
+	Drops          []codec.Object
+	RemovedDropIDs []string
 
 	Portals          []codec.Object
 	RemovedPortalIDs []string

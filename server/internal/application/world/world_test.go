@@ -83,21 +83,22 @@ func TestEnemyContactDamagesPlayerOutsideSafeZone(t *testing.T) {
 	}
 }
 
-func TestPlayerMeleeKillsEnemyAndCountsKill(t *testing.T) {
+func TestPlayerPistolKillsEnemyAndCountsKillAfterRepeatedShots(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
 	x, y := 1000.0, 1000.0
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0
-	e := enemy.New("e1", 1015, 1000, "0,0", enemy.HandConfig, drop.KindHeartSmall)
+	p.Direction = domworld.DirectionRight
+	e := enemy.New("e1", 1040, 1000, "0,0", enemy.HandConfig, drop.KindHeartSmall)
 	w.SpawnEnemy(e)
-	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Attack: true})
-	for i := 0; i < 5; i++ {
+	w.HandleInput("p1", player.Input{Seq: 1, Attack: true})
+	for i := 0; i < 260 && e.State != enemy.StateDead; i++ {
 		w.Tick(20 * time.Millisecond)
 	}
 	if e.State != enemy.StateDead {
-		t.Fatalf("expected enemy dead, got %s hp=%d", e.State, e.HP)
+		t.Fatalf("expected enemy dead after repeated pistol shots, got %s hp=%d", e.State, e.HP)
 	}
 	if p.MonsterKills < 1 {
 		t.Fatalf("expected kill counted, got %d", p.MonsterKills)
@@ -291,6 +292,88 @@ func TestPlayerDashCanEndOnEnemyAndStillTakeContactDamage(t *testing.T) {
 
 	if got, want := p.HP, player.MaxHP-contactConfig.Damage; got != want {
 		t.Fatalf("expected dash end overlap to keep normal contact damage, want HP=%d got %d", want, got)
+	}
+}
+
+func TestPlayerPistolPiercesTargetsAcrossAttackRange(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1160.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e1 := enemy.New("e1", 1100, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	e2 := enemy.New("e2", 1240, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e1)
+	w.SpawnEnemy(e2)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Attack: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
+
+	foundPistol := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindPistol {
+			foundPistol = true
+			if h.Direction != domworld.DirectionRight {
+				t.Fatalf("expected pistol direction right, got %s", h.Direction)
+			}
+			break
+		}
+	}
+	if !foundPistol {
+		t.Fatal("expected pistol hazard after attack")
+	}
+
+	for i := 0; i < 10; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := target.HP, player.MaxHP-player.PistolPvPDamage; got != want {
+		t.Fatalf("expected target HP=%d after pistol shot, got %d", want, got)
+	}
+	if got, want := e1.HP, passiveConfig.MaxHP-player.PistolDamage; got != want {
+		t.Fatalf("expected first enemy HP=%d after pistol shot, got %d", want, got)
+	}
+	if got, want := e2.HP, passiveConfig.MaxHP-player.PistolDamage; got != want {
+		t.Fatalf("expected second enemy HP=%d after piercing pistol shot, got %d", want, got)
+	}
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindPistol {
+			t.Fatal("expected pistol shot to expire after traversing its range")
+		}
+	}
+}
+
+func TestPlayerPistolDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 200.0, 200.0
+	tx, ty := 360.0, 200.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	target.SafeZoneTimer = 0
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Attack: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
+	for i := 0; i < 9; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected protected caster pistol shot to skip PvP damage, got target HP=%d", target.HP)
+	}
+	if attacker.HP != player.MaxHP {
+		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
 	}
 }
 
@@ -601,7 +684,7 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	if got, want := target.HP, player.MaxHP-player.WaveDamage; got != want {
 		t.Fatalf("expected target HP=%d after wave, got %d", want, got)
 	}
-	if got, want := attacker.HP, player.MaxHP-18; got != want {
+	if got, want := attacker.HP, player.MaxHP-16; got != want {
 		t.Fatalf("expected attacker HP=%d after wave life steal, got %d", want, got)
 	}
 	if dx, dy := e.X-attacker.X, e.Y-attacker.Y; dx*dx+dy*dy <= player.WaveMaxRadius*player.WaveMaxRadius {

@@ -24,6 +24,7 @@ export type EnemyVisualStats = {
 };
 
 export interface EnemyVisualEntity {
+  hp: number;
   serverState: string;
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void;
   updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void;

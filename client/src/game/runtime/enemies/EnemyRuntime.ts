@@ -1,5 +1,6 @@
 import type { EnemySnapshot } from '@/shared';
 import Phaser from 'phaser';
+import { FxController } from '../../fx/FxController';
 import { EnemySnapshotStore } from './EnemySnapshotStore';
 import {
   type EnemyVisualEntity,
@@ -65,7 +66,10 @@ export class EnemyRuntime {
   private lastEnemyVisualSyncWidth = 0;
   private lastEnemyVisualSyncHeight = 0;
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly fx: FxController
+  ) {}
 
   syncSnapshots(enemies: EnemySnapshot[]): void {
     const result = this.snapshotStore.sync(enemies);
@@ -274,7 +278,14 @@ export class EnemyRuntime {
       return;
     }
 
+    const previousHp = entity.hp;
+
     entry.update(entity, enemy);
+
+    const damageTaken = previousHp - enemy.hp;
+    if (damageTaken > 0) {
+      this.fx.spawnFloatingDamage(enemy.x, enemy.y, damageTaken, 'enemy');
+    }
   }
 
   private ensureEnemyVisual(enemy: EnemySnapshot): void {
