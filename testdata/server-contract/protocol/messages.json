@@ -56,6 +56,7 @@
         "attack": true,
         "wave": false,
         "numb": false,
+        "pull": false,
         "dash": false,
         "fireball": false,
         "grenade": false,
@@ -72,12 +73,13 @@
         "attack": true,
         "wave": false,
         "numb": false,
+        "pull": false,
         "dash": false,
         "fireball": false,
         "grenade": false,
         "landmine": false
       },
-      "msgpackBase64": "3gAOr3Byb3RvY29sVmVyc2lvbgukdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRudW1iwqRkYXNowqhmaXJlYmFsbMKnZ3JlbmFkZcKobGFuZG1pbmXC"
+      "msgpackBase64": "3gAPr3Byb3RvY29sVmVyc2lvbgukdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRudW1iwqRwdWxswqRkYXNowqhmaXJlYmFsbMKnZ3JlbmFkZcKobGFuZG1pbmXC"
     },
     {
       "name": "snapshot_resync_tick_gap",

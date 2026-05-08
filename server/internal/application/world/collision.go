@@ -23,6 +23,7 @@ type dynamicBody struct {
 	y         *float64
 	radius    float64
 	mass      float64
+	ignore    bool
 	onCollide func()
 }
 
@@ -70,6 +71,7 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			y:      &p.Y,
 			radius: player.Width / 2,
 			mass:   normalBodyMass,
+			ignore: w.pullOverlapBodies[dynamicBodyKey("player", p.ID)] > 0,
 		})
 	}
 	for _, e := range w.enemies {
@@ -83,6 +85,7 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			y:      &e.Y,
 			radius: e.CollisionRadius(),
 			mass:   normalBodyMass,
+			ignore: w.pullOverlapBodies[dynamicBodyKey("enemy", e.ID)] > 0,
 		})
 	}
 	for _, d := range w.dragons {
@@ -96,6 +99,7 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			y:      &d.Y,
 			radius: d.ContactRadius(),
 			mass:   bossBodyMass,
+			ignore: w.pullOverlapBodies[dynamicBodyKey("boss", d.ID)] > 0,
 		})
 	}
 	for _, g := range w.gelehks {
@@ -109,6 +113,7 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			y:      &g.Y,
 			radius: g.ContactRadius(),
 			mass:   bossBodyMass,
+			ignore: w.pullOverlapBodies[dynamicBodyKey("boss", g.ID)] > 0,
 			onCollide: func(g *boss.Gelehk) func() {
 				return func() { g.StopChargeOnCollision() }
 			}(g),
@@ -125,9 +130,14 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 			y:      &v.Y,
 			radius: v.ContactRadius(),
 			mass:   bossBodyMass,
+			ignore: w.pullOverlapBodies[dynamicBodyKey("boss", v.ID)] > 0,
 		})
 	}
 	return bodies
+}
+
+func dynamicBodyKey(kind, id string) string {
+	return kind + ":" + id
 }
 
 func (w *World) syncDynamicIndexesLocked() {
@@ -149,6 +159,10 @@ func (w *World) syncDynamicIndexesLocked() {
 }
 
 func resolveDynamicBodyPair(a, b *dynamicBody) bool {
+	if a.ignore && b.ignore {
+		return false
+	}
+
 	dx := *b.x - *a.x
 	dy := *b.y - *a.y
 	minDist := a.radius + b.radius

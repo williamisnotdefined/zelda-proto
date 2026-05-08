@@ -1,4 +1,4 @@
-import type { BossWaveIndicator, PlayerSnapshot } from '@/shared';
+import type { PlayerSnapshot, WaveIndicator } from '@/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@/shared/constants';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
@@ -30,6 +30,9 @@ export class PlayerRuntime {
         this.ui.setNumbCooldownEndsAt(time);
       },
       (time) => {
+        this.ui.setPullCooldownEndsAt(time);
+      },
+      (time) => {
         this.ui.setDashCooldownEndsAt(time);
       },
       (time) => {
@@ -52,8 +55,8 @@ export class PlayerRuntime {
     this.inputController.handleWelcome();
   }
 
-  syncPlayers(players: PlayerSnapshot[], waveIndicators: BossWaveIndicator[]): void {
-    const waveByOwner = new Map<string, BossWaveIndicator>();
+  syncPlayers(players: PlayerSnapshot[], waveIndicators: WaveIndicator[]): void {
+    const waveByOwner = new Map<string, WaveIndicator>();
     for (const wave of waveIndicators) {
       if (wave.ownerId) {
         waveByOwner.set(wave.ownerId, wave);
@@ -136,10 +139,7 @@ export class PlayerRuntime {
     };
   }
 
-  private upsertPlayerEntity(
-    player: PlayerSnapshot,
-    waveIndicator: BossWaveIndicator | null
-  ): void {
+  private upsertPlayerEntity(player: PlayerSnapshot, waveIndicator: WaveIndicator | null): void {
     let entity = this.playerEntities.get(player.id);
     const isNewEntity = !entity;
     if (!entity) {

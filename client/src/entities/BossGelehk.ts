@@ -1,4 +1,5 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
+import type { WaveIndicator } from '@/shared';
 import Phaser from 'phaser';
 
 /** Base lerp factors per 16.667ms (60fps) frame. */
@@ -46,13 +47,6 @@ interface AoeData {
   hit: boolean;
 }
 
-interface WaveData {
-  x: number;
-  y: number;
-  radius: number;
-  state: 'windup' | 'expanding';
-}
-
 interface AoeTileOverlay {
   radius: number;
   offsets: Array<{ x: number; y: number }>;
@@ -83,7 +77,7 @@ export class BossGelehkEntity {
   private waveRing: Phaser.GameObjects.Arc;
   private waveCore: Phaser.GameObjects.Arc;
   private waveEdgeSprites: Phaser.GameObjects.Image[];
-  private waveState: WaveData['state'] | null;
+  private waveState: 'windup' | null;
   private waveCenterX: number;
   private waveCenterY: number;
   private waveRadius: number;
@@ -176,7 +170,7 @@ export class BossGelehkEntity {
     phase: number,
     iceZones: IceZoneData[],
     aoeIndicators: AoeData[],
-    waveIndicator: WaveData | null
+    waveIndicator: WaveIndicator | null
   ): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
@@ -206,7 +200,7 @@ export class BossGelehkEntity {
     this.updateWaveIndicator(waveIndicator);
   }
 
-  private updateWaveIndicator(wave: WaveData | null): void {
+  private updateWaveIndicator(wave: WaveIndicator | null): void {
     if (!wave) {
       this.waveState = null;
       this.waveCenterX = this.sprite.x;
@@ -218,7 +212,7 @@ export class BossGelehkEntity {
       return;
     }
 
-    this.waveState = wave.state;
+    this.waveState = wave.state === 'windup' ? 'windup' : null;
     this.waveCenterX = wave.x;
     this.waveCenterY = wave.y;
     this.waveRadius = wave.radius;

@@ -141,8 +141,8 @@ export type BossState =
   | 'enraged'
   | 'dead';
 
-export type BossWaveState = 'windup' | 'expanding';
-export type PlayerWaveKind = 'wave' | 'numb';
+export type WaveState = 'windup' | 'expanding' | 'collapsing';
+export type PlayerWaveKind = 'wave' | 'numb' | 'pull';
 
 export interface BurningStatus {
   ticksRemaining: number;
@@ -241,12 +241,12 @@ export interface AoeIndicator {
   hit: boolean;
 }
 
-export interface BossWaveIndicator {
+export interface WaveIndicator {
   ownerId?: string;
   x: number;
   y: number;
   radius: number;
-  state: BossWaveState;
+  state: WaveState;
   kind?: PlayerWaveKind;
 }
 
@@ -281,7 +281,7 @@ interface SnapshotWorldState {
   bosses: BossSnapshot[];
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
-  waveIndicators: BossWaveIndicator[];
+  waveIndicators: WaveIndicator[];
   drops: DropSnapshot[];
   portals: PortalSnapshot[];
   hazards: HazardSnapshot[];
@@ -370,6 +370,7 @@ export interface InputMessage {
   attack: boolean;
   wave: boolean;
   numb: boolean;
+  pull: boolean;
   dash: boolean;
   fireball: boolean;
   grenade: boolean;

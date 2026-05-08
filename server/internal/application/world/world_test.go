@@ -770,6 +770,86 @@ func TestPlayerNumbDamagesPushesAndKeepsTargetsFrozen(t *testing.T) {
 	}
 }
 
+func TestPlayerPullDamagesClustersAndTemporarilyAllowsOverlap(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := 1070.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.TakeDamage(20)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindHeartSmall)
+	e.TargetID = attacker.ID
+	e.State = enemy.StateChasing
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Pull: true})
+	w.Tick(20 * time.Millisecond)
+	if e.X != 1000 || e.Y != 1090 {
+		t.Fatalf("expected frozen enemy to stay put during pull windup, got (%.1f, %.1f)", e.X, e.Y)
+	}
+	if e.HP != enemy.BlobConfig.MaxHP {
+		t.Fatalf("expected no enemy damage during pull windup, got %d", e.HP)
+	}
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected no player damage during pull windup, got %d", target.HP)
+	}
+	windupSnap := w.Snapshot()
+	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
+		t.Fatalf("expected player pull windup indicator, got %#v", windupSnap.WaveIndicators)
+	}
+	if windupSnap.WaveIndicators[0].Kind != "pull" {
+		t.Fatalf("expected pull indicator kind 'pull', got %#v", windupSnap.WaveIndicators[0])
+	}
+
+	w.Tick(player.WaveWindup)
+	collapsingSnap := w.Snapshot()
+	if len(collapsingSnap.WaveIndicators) == 0 || collapsingSnap.WaveIndicators[0].State != boss.WaveCollapsing {
+		t.Fatalf("expected collapsing pull indicator, got %#v", collapsingSnap.WaveIndicators)
+	}
+	if collapsingSnap.WaveIndicators[0].Kind != "pull" {
+		t.Fatalf("expected collapsing pull kind 'pull', got %#v", collapsingSnap.WaveIndicators[0])
+	}
+
+	releaseAfter := player.WaveExpandDuration() + 20*time.Millisecond
+	w.Tick(releaseAfter)
+
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.PullDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after pull, got %d", want, got)
+	}
+	if got, want := target.HP, player.MaxHP-player.PullDamage; got != want {
+		t.Fatalf("expected target HP=%d after pull, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-12; got != want {
+		t.Fatalf("expected attacker HP=%d after pull life steal, got %d", want, got)
+	}
+	if e.X != attacker.X || e.Y != attacker.Y {
+		t.Fatalf("expected enemy clustered onto attacker, got enemy at (%.1f, %.1f) attacker at (%.1f, %.1f)", e.X, e.Y, attacker.X, attacker.Y)
+	}
+	if target.X != attacker.X || target.Y != attacker.Y {
+		t.Fatalf("expected target clustered onto attacker, got target at (%.1f, %.1f) attacker at (%.1f, %.1f)", target.X, target.Y, attacker.X, attacker.Y)
+	}
+	if len(w.Snapshot().WaveIndicators) != 0 {
+		t.Fatal("expected no pull indicator after release")
+	}
+
+	w.Tick(40 * time.Millisecond)
+	if e.X != attacker.X || e.Y != attacker.Y || target.X != attacker.X || target.Y != attacker.Y {
+		t.Fatal("expected pull overlap to persist briefly after release")
+	}
+
+	w.Tick(80 * time.Millisecond)
+	if e.X == attacker.X && e.Y == attacker.Y && target.X == attacker.X && target.Y == attacker.Y {
+		t.Fatal("expected pull overlap to expire and body collisions to separate the cluster")
+	}
+}
+
 func TestAdoptPlayer(t *testing.T) {
 	t.Parallel()
 

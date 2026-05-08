@@ -1,5 +1,5 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
-import type { BossWaveIndicator, PlayerStatusSnapshot } from '@/shared';
+import type { PlayerStatusSnapshot, WaveIndicator } from '@/shared';
 import Phaser from 'phaser';
 import { PlayerAnimationController } from './player/PlayerAnimationController';
 import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';
@@ -118,7 +118,7 @@ export class PlayerEntity {
   }
 
   syncWaveIndicator(
-    wave: Pick<BossWaveIndicator, 'x' | 'y' | 'radius' | 'state' | 'kind'> | null
+    wave: Pick<WaveIndicator, 'x' | 'y' | 'radius' | 'state' | 'kind'> | null
   ): void {
     this.waveIndicator.sync(wave);
   }

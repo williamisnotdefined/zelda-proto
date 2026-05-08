@@ -12,6 +12,7 @@ export interface GameUiSink {
   setLocalPlayer(player: PlayerData | null): void;
   setWaveCooldownEndsAt(time: number | null): void;
   setNumbCooldownEndsAt(time: number | null): void;
+  setPullCooldownEndsAt(time: number | null): void;
   setDashCooldownEndsAt(time: number | null): void;
   setFireballCooldownEndsAt(time: number | null): void;
   setGrenadeCooldownEndsAt(time: number | null): void;

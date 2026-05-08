@@ -60,8 +60,9 @@ type WaveState string
 
 // Wave states.
 const (
-	WaveWindup    WaveState = "windup"
-	WaveExpanding WaveState = "expanding"
+	WaveWindup     WaveState = "windup"
+	WaveExpanding  WaveState = "expanding"
+	WaveCollapsing WaveState = "collapsing"
 )
 
 // WaveIndicator describes the active wave.

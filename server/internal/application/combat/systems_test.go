@@ -36,6 +36,15 @@ func queuePlayerNumbRelease(p *player.Player, targets player.WaveTargets) {
 	p.Update(releaseAfter, 1)
 }
 
+func queuePlayerPullRelease(p *player.Player, targets player.WaveTargets) {
+	p.ApplyInput(player.Input{Seq: 1, Pull: true})
+	p.Update(10*time.Millisecond, 1)
+	p.ConsumePullStart()
+	p.SetPullTargets(targets)
+	releaseAfter := player.WaveWindup + player.WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+}
+
 func TestContactDamageRespectsSafezone(t *testing.T) {
 	t.Parallel()
 	zone := safezone.Zone{X: 100, Y: 100, Radius: 200}
@@ -297,6 +306,76 @@ func TestPlayerNumbDamagesTargetsWithoutKnockback(t *testing.T) {
 		}[name]
 		if got != want {
 			t.Fatalf("expected %s position unchanged at (%.1f, %.1f), got (%.1f, %.1f)", name, want[0], want[1], got[0], got[1])
+		}
+	}
+}
+
+func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
+	t.Parallel()
+
+	zone := safezone.Zone{X: 1000, Y: 1000, Radius: 10}
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(20)
+	target := newPlayerOutsideSafezone("tgt", 70, 40)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 0, 50)
+	g := boss.NewGelehk("g1", -60, 0)
+	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+	marked := make(map[string]struct{})
+
+	queuePlayerPullRelease(caster, player.WaveTargets{
+		EnemyIDs:   []string{"e1"},
+		DragonIDs:  []string{"d1"},
+		GelehkIDs:  []string{"g1"},
+		VanessaIDs: []string{"v1"},
+	})
+
+	moved := PlayerPullSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": e},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		zone,
+		func(kind, id string) {
+			marked[kind+":"+id] = struct{}{}
+		},
+	)
+	if !moved {
+		t.Fatal("expected pull to move targets")
+	}
+	if e.HP != enemy.BlobConfig.MaxHP-player.PullDamage {
+		t.Fatalf("expected enemy HP=%d, got %d", enemy.BlobConfig.MaxHP-player.PullDamage, e.HP)
+	}
+	if d.HP != boss.DragonLordMaxHP-player.PullDamage {
+		t.Fatalf("expected dragon HP=%d, got %d", boss.DragonLordMaxHP-player.PullDamage, d.HP)
+	}
+	if g.HP != boss.GelehkMaxHP-player.PullDamage {
+		t.Fatalf("expected gelehk HP=%d, got %d", boss.GelehkMaxHP-player.PullDamage, g.HP)
+	}
+	if v.HP != boss.VanessaMaxHP-player.PullDamage {
+		t.Fatalf("expected vanessa HP=%d, got %d", boss.VanessaMaxHP-player.PullDamage, v.HP)
+	}
+	if target.HP != player.MaxHP-player.PullDamage {
+		t.Fatalf("expected target player HP=%d, got %d", player.MaxHP-player.PullDamage, target.HP)
+	}
+	if got, want := caster.HP, player.MaxHP-2; got != want {
+		t.Fatalf("expected caster HP=%d after pull life steal, got %d", want, got)
+	}
+	for name, pos := range map[string][2]float64{
+		"enemy":   {e.X, e.Y},
+		"dragon":  {d.X, d.Y},
+		"gelehk":  {g.X, g.Y},
+		"vanessa": {v.X, v.Y},
+		"player":  {target.X, target.Y},
+	} {
+		if pos != [2]float64{0, 0} {
+			t.Fatalf("expected %s clustered at caster center, got pos=(%.1f, %.1f)", name, pos[0], pos[1])
+		}
+	}
+	for _, key := range []string{"player:att", "player:tgt", "enemy:e1", "boss:d1", "boss:g1", "boss:v1"} {
+		if _, ok := marked[key]; !ok {
+			t.Fatalf("expected overlap marker for %s", key)
 		}
 	}
 }

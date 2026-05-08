@@ -160,6 +160,10 @@ type PlayerWaveSystem struct{}
 // PlayerNumbSystem resolves the gray wave variant that also stuns hostiles.
 type PlayerNumbSystem struct{}
 
+// PlayerPullSystem resolves the red wave variant that collapses targets into
+// the caster and temporarily allows stacked bodies to remain overlapped.
+type PlayerPullSystem struct{}
+
 // Resolve applies player wave damage and knockback. Returns true when any
 // entity position changed and body collisions should be re-resolved.
 func (PlayerWaveSystem) Resolve(
@@ -180,7 +184,8 @@ func (PlayerWaveSystem) Resolve(
 		(*player.Player).ConsumeWaveRelease,
 		player.WaveDamage,
 		player.WaveLifeStealRatio,
-		true,
+		pushOutOfWave,
+		nil,
 	)
 }
 
@@ -204,11 +209,40 @@ func (PlayerNumbSystem) Resolve(
 		(*player.Player).ConsumeNumbRelease,
 		player.NumbDamage,
 		player.NumbLifeStealRatio,
-		false,
+		nil,
+		nil,
+	)
+}
+
+// Resolve applies pull damage and collapses surviving targets into the caster.
+// Marked bodies may overlap briefly so the pull cluster is preserved.
+func (PlayerPullSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	zone safezone.Zone,
+	markOverlap PlayerPullOverlapMarker,
+) bool {
+	return resolvePlayerWaveLike(
+		players,
+		enemies,
+		dragons,
+		gelehks,
+		vanessas,
+		zone,
+		(*player.Player).ConsumePullRelease,
+		player.PullDamage,
+		player.PullLifeStealRatio,
+		pullIntoWave,
+		markOverlap,
 	)
 }
 
 type waveReleaseConsumer func(*player.Player) (float64, float64, player.WaveTargets, uint64, bool)
+type waveTargetMover func(cx, cy float64, x, y *float64, bodyRadius float64) bool
+type PlayerPullOverlapMarker func(kind, id string)
 
 func resolvePlayerWaveLike(
 	players map[string]*player.Player,
@@ -220,7 +254,8 @@ func resolvePlayerWaveLike(
 	consume waveReleaseConsumer,
 	damage int,
 	lifeStealRatio float64,
-	pushTargets bool,
+	moveTarget waveTargetMover,
+	markOverlap PlayerPullOverlapMarker,
 ) bool {
 	moved := false
 	for _, caster := range players {
@@ -243,9 +278,13 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushTargets && pushOutOfWave(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
+			if moveTarget != nil && moveTarget(cx, cy, &e.X, &e.Y, e.CollisionRadius()) {
 				e.TargetID = ""
 				e.State = enemy.StateIdle
+				if markOverlap != nil {
+					markOverlap("player", caster.ID)
+					markOverlap("enemy", e.ID)
+				}
 				moved = true
 			}
 		}
@@ -262,9 +301,13 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushTargets && pushOutOfWave(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
+			if moveTarget != nil && moveTarget(cx, cy, &d.X, &d.Y, d.ContactRadius()) {
 				d.TargetID = ""
 				d.State = boss.StateIdle
+				if markOverlap != nil {
+					markOverlap("player", caster.ID)
+					markOverlap("boss", d.ID)
+				}
 				moved = true
 			}
 		}
@@ -281,8 +324,12 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushTargets && pushOutOfWave(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
+			if moveTarget != nil && moveTarget(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
 				g.StopChargeOnCollision()
+				if markOverlap != nil {
+					markOverlap("player", caster.ID)
+					markOverlap("boss", g.ID)
+				}
 				moved = true
 			}
 		}
@@ -299,9 +346,13 @@ func resolvePlayerWaveLike(
 				caster.RecordMonsterKillInCast(castID)
 				continue
 			}
-			if pushTargets && pushOutOfWave(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
+			if moveTarget != nil && moveTarget(cx, cy, &v.X, &v.Y, v.ContactRadius()) {
 				v.TargetID = ""
 				v.State = boss.StateIdle
+				if markOverlap != nil {
+					markOverlap("player", caster.ID)
+					markOverlap("boss", v.ID)
+				}
 				moved = true
 			}
 		}
@@ -319,7 +370,11 @@ func resolvePlayerWaveLike(
 				caster.PlayerKills++
 				continue
 			}
-			if pushTargets && pushOutOfWave(cx, cy, &target.X, &target.Y, player.Width/2) {
+			if moveTarget != nil && moveTarget(cx, cy, &target.X, &target.Y, player.Width/2) {
+				if markOverlap != nil {
+					markOverlap("player", caster.ID)
+					markOverlap("player", target.ID)
+				}
 				moved = true
 			}
 		}
@@ -640,6 +695,15 @@ func pushOutOfWave(cx, cy float64, x, y *float64, bodyRadius float64) bool {
 	}
 	*x = cx + (dx/dist)*pushDist
 	*y = cy + (dy/dist)*pushDist
+	return true
+}
+
+func pullIntoWave(cx, cy float64, x, y *float64, _ float64) bool {
+	if *x == cx && *y == cy {
+		return false
+	}
+	*x = cx
+	*y = cy
 	return true
 }
 

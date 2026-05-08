@@ -1,5 +1,5 @@
-- collapse
+- collapse -> monsters should be stacked for 2 seconds before spread all over again.
+- net
 - machine gun
 - flamethrower
 - bazooka
-- net

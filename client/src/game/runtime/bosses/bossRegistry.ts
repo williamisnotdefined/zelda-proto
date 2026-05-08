@@ -1,10 +1,4 @@
-import type {
-  AoeIndicator,
-  BossKind,
-  BossSnapshot,
-  BossWaveIndicator,
-  IceZone,
-} from '@/shared';
+import type { AoeIndicator, BossKind, BossSnapshot, IceZone, WaveIndicator } from '@/shared';
 import { BOSS_KINDS } from '@/shared';
 import type Phaser from 'phaser';
 import { BossDragonLordEntity } from '../../../entities/BossDragonLord';
@@ -21,7 +15,7 @@ export type BossEntity =
 interface BossUpdateContext {
   iceZones: IceZone[];
   aoeIndicators: AoeIndicator[];
-  waveIndicators: BossWaveIndicator[];
+  waveIndicators: WaveIndicator[];
 }
 
 export interface BossRegistryEntry {
@@ -72,7 +66,9 @@ export const bossRegistry: BossRegistry = {
         snapshot.phase,
         context.iceZones,
         context.aoeIndicators.filter((aoe) => aoe.ownerId === snapshot.id),
-        context.waveIndicators.find((wave) => wave.ownerId === snapshot.id) ?? null
+        context.waveIndicators.find(
+          (wave) => wave?.state === 'windup' && wave.ownerId === snapshot.id
+        ) ?? null
       );
     },
   },

@@ -1,8 +1,8 @@
-import type { AoeIndicator, BossSnapshot, BossWaveIndicator, IceZone } from '@/shared';
+import type { AoeIndicator, BossSnapshot, IceZone, WaveIndicator } from '@/shared';
 import type Phaser from 'phaser';
-import { bossRegistry, type BossEntity } from './bossRegistry';
 import { FxController } from '../../fx/FxController';
 import type { GameUiSink } from '../ui/GameUiSink';
+import { bossRegistry, type BossEntity } from './bossRegistry';
 
 export class BossRuntime {
   private readonly bossEntities = new Map<string, BossEntity>();
@@ -18,7 +18,7 @@ export class BossRuntime {
     bosses: BossSnapshot[],
     iceZones: IceZone[],
     aoeIndicators: AoeIndicator[],
-    waveIndicators: BossWaveIndicator[],
+    waveIndicators: WaveIndicator[],
     localPlayer: { x: number; y: number } | null
   ): void {
     this.bossSnapshotsById.clear();
@@ -55,7 +55,7 @@ export class BossRuntime {
   private renderBosses(
     iceZones: IceZone[],
     aoeIndicators: AoeIndicator[],
-    waveIndicators: BossWaveIndicator[],
+    waveIndicators: WaveIndicator[],
     localPlayer: { x: number; y: number } | null
   ): void {
     const seenBossIds = new Set<string>();

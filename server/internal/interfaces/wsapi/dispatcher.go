@@ -220,6 +220,7 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Attack:   msg.Attack,
 		Wave:     msg.Wave,
 		Numb:     msg.Numb,
+		Pull:     msg.Pull,
 		Dash:     msg.Dash,
 		Fireball: msg.Fireball,
 		Grenade:  msg.Grenade,

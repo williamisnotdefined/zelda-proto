@@ -43,6 +43,10 @@ class ZustandGameUiSink implements GameUiSink {
     useGameStore.getState().setNumbCooldownEndsAt(time);
   }
 
+  setPullCooldownEndsAt(time: number | null): void {
+    useGameStore.getState().setPullCooldownEndsAt(time);
+  }
+
   setDashCooldownEndsAt(time: number | null): void {
     useGameStore.getState().setDashCooldownEndsAt(time);
   }

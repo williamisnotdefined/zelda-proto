@@ -92,6 +92,7 @@ type World struct {
 	waveFrozenDragons      map[string]time.Duration
 	waveFrozenGelehks      map[string]time.Duration
 	waveFrozenVanessas     map[string]time.Duration
+	pullOverlapBodies      map[string]time.Duration
 }
 
 type pendingFireLine struct {
@@ -134,6 +135,7 @@ func New(cfg Config) *World {
 		waveFrozenDragons:      make(map[string]time.Duration),
 		waveFrozenGelehks:      make(map[string]time.Duration),
 		waveFrozenVanessas:     make(map[string]time.Duration),
+		pullOverlapBodies:      make(map[string]time.Duration),
 	}
 	if cfg.Definition != nil {
 		w.def = cfg.Definition
@@ -614,6 +616,7 @@ func (w *World) Tick(dt time.Duration) {
 	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
 		w.expelHostilesFromSafeZone()
 	}
+	w.advancePullOverlapBodies(dt)
 	w.resolveBodyCollisionsLocked()
 	w.wasSafeZoneActive = safeZoneActive
 	w.resolveCombat()
@@ -731,6 +734,11 @@ func (w *World) preparePlayerWaves() {
 
 		cx, cy, ok = p.ConsumeNumbStart()
 		if !ok {
+			cx, cy, ok = p.ConsumePullStart()
+			if !ok {
+				continue
+			}
+			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()))
 			continue
 		}
 		p.SetNumbTargets(w.capturePlayerWaveTargets(cx, cy, p.NumbRemainingDuration()+player.NumbFreezeDuration))
@@ -972,6 +980,27 @@ func filterFrozenMap[T any](items map[string]T, frozen map[string]time.Duration)
 		out[id] = item
 	}
 	return out
+}
+
+func (w *World) advancePullOverlapBodies(dt time.Duration) {
+	for key, remaining := range w.pullOverlapBodies {
+		remaining -= dt
+		if remaining <= 0 {
+			delete(w.pullOverlapBodies, key)
+			continue
+		}
+		w.pullOverlapBodies[key] = remaining
+	}
+}
+
+func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
+	if duration <= 0 {
+		return
+	}
+	key := dynamicBodyKey(kind, id)
+	if duration > w.pullOverlapBodies[key] {
+		w.pullOverlapBodies[key] = duration
+	}
 }
 
 func (w *World) tickHazards(dt time.Duration) {
@@ -1592,9 +1621,9 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerPistol → PlayerWave → PlayerNumb → PlayerLandmine → PlayerGrenade →
-	// PlayerFireball → PlayerDash → ContactDamage. Each system is stateless and
-	// reads/mutates only the slices it needs.
+	// PlayerPistol → PlayerWave → PlayerNumb → PlayerPull → PlayerLandmine →
+	// PlayerGrenade → PlayerFireball → PlayerDash → ContactDamage. Each system is
+	// stateless and reads/mutates only the slices it needs.
 	(appcombat.PlayerPistolSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
@@ -1619,6 +1648,19 @@ func (w *World) resolveCombat() {
 		w.gelehks,
 		w.vanessas,
 		w.safeZone(),
+	) {
+		w.resolveBodyCollisionsLocked()
+	}
+	if (appcombat.PlayerPullSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		w.safeZone(),
+		func(kind, id string) {
+			w.armPullOverlap(kind, id, player.PullOverlapDuration)
+		},
 	) {
 		w.resolveBodyCollisionsLocked()
 	}

@@ -5,6 +5,7 @@ import {
   PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_NUMB_COOLDOWN,
+  PLAYER_PULL_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
 import { weaponDefinitions } from '@/shared/definitions';
@@ -28,6 +29,7 @@ export function HUD() {
   const playerCount = useGameStore((s) => s.playerCount);
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
   const numbCooldownEndsAt = useGameStore((s) => s.numbCooldownEndsAt);
+  const pullCooldownEndsAt = useGameStore((s) => s.pullCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
@@ -55,6 +57,7 @@ export function HUD() {
     if (
       !waveCooldownEndsAt &&
       !numbCooldownEndsAt &&
+      !pullCooldownEndsAt &&
       !dashCooldownEndsAt &&
       !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
@@ -71,6 +74,7 @@ export function HUD() {
       if (
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (numbCooldownEndsAt ?? 0) &&
+        now >= (pullCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
@@ -87,6 +91,7 @@ export function HUD() {
     grenadeCooldownEndsAt,
     landmineCooldownEndsAt,
     numbCooldownEndsAt,
+    pullCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
 
@@ -176,6 +181,9 @@ export function HUD() {
   const numbCooldownRemainingMs = Math.max(0, (numbCooldownEndsAt ?? 0) - cooldownNowMs);
   const numbReady = !numbCooldownEndsAt || numbCooldownRemainingMs <= 0;
   const numbCooldownProgress = numbReady ? 1 : 1 - numbCooldownRemainingMs / PLAYER_NUMB_COOLDOWN;
+  const pullCooldownRemainingMs = Math.max(0, (pullCooldownEndsAt ?? 0) - cooldownNowMs);
+  const pullReady = !pullCooldownEndsAt || pullCooldownRemainingMs <= 0;
+  const pullCooldownProgress = pullReady ? 1 : 1 - pullCooldownRemainingMs / PLAYER_PULL_COOLDOWN;
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
@@ -479,6 +487,49 @@ export function HUD() {
                 opacity: 0.92,
               }}
             >
+              <span>Pull (Y)</span>
+              <span
+                style={{
+                  color: pullReady ? '#ff9f9f' : '#ffd3d3',
+                }}
+              >
+                {pullReady ? 'READY' : `${(pullCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(40, 14, 14, 0.92)',
+                border: '1px solid rgba(255, 118, 118, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(255, 110, 110, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${pullCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: pullReady
+                    ? 'linear-gradient(90deg, #ff5f5f 0%, #ff9f9f 100%)'
+                    : 'linear-gradient(90deg, #b82f2f 0%, #ff6767 100%)',
+                  boxShadow: pullReady ? '0 0 12px rgba(255, 120, 120, 0.45)' : 'none',
+                  transition: pullReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
               <span>Landmine (W)</span>
               <span
                 style={{
@@ -677,7 +728,7 @@ export function HUD() {
           }}
         >
           Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
-          wave | T: numb | Space: attack | Tab: players
+          wave | T: numb | Y: pull | Space: attack | Tab: players
         </div>
       )}
 

@@ -227,6 +227,62 @@ func TestNumbTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestPullTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Pull: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.PullCooldown != PullCooldown {
+		t.Fatalf("expected pull cooldown %s, got %s", PullCooldown, p.PullCooldown)
+	}
+	cx, cy, ok := p.ConsumePullStart()
+	if !ok {
+		t.Fatal("expected queued pull start")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected pull center at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if _, _, ok := p.ConsumePullStart(); ok {
+		t.Fatal("expected pull start to be consumed once")
+	}
+	wave := p.WaveIndicator()
+	if wave == nil || wave.Radius <= 0 || wave.State != WaveStateWindup {
+		t.Fatalf("expected active pull indicator during windup, got %#v", wave)
+	}
+	if wave.Kind != WaveKindPull {
+		t.Fatalf("expected pull indicator kind %q, got %q", WaveKindPull, wave.Kind)
+	}
+
+	p.Update(WaveWindup, 1)
+	wave = p.WaveIndicator()
+	if wave == nil || wave.State != WaveStateCollapsing || wave.Radius <= 0 {
+		t.Fatalf("expected collapsing pull indicator after windup, got %#v", wave)
+	}
+
+	releaseAfter := WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+	cx, cy, targets, castID, ok := p.ConsumePullRelease()
+	if !ok {
+		t.Fatal("expected queued pull release")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for pull release")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected pull release at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if len(targets.EnemyIDs)+len(targets.DragonIDs)+len(targets.GelehkIDs)+len(targets.VanessaIDs) != 0 {
+		t.Fatalf("expected no prelocked targets in unit test, got %#v", targets)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Pull: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, ok := p.ConsumePullStart(); ok {
+		t.Fatal("expected cooldown to block second pull cast")
+	}
+}
+
 func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	t.Parallel()
 

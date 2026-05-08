@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
 import {
+  INSTANCE_IDS,
   PROTOCOL_VERSION,
   SERVER_MESSAGE_TYPES,
   SESSION_RESUME_REJECT_REASONS,
-  INSTANCE_IDS,
   type SnapshotMessage,
   type WelcomeMessage,
 } from '@/shared';
+import { describe, expect, it, vi } from 'vitest';
 import type { GameConnection, GameConnectionEvent } from '../../network/gameConnection';
 import { WorldNetworkSession } from './WorldNetworkSession';
 import type { GameUiSink } from './ui/GameUiSink';
@@ -64,8 +64,10 @@ function createUiSink(): GameUiSink & {
   setFireballCooldownEndsAt: ReturnType<typeof vi.fn>;
   setGrenadeCooldownEndsAt: ReturnType<typeof vi.fn>;
   setLandmineCooldownEndsAt: ReturnType<typeof vi.fn>;
+  setPullCooldownEndsAt: ReturnType<typeof vi.fn>;
 } {
   return {
+    setPullCooldownEndsAt: vi.fn(),
     syncConnectionState: vi.fn(),
     setLastConnectionAttempt: vi.fn(),
     setConnectionError: vi.fn(),

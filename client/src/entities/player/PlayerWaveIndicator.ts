@@ -14,13 +14,15 @@ const WAVE_EDGE_MAX_SPRITES = 10;
 const PURPLE_FIELD_TILE_KEY = 'purple_field';
 const NUMB_RING_COLOR = 0x9aa3ad;
 const NUMB_EDGE_TINT = 0xd2d7dd;
+const PULL_RING_COLOR = 0xff5b5b;
+const PULL_EDGE_TINT = 0xff8c8c;
 
 interface WaveData {
   x: number;
   y: number;
   radius: number;
-  state: 'windup' | 'expanding';
-  kind?: 'wave' | 'numb';
+  state: 'windup' | 'expanding' | 'collapsing';
+  kind?: 'wave' | 'numb' | 'pull';
 }
 
 export class PlayerWaveIndicator {
@@ -92,8 +94,14 @@ export class PlayerWaveIndicator {
       return;
     }
 
-    const ringColor = this.waveKind === 'numb' ? NUMB_RING_COLOR : WAVE_RING_COLOR;
-    const edgeTint = this.waveKind === 'numb' ? NUMB_EDGE_TINT : null;
+    const ringColor =
+      this.waveKind === 'numb'
+        ? NUMB_RING_COLOR
+        : this.waveKind === 'pull'
+          ? PULL_RING_COLOR
+          : WAVE_RING_COLOR;
+    const edgeTint =
+      this.waveKind === 'numb' ? NUMB_EDGE_TINT : this.waveKind === 'pull' ? PULL_EDGE_TINT : null;
 
     if (this.waveState === 'windup') {
       this.waveRing.setVisible(false);
