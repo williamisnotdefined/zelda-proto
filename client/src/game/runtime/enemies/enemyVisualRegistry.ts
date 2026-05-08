@@ -27,8 +27,22 @@ export interface EnemyVisualEntity {
   hp: number;
   serverState: string;
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void;
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void;
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void;
+  updateFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite?: boolean
+  ): void;
+  restoreFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite?: boolean
+  ): void;
   setDormant(): void;
   destroy(): void;
   variant?: PacmanGhostVariant;
@@ -77,10 +91,24 @@ function createCommonEntry(
     getReleasePool: () => pool,
     create: createEntity,
     restore: (entity, snapshot) => {
-      entity.restoreFromServer(snapshot.x, snapshot.y, snapshot.hp, snapshot.maxHp, snapshot.state);
+      entity.restoreFromServer(
+        snapshot.x,
+        snapshot.y,
+        snapshot.hp,
+        snapshot.maxHp,
+        snapshot.state,
+        snapshot.elite
+      );
     },
     update: (entity, snapshot) => {
-      entity.updateFromServer(snapshot.x, snapshot.y, snapshot.hp, snapshot.maxHp, snapshot.state);
+      entity.updateFromServer(
+        snapshot.x,
+        snapshot.y,
+        snapshot.hp,
+        snapshot.maxHp,
+        snapshot.state,
+        snapshot.elite
+      );
     },
     matches: () => true,
     getX,
@@ -144,7 +172,8 @@ export function createEnemyVisualRegistry(
           snapshot.y,
           snapshot.hp,
           snapshot.maxHp,
-          snapshot.state
+          snapshot.state,
+          snapshot.elite
         );
       },
       update: (entity, snapshot) => {
@@ -153,7 +182,8 @@ export function createEnemyVisualRegistry(
           snapshot.y,
           snapshot.hp,
           snapshot.maxHp,
-          snapshot.state
+          snapshot.state,
+          snapshot.elite
         );
       },
       matches: (entity, snapshot) =>

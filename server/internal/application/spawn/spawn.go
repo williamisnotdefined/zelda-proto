@@ -13,6 +13,8 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/player"
 )
 
+const eliteEnemiesPerGroup = 2
+
 // pacmanVariants matches the canonical client visual order.
 var pacmanVariants = []enemy.PacmanVariant{
 	enemy.PacmanRed, enemy.PacmanBlue, enemy.PacmanOrange, enemy.PacmanPink,
@@ -167,7 +169,7 @@ func (s *System) SpawnStarterEnemies(cx, cy float64, count int, radius float64,
 		x := cx + cosApprox(angle)*radius
 		y := cy + sinApprox(angle)*radius
 		id := s.ids.NewID(s.cfg.EnemyPrefix + "_starter")
-		e := s.makeEnemy(id, x, y, "starter", i)
+		e := s.makeEnemy(id, x, y, "starter", i, count)
 		enemies[id] = e
 		addEnemy(e)
 	}
@@ -184,17 +186,24 @@ func (s *System) populate(ch *chunk, enemies map[string]*enemy.Enemy, addEnemy f
 		x := baseX + rx*chunkSize
 		y := baseY + ry*chunkSize
 		id := s.ids.NewID(s.cfg.EnemyPrefix)
-		e := s.makeEnemy(id, x, y, key, i)
+		e := s.makeEnemy(id, x, y, key, i, s.cfg.EnemiesPerChunk)
 		enemies[id] = e
 		addEnemy(e)
 		ch.enemyIDs[id] = struct{}{}
 	}
 }
 
-func (s *System) makeEnemy(id string, x, y float64, chunkKey string, index int) *enemy.Enemy {
+func (s *System) makeEnemy(id string, x, y float64, chunkKey string, index int, total int) *enemy.Enemy {
+	elite := index < min(total, eliteEnemiesPerGroup)
 	if s.cfg.PacmanVariants {
 		variant := pacmanVariants[index%len(pacmanVariants)]
+		if elite {
+			return enemy.NewElitePacmanGhost(id, x, y, chunkKey, variant, s.cfg.DefaultDropKind)
+		}
 		return enemy.NewPacmanGhost(id, x, y, chunkKey, variant, s.cfg.DefaultDropKind)
+	}
+	if elite {
+		return enemy.NewElite(id, x, y, chunkKey, s.cfg.EnemyConfig, s.cfg.DefaultDropKind)
 	}
 	return enemy.New(id, x, y, chunkKey, s.cfg.EnemyConfig, s.cfg.DefaultDropKind)
 }
@@ -209,6 +218,13 @@ func seededRandom(cx, cy, index int) float64 {
 
 func floorDiv(v, size float64) float64 {
 	return math.Floor(v / size)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func cosApprox(a float64) float64 { return math.Cos(a) }

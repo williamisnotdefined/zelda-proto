@@ -9,7 +9,7 @@ import (
 
 // Gelehk constants (mirrors BossGelehk.ts).
 const (
-	GelehkMaxHP                 = 80
+	GelehkMaxHP                 = 130
 	GelehkSpeed         float64 = 80
 	GelehkContactR      float64 = 36
 	GelehkContactDamage         = 10

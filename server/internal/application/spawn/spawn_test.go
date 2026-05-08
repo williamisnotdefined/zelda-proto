@@ -20,14 +20,14 @@ func (c *counter) NewID(prefix string) string {
 
 func cfgPhase1() registries.SpawnSystemConfig {
 	return registries.SpawnSystemConfig{
-		ChunkSize:        512,
-		EnemiesPerChunk:  config.DefaultBalancing.DefaultEnemiesPerChunk,
-		ActiveRange:      1024,
-		DespawnTimeMS:    30_000,
-		EnemyPrefix:      "blob",
-		EnemyKind:        enemy.KindBlob,
-		EnemyConfig:      enemy.BlobConfig,
-		DefaultDropKind:  drop.KindHeartSmall,
+		ChunkSize:       512,
+		EnemiesPerChunk: config.DefaultBalancing.DefaultEnemiesPerChunk,
+		ActiveRange:     1024,
+		DespawnTimeMS:   30_000,
+		EnemyPrefix:     "blob",
+		EnemyKind:       enemy.KindBlob,
+		EnemyConfig:     enemy.BlobConfig,
+		DefaultDropKind: drop.KindHeartSmall,
 	}
 }
 
@@ -80,5 +80,43 @@ func TestSeededRandomDeterministic(t *testing.T) {
 	}
 	if a < 0 || a >= 1 {
 		t.Fatalf("seededRandom out of [0,1): %v", a)
+	}
+}
+
+func TestPopulateCreatesTwoElitesPerChunk(t *testing.T) {
+	sys := New(cfgPhase1(), &counter{})
+	enemies := map[string]*enemy.Enemy{}
+	added := 0
+	sys.populate(&chunk{cx: 0, cy: 0, enemyIDs: make(map[string]struct{})}, enemies, func(*enemy.Enemy) { added++ })
+
+	eliteCount := 0
+	for _, e := range enemies {
+		if e.Elite {
+			eliteCount++
+		}
+	}
+
+	if added != len(enemies) {
+		t.Fatalf("expected add hook count %d to match enemies %d", added, len(enemies))
+	}
+	if eliteCount != 2 {
+		t.Fatalf("expected 2 elites per chunk, got %d", eliteCount)
+	}
+}
+
+func TestStarterEnemiesCreateTwoElites(t *testing.T) {
+	sys := New(cfgPhase1(), &counter{})
+	enemies := map[string]*enemy.Enemy{}
+	sys.SpawnStarterEnemies(0, 0, 6, 120, enemies, func(*enemy.Enemy) {})
+
+	eliteCount := 0
+	for _, e := range enemies {
+		if e.Elite {
+			eliteCount++
+		}
+	}
+
+	if eliteCount != 2 {
+		t.Fatalf("expected 2 elite starters, got %d", eliteCount)
 	}
 }

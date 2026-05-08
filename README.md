@@ -2,175 +2,297 @@
 
 2D top-down MMO RPG inspired by The Legend of Zelda: A Link to the Past.
 
-## Setup
+## Requirements
+
+- Node.js 22+
+- npm 10+
+- Go 1.24+
+- `cloudflared` (optional, only for `npm run live:start` / production tunnel)
+- Playwright Chromium dependencies for `npm run test:e2e`
+
+Install workspace dependencies:
 
 ```bash
 npm install
 ```
 
-Required for the current server runtime:
+If this is your first time running Playwright locally:
 
-- Go 1.24+
+```bash
+npx playwright install chromium
+```
+
+## Quick Start
+
+Run client and server together:
+
+```bash
+npm run dev
+```
+
+Default local URLs:
+
+- Client: `http://localhost:5174`
+- Server health check: `http://localhost:3003/healthz`
+- WebSocket endpoint: `ws://localhost:3003/ws`
+
+## Project Layout
+
+- `server/`: authoritative Go runtime, simulation, AI, networking, HTTP and WebSocket transport
+- `client/src/game/`: Phaser runtime, gameplay scene, entity rendering
+- `client/src/ui/`: React HUD and mobile controls
+- `client/src/game-core/`: prediction, interpolation, snapshot handling
+- `client/src/shared/`: protocol types, registry definitions, shared constants
+- `e2e/`: Playwright smoke tests
+
+## Scripts
+
+The table below reflects the current `package.json` scripts.
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Starts Go server on `:3003` and Vite client on `:5174` together |
+| `npm run dev:server` | Starts the Go server in development mode on `:3003` |
+| `npm run dev:client` | Starts the Vite dev server on `:5174`, proxying `/api` and `/ws` to `:3003` |
+| `npm run build` | Builds the Go server binary and the production client bundle |
+| `npm run build:server` | Builds `server/bin/server` |
+| `npm run build:client` | Builds the Vite client into `client/dist` |
+| `npm start` | Starts the production Go server on `:3001` and serves `client/dist` when available |
+| `npm run start:server` | Same as `npm start`; sets production env vars used by the current deploy |
+| `npm run test` | Runs Go tests and client Vitest suite |
+| `npm run test:server` | Runs `go test ./...` inside `server/` |
+| `npm run test:e2e` | Runs Playwright smoke tests against a locally started server and client |
+| `npm run lint` | Runs ESLint on `client/src` |
+| `npm run lint:fix` | Runs ESLint with `--fix` on `client/src` |
+| `npm run format` | Runs Prettier write on `client/src/**/*.{ts,tsx}` |
+| `npm run format:check` | Runs Prettier check on `client/src/**/*.{ts,tsx}` |
+| `npm run live:start` | Builds the app, starts the production server, and runs `cloudflared tunnel run wilho` |
 
 ## Development
 
-```bash
-# Run both client and server
-npm run dev
-
-# Run each process separately
-npm run dev:server   # Go server on :3003
-npm run dev:client   # Vite dev server on :5174, proxying to :3003
-
-DEV_STRESS_ENEMIES_PER_CHUNK=40 DEBUG_GAME_METRICS=1 npm run dev:server
-```
-
-Current source layout:
-
-- `server/`: authoritative Go runtime
-- `client/src/shared/`: protocol types, constants, definitions, and helpers
-- `client/src/game-core/`: prediction, interpolation, input, and network helpers
-
-## Server Runtime
+Run the server only:
 
 ```bash
 npm run dev:server
-npm run build:server
-npm run test:server
 ```
 
-Default development ports:
-
-- Server: `3003`
-- Client: `5174`
-
-## Production Deployment
-
-### Building
+Run the client only:
 
 ```bash
-# Build both client and server with the Go backend
+npm run dev:client
+```
+
+Useful development example:
+
+```bash
+DEV_START_PHASE=2 DEV_STRESS_ENEMIES_PER_CHUNK=40 npm run dev:server
+```
+
+## Testing And Quality
+
+Run the full local verification suite:
+
+```bash
+npm run lint
+npm run test
 npm run build
+npm run test:e2e
+```
 
-# Start production server
-npm start  # Server on port 3001 (serves client + WebSocket)
+What currently passes in this repository:
 
-# Open Cloudflare tunnel after build/start
+- `npm run lint`
+- `npm run test:server`
+- `npm run test`
+- `npm run build:server`
+- `npm run build:client`
+- `npm run dev:server`
+- `npm run dev:client`
+- `npm run dev`
+- `npm start`
+- `npm run test:e2e`
+- `npm run live:start`
+
+## Environment Variables
+
+### Runtime
+
+- `NODE_ENV=production`: enables production mode defaults
+- `PORT=<port>`: overrides the default port (`3003` in development, `3001` in production)
+- `TRUST_PROXY=1`: trusts `X-Forwarded-For` when running behind a proxy
+- `WS_ALLOWED_ORIGINS=https://example.com,https://app.example.com`: explicit WebSocket origin allowlist
+- `CLIENT_DIST_DIR=/absolute/path/to/dist`: optional override for the static client bundle path in production
+
+### Development Only
+
+- `DEV_START_PHASE=<phase>`: chooses the player spawn phase. Accepted forms: `phase1`, `phase2`, `phase3`, `phase4`, or `1`, `2`, `3`, `4`
+- `DEV_STRESS_ENEMIES_PER_CHUNK=<1-400>`: overrides chunk enemy density across all phases for stress testing
+- `DEBUG_GAME_METRICS=1`: parsed by the server config, but currently has no observable runtime effect in the codebase
+
+## Production
+
+Build both server and client:
+
+```bash
+npm run build
+```
+
+Start the production server locally:
+
+```bash
+npm start
+```
+
+Production defaults:
+
+- Port: `3001`
+- Health check: `http://localhost:3001/healthz`
+- WebSocket endpoint: `ws://localhost:3001/ws`
+
+`npm start` serves the built frontend only when `client/dist` exists. Run `npm run build` first.
+
+## Cloudflare Tunnel
+
+This project currently expects a Cloudflare tunnel named `wilho`.
+
+Start the full production boot path plus tunnel:
+
+```bash
 npm run live:start
 ```
 
-### Cloudflare Tunnel Setup
-
-This project uses Cloudflare Tunnel (cloudflared) to expose the production server to the internet.
-
-**Important**: The production server runs on port **3001** (not 3003). Ensure your tunnel routes to the correct port.
-
-#### Running the Tunnel
+Start only the tunnel:
 
 ```bash
 cloudflared tunnel run wilho
 ```
 
-#### Tunnel Configuration
+Example tunnel config is included in `cloudflared-config.example.yml`.
 
-Create or update your `~/.cloudflared/config.yml`:
+Current production route target:
 
-```yaml
-tunnel: <your-tunnel-id>
-credentials-file: /home/<user>/.cloudflared/<tunnel-id>.json
+- `wilho.com.br` -> `http://localhost:3001`
 
-ingress:
-  - hostname: wilho.com.br
-    service: http://localhost:3001
-  - service: http_status:404
-```
+Notes:
 
-**Key Points:**
-- WebSocket connections automatically work through Cloudflare Tunnel
-- No additional WebSocket configuration needed
-- The tunnel forwards both HTTP and WebSocket traffic
-- Ensure `service` points to `http://localhost:3001` (production port)
+- Cloudflare Tunnel forwards both HTTP and WebSocket traffic
+- `TRUST_PROXY=1` is already part of `npm run start:server`
+- If you change the public hostname, also update `WS_ALLOWED_ORIGINS`
 
-### Troubleshooting Connection Issues
+## Troubleshooting
 
-If users get stuck on "Connecting..." in production:
+If the client is stuck on connecting:
 
-1. **Check Browser Console** - Open DevTools → Console tab
-   - Look for `[WebSocket]` log messages
-   - Connection errors will show the specific failure reason
-
-2. **Check Network Tab** - DevTools → Network → WS filter
-   - Look for `/ws` WebSocket connection
-   - Check if handshake is successful (Status 101)
-   - Failed connections show status codes and reasons
-
-3. **Verify Tunnel is Running**
-   ```bash
-   # Check cloudflared process
-   ps aux | grep cloudflared
-   
-   # Check tunnel logs
-   cloudflared tunnel info wilho
-   ```
-
-4. **Verify Server is Running**
-   ```bash
-    # Check server process
-    ps aux | grep server/bin/server
-   
-   # Check server is listening on port 3001
-   lsof -i :3001
-   # Or
-   ss -tlnp | grep 3001
-   ```
-
-5. **Test Local WebSocket Connection**
-   ```bash
-   # Using websocat (install: cargo install websocat)
-   websocat ws://localhost:3001/ws
-   
-   # Or using wscat (install: npm i -g wscat)
-   wscat -c ws://localhost:3001/ws
-   ```
-
-6. **Check Server Logs**
-   - Server logs include detailed WebSocket connection info:
-     - Client IP and origin
-     - Connection attempts
-     - Handshake details
-     - Connection/disconnection events
-
-7. **Common Issues**
-   - **Wrong Port**: Tunnel must route to port 3001, not 3003
-   - **Server Not Running**: Ensure `npm start` is active
-   - **Firewall**: Check if localhost:3001 is accessible
-   - **SSL/TLS**: Cloudflare handles SSL, server uses plain HTTP
-
-### Environment Variables
-
-- `NODE_ENV=production` - Enables production mode (port 3001, serves static files)
-- `PORT=<custom_port>` - Override default port (optional)
-- `DEV_START_PHASE=<phase>` - Development only. Chooses the phase where new players spawn. Accepted formats: phase id (`phase1`, `phase2`, ... ) or number (`1`, `2`, `3`, ...). If the phase does not exist yet, server falls back to `phase1`.
-
-Example (dev):
+1. Check the server health endpoint:
 
 ```bash
-DEV_START_PHASE=2 npm run dev:server
+curl http://localhost:3003/healthz
+```
+
+2. Check the production health endpoint if using `npm start`:
+
+```bash
+curl http://localhost:3001/healthz
+```
+
+3. Confirm the dev client is running:
+
+```bash
+curl http://localhost:5174/
+```
+
+4. Inspect the WebSocket request in the browser network tab for `/ws`.
+
+5. If using the tunnel, confirm the local tunnel exists:
+
+```bash
+cloudflared tunnel info wilho
 ```
 
 ## Architecture
 
-- **Server** (Go): Authoritative simulation at 60Hz with separate 20Hz network snapshots
-- **Client** (Vite + React + Phaser 3): Rendering, interpolation, prediction/reconciliation, and HUD
-- Communication via MessagePack over WebSocket with snapshot delta replication
+- Server: authoritative Go simulation at 60 Hz
+- Network snapshots: 20 Hz
+- Leaderboard publish cadence: 1 Hz
+- Client: Vite + React + Phaser 3
+- Transport: MessagePack over WebSocket
+- World model: four phase instances with per-phase enemy and boss registries
 
-## Next Steps
-- [ ] Player se movimentando rapido double click da seta (cooldown de 5s)
-- [ ] Monstros devem ter opacidade para indicar vida baixa ou devemos colocar isso na sprite?
-- [ ] Distance weapon (e.g. bow)
-- [ ] Select class Warrior Or Mage
+## Combat Reference
 
-## Sprite Sheet Generator
+### Player And Hazard Attacks
 
-https://codeshack.io/images-sprite-sheet-generator/
-https://www.tibiawiki.com.br/wiki/Outfitter?&o=39&an&q
+| Source | Attack | Damage | Cooldown | Notes |
+| --- | --- | --- | --- | --- |
+| Player | Pistol (`Space`) | `2` vs monsters, `5` vs players | `500ms` | This is the current basic attack bound to `Space` |
+| Player | Fireball (`E`) | `5` | `400ms` | Projectile, hits monsters and players outside safezone |
+| Player | Grenade (`Q`) | `10` | `2s` | Damage is applied on detonation only |
+| Player | Landmine (`W`) | `10` | `2s` | Stationary explosive, detonates on proximity or expiry |
+| Player | Wave (`R`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
+| Player | Numb (`T`) | `3` | `5s` | Wave variant with freeze effect and life steal |
+| Player | Pull (`Y`) | `3` | `5s` | Pulls targets to the caster, then holds overlap briefly |
+| Player | Dash | `0` direct | `1s` | Mobility skill; dash itself does not hit directly |
+| Player dash trail | Blue flame | `8` + blue burning | n/a | Spawned along the dash path |
+| Hazard | Fire field | `8` + burning | n/a | Applies `3` burning ticks of `8` each |
+| Hazard | Purple field | `8` + purple burning | n/a | Applies `3` purple-burning ticks of `8` each |
+| Hazard | Blue flame | `8` + blue burning | n/a | Applies `3` blue-burning ticks of `8` each |
+
+### Enemy And Boss Attacks
+
+| Source | Attack | Damage | Cooldown | Notes |
+| --- | --- | --- | --- | --- |
+| Blob | Contact | `5` | `1s` | Body collision damage |
+| Slime | Contact | `10` | `1s` | Body collision damage |
+| Hand | Contact | `15` | `1s` | Body collision damage |
+| Pacman Ghost | Contact | `20` | `1s` | Body collision damage |
+| Gelehk | Contact | `10` | `1s` per target | Body collision damage |
+| Gelehk | Charge | `20` | `2.5s` in phase 2 | Charge attack during phase 2 |
+| Gelehk | Wave | `15` | `2.45s` in phase 3 | Expanding boss wave |
+| Gelehk | Purple field summon | `8` + purple burning | `3s` in phase 1 | Triggered through telegraphed AOE landing |
+| Dragon Lord | Contact | `5` | `1s` per target | Body collision damage |
+| Dragon Lord | Fire line | `8` + burning | `2.5s` | Spawns fire-field hazards |
+| Silverback Wainer | Contact | `15` | `1s` per target | Phase 3 dragon-family boss |
+| Silverback Wainer | Fire line | `8` + burning | `2.5s` | Uses normal fire field |
+| Slim Maioli | Contact | `15` | `1s` per target | Phase 3 dragon-family boss |
+| Slim Maioli | Purple field line | `8` + purple burning | `2.5s` | Uses purple field hazards |
+| Frankly Stein | Contact | `15` | `1s` per target | Phase 3 dragon-family boss |
+| Frankly Stein | Blue flame line | `8` + blue burning | `2.5s` | Uses blue flame hazards |
+| Vanessa the Ruthless | Contact | `12` | `1s` per target | Body collision damage |
+| Vanessa the Ruthless | Horizontal fire lines | `8` + burning per fire-field tile | `2.3s` | Spawns left and right fire lines |
+| Vanessa the Ruthless | Vertical fire lines | `8` + burning per fire-field tile | `2.3s` | Spawns up and down fire lines |
+| Vanessa the Ruthless | Diagonal fire lines | `8` + burning per fire-field tile | `2.3s` | Spawns four diagonal fire lines |
+| Vanessa the Ruthless | Fire burst at target | `8` + burning per fire-field tile | `2.3s` | Spawns a circular burst centered on the target |
+
+## Monster Reference
+
+| Monster | Type | HP | Damage | Notes |
+| --- | --- | --- | --- | --- |
+| Blob | Enemy | `30` | `5` contact | Phase 1 enemy |
+| Blob (Elite) | Enemy | `90` | `15` contact | Phase 1 elite enemy, 2x size |
+| Slime | Enemy | `45` | `10` contact | Phase 2 enemy |
+| Slime (Elite) | Enemy | `135` | `30` contact | Phase 2 elite enemy, 2x size |
+| Hand | Enemy | `60` | `15` contact | Phase 3 enemy |
+| Hand (Elite) | Enemy | `180` | `45` contact | Phase 3 elite enemy, 2x size |
+| Pacman Ghost | Enemy | `80` | `20` contact | Phase 4 enemy |
+| Pacman Ghost (Elite) | Enemy | `240` | `60` contact | Phase 4 elite enemy, 2x size |
+| Gelehk | Boss | `130` | `10` contact, `20` charge, `15` wave | Three-phase phase 1 boss |
+| Dragon Lord | Boss | `175` | `5` contact, fire-field hazards | Phase 2 boss |
+| Silverback Wainer | Boss | `175` | `15` contact, fire-field hazards | Phase 3 entry boss |
+| Slim Maioli | Boss | `175` | `15` contact, purple-field hazards | Phase 3 entry boss |
+| Frankly Stein | Boss | `175` | `15` contact, blue-flame hazards | Phase 3 entry boss |
+| Vanessa the Ruthless | Boss | `225` | `12` contact, `8` + burning per fire-field tile | Cycles through horizontal, vertical, diagonal, and target-centered burst fire patterns |
+
+## Phase Monster Density
+
+| Phase | Primary monster | Density |
+| --- | --- | --- |
+| Phase 1 | Blob | `10` monsters per chunk |
+| Phase 2 | Slime | `14` monsters per chunk |
+| Phase 3 | Hand | `18` monsters per chunk |
+| Phase 4 | Pacman Ghost | `24` monsters per chunk |
+
+## Notes About Current Behavior
+
+- `Space` currently fires the pistol; it does not trigger a melee swing in the active gameplay path
+- The melee combat system still exists in the server code, but the live player input path is currently projectile-based for the base attack
+- Safezone protection blocks hostile contact damage and PvP hazard damage while the player is protected inside the spawn zone

@@ -10,7 +10,7 @@ import (
 
 // Vanessa the Ruthless constants.
 const (
-	VanessaMaxHP                     = 175
+	VanessaMaxHP                     = 225
 	VanessaSpeed             float64 = 90
 	VanessaDamage                    = 12
 	VanessaAggroRadius       float64 = 760

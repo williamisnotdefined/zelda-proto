@@ -48,6 +48,11 @@ const (
 // TargetReacquireInterval bounds how often AI scans for a new target.
 const TargetReacquireInterval = 120 * time.Millisecond
 
+const (
+	EliteSizeMultiplier = 2
+	EliteStatMultiplier = 3
+)
+
 // PlayerSize is the conventional axis-aligned player extent.
 const (
 	PlayerWidth  float64 = 48
@@ -75,17 +80,17 @@ var (
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	SlimeConfig = Config{
-		Kind: KindSlime, MaxHP: 38, Speed: 60, Damage: 5,
+		Kind: KindSlime, MaxHP: 45, Speed: 60, Damage: 10,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	HandConfig = Config{
-		Kind: KindHand, MaxHP: 20, Speed: 90, Damage: 8,
+		Kind: KindHand, MaxHP: 60, Speed: 90, Damage: 15,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
 	PacmanGhostConfig = Config{
-		Kind: KindPacmanGhost, MaxHP: 40, Speed: 90, Damage: 5,
+		Kind: KindPacmanGhost, MaxHP: 80, Speed: 90, Damage: 20,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
@@ -103,6 +108,7 @@ type PlayerView struct {
 type Enemy struct {
 	ID             string
 	Kind           Kind
+	Elite          bool
 	Variant        PacmanVariant
 	Config         Config
 	X, Y           float64
@@ -123,8 +129,20 @@ type Enemy struct {
 
 // New constructs an enemy at (x, y) with the supplied configuration.
 func New(id string, x, y float64, chunkKey string, cfg Config, dropKind drop.Kind) *Enemy {
+	return newEnemy(id, x, y, chunkKey, cfg, dropKind, false)
+}
+
+// NewElite constructs an elite enemy at (x, y) with the supplied configuration.
+func NewElite(id string, x, y float64, chunkKey string, cfg Config, dropKind drop.Kind) *Enemy {
+	return newEnemy(id, x, y, chunkKey, cfg, dropKind, true)
+}
+
+func newEnemy(id string, x, y float64, chunkKey string, cfg Config, dropKind drop.Kind, elite bool) *Enemy {
+	if elite {
+		cfg = cfg.WithEliteStats()
+	}
 	return &Enemy{
-		ID: id, Kind: cfg.Kind, Config: cfg,
+		ID: id, Kind: cfg.Kind, Elite: elite, Config: cfg,
 		X: x, Y: y, SpawnX: x, SpawnY: y,
 		ChunkKey:        chunkKey,
 		HP:              cfg.MaxHP,
@@ -140,6 +158,23 @@ func NewPacmanGhost(id string, x, y float64, chunkKey string, variant PacmanVari
 	e := New(id, x, y, chunkKey, PacmanGhostConfig, dropKind)
 	e.Variant = variant
 	return e
+}
+
+// NewElitePacmanGhost constructs an elite PacmanGhost variant.
+func NewElitePacmanGhost(id string, x, y float64, chunkKey string, variant PacmanVariant, dropKind drop.Kind) *Enemy {
+	e := NewElite(id, x, y, chunkKey, PacmanGhostConfig, dropKind)
+	e.Variant = variant
+	return e
+}
+
+// WithEliteStats returns a copy of cfg with elite stat multipliers applied.
+func (cfg Config) WithEliteStats() Config {
+	cfg.MaxHP *= EliteStatMultiplier
+	cfg.Damage *= EliteStatMultiplier
+	cfg.ContactRadius *= EliteSizeMultiplier
+	cfg.Width *= EliteSizeMultiplier
+	cfg.Height *= EliteSizeMultiplier
+	return cfg
 }
 
 func hashOffset(id string) time.Duration {
@@ -295,6 +330,7 @@ func (e *Enemy) TryRespawn(dt time.Duration) bool {
 type Snapshot struct {
 	ID      string
 	Kind    Kind
+	Elite   bool
 	Variant PacmanVariant
 	X, Y    float64
 	HP      int
@@ -305,7 +341,7 @@ type Snapshot struct {
 // Snapshot returns a quantized projection.
 func (e *Enemy) Snapshot() Snapshot {
 	return Snapshot{
-		ID: e.ID, Kind: e.Kind, Variant: e.Variant,
+		ID: e.ID, Kind: e.Kind, Elite: e.Elite, Variant: e.Variant,
 		X: physics.QuantizePosition(e.X), Y: physics.QuantizePosition(e.Y),
 		HP: e.HP, MaxHP: e.Config.MaxHP, State: e.State,
 	}

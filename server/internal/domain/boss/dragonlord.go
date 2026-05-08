@@ -10,7 +10,7 @@ import (
 
 // DragonLord constants.
 const (
-	DragonLordMaxHP                 = 125
+	DragonLordMaxHP                 = 175
 	DragonLordSpeed         float64 = 80
 	DragonLordDamage                = 5
 	DragonLordAggroRadius   float64 = 700

@@ -8,6 +8,7 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 const HP_BAR_WIDTH = 30;
 const HP_BAR_OFFSET_Y = 28;
+const ELITE_SCALE_MULTIPLIER = 2;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -29,6 +30,7 @@ export class BlobEntity {
   hp: number;
   maxHp: number;
   serverState: string;
+  elite: boolean;
 
   private prevX: number;
   private prevY: number;
@@ -49,6 +51,7 @@ export class BlobEntity {
     this.hp = 30;
     this.maxHp = 30;
     this.serverState = 'idle';
+    this.elite = false;
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.facing = 'down';
@@ -66,7 +69,7 @@ export class BlobEntity {
     });
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -74,6 +77,7 @@ export class BlobEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
 
     const dx = x - this.prevX;
     const dy = y - this.prevY;
@@ -86,7 +90,7 @@ export class BlobEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -94,6 +98,7 @@ export class BlobEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
     this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
@@ -207,6 +212,16 @@ export class BlobEntity {
     } catch {
       return;
     }
+  }
+
+  private applyElite(elite: boolean): void {
+    this.elite = elite;
+    const scale = 2 * (elite ? ELITE_SCALE_MULTIPLIER : 1);
+    this.sprite.setScale(scale);
+    this.healthBar.setLayout(
+      HP_BAR_WIDTH * (elite ? ELITE_SCALE_MULTIPLIER : 1),
+      HP_BAR_OFFSET_Y * (elite ? ELITE_SCALE_MULTIPLIER : 1)
+    );
   }
 
   private resetVisualState(): void {

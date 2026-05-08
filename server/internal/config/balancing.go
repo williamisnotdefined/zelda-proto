@@ -90,10 +90,10 @@ type Balancing struct {
 
 // DefaultBalancing is the canonical gameplay tuning set. Tune here.
 var DefaultBalancing = Balancing{
-	DefaultEnemiesPerChunk: 4,
-	Phase1EnemiesPerChunk:  6,
-	Phase2EnemiesPerChunk:  6,
-	Phase4EnemiesPerChunk:  7 * 3,
+	DefaultEnemiesPerChunk: 18,
+	Phase1EnemiesPerChunk:  10,
+	Phase2EnemiesPerChunk:  14,
+	Phase4EnemiesPerChunk:  24,
 	SpawnChunkSize:         512,
 	SpawnActiveRange:       1024,
 	SpawnDespawnTimeMS:     30000,
@@ -103,10 +103,10 @@ var DefaultBalancing = Balancing{
 	Phase2NearbyRadius:        900,
 	Phase2MinNearbySlimes:     6,
 	Phase2DragonNearbyRadius:  1800,
-	Phase4StarterPacmans:      14 * 3,
+	Phase4StarterPacmans:      24,
 	Phase4StarterPacmanRadius: 600,
 	Phase4NearbyRadius:        900,
-	Phase4MinNearbyPacmans:    12 * 3,
+	Phase4MinNearbyPacmans:    24,
 
 	Phase1BossRegionSize:    2000,
 	Phase1BossActiveRange:   2000,

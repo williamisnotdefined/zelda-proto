@@ -1,4 +1,4 @@
-- collapse -> monsters should be stacked for 2 seconds before spread all over again.
+- elite enemy 2 por chunk
 - net
 - machine gun
 - flamethrower

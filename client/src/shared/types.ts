@@ -187,6 +187,7 @@ export interface PlayerSnapshot {
 export interface EnemySnapshot {
   id: string;
   kind: EnemyKind;
+  elite?: boolean;
   variant?: PacmanGhostVariant;
   x: number;
   y: number;

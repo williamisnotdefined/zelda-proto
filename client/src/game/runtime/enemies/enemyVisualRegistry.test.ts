@@ -44,6 +44,7 @@ describe('enemyVisualRegistry', () => {
     const redPool = ghostEntry.getAcquirePool({
       id: 'ghost-red',
       kind: ENEMY_KINDS.PACMAN_GHOST,
+      elite: false,
       variant: PACMAN_GHOST_VARIANTS.RED,
       x: 0,
       y: 0,
@@ -54,6 +55,7 @@ describe('enemyVisualRegistry', () => {
     const bluePool = ghostEntry.getAcquirePool({
       id: 'ghost-blue',
       kind: ENEMY_KINDS.PACMAN_GHOST,
+      elite: false,
       variant: PACMAN_GHOST_VARIANTS.BLUE,
       x: 0,
       y: 0,

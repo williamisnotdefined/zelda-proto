@@ -25,6 +25,7 @@ type PlayerSnapshot struct {
 type EnemySnapshot struct {
 	ID    string
 	Kind  string
+	Elite bool
 	X     float64
 	Y     float64
 	HP    int

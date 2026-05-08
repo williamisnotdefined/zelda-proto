@@ -102,11 +102,27 @@ func TestDropsAndPortalsHazardsCulling(t *testing.T) {
 
 	p := player.New("p1", "Link", 0, 0)
 	view := appworld.SnapshotView{
-		Drops:   []drop.Snapshot{{ID: "d1", X: 0, Y: 0}, {ID: "d2", X: 9000, Y: 9000}},
+		Drops: []drop.Snapshot{{ID: "d1", X: 0, Y: 0}, {ID: "d2", X: 9000, Y: 9000}},
 	}
 	b := NewBuilder()
 	snap := b.Build(view, p, domworld.InstancePhase1)
 	if len(snap.Drops) != 1 {
 		t.Fatalf("expected 1 near drop")
+	}
+}
+
+func TestDiffEnemyEliteChangeBecomesUpsert(t *testing.T) {
+	t.Parallel()
+
+	upsert, transforms, states, remove := diffEnemiesDetailed(
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, Elite: false, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle}},
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, Elite: true, X: 10, Y: 10, HP: 90, MaxHP: 90, State: enemy.StateIdle}},
+	)
+
+	if len(upsert) != 1 {
+		t.Fatalf("expected elite change to force upsert, got %v", upsert)
+	}
+	if len(transforms) != 0 || len(states) != 0 || len(remove) != 0 {
+		t.Fatalf("expected only upsert, got transforms=%v states=%v remove=%v", transforms, states, remove)
 	}
 }

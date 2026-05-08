@@ -15,8 +15,8 @@ type EnemyHealthBarOptions = {
 export class EnemyHealthBar {
   private readonly hpBar: Phaser.GameObjects.Rectangle;
   private readonly hpBarBg: Phaser.GameObjects.Rectangle;
-  private readonly width: number;
-  private readonly offsetY: number;
+  private width: number;
+  private offsetY: number;
 
   constructor(scene: Phaser.Scene, x: number, y: number, options: EnemyHealthBarOptions) {
     const height = options.height ?? DEFAULT_HEIGHT;
@@ -44,6 +44,11 @@ export class EnemyHealthBar {
       hpRatio > 0.5 ? HP_BAR_HIGH_COLOR : hpRatio > 0.25 ? HP_BAR_MID_COLOR : HP_BAR_LOW_COLOR;
 
     this.setVisible(visible);
+  }
+
+  setLayout(width: number, offsetY: number): void {
+    this.width = width;
+    this.offsetY = offsetY;
   }
 
   setVisible(visible: boolean): void {

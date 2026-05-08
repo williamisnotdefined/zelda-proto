@@ -91,7 +91,9 @@ func TestPlayerPistolKillsEnemyAndCountsKillAfterRepeatedShots(t *testing.T) {
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0
 	p.Direction = domworld.DirectionRight
-	e := enemy.New("e1", 1040, 1000, "0,0", enemy.HandConfig, drop.KindHeartSmall)
+	targetConfig := enemy.HandConfig
+	targetConfig.MaxHP = player.PistolDamage * 3
+	e := enemy.New("e1", 1040, 1000, "0,0", targetConfig, drop.KindHeartSmall)
 	w.SpawnEnemy(e)
 	w.HandleInput("p1", player.Input{Seq: 1, Attack: true})
 	for i := 0; i < 260 && e.State != enemy.StateDead; i++ {

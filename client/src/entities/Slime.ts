@@ -9,6 +9,7 @@ const SLIME_SCALE = 1.24;
 const SLIME_SPRITE_OFFSET_X = -2;
 const HP_BAR_WIDTH = 28;
 const HP_BAR_OFFSET_Y = 20;
+const ELITE_SCALE_MULTIPLIER = 2;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -31,6 +32,7 @@ export class SlimeEntity {
   hp: number;
   maxHp: number;
   serverState: string;
+  elite: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
@@ -47,6 +49,7 @@ export class SlimeEntity {
     this.hp = 38;
     this.maxHp = 38;
     this.serverState = 'idle';
+    this.elite = false;
     this.prevX = x;
     this.prevY = y;
     this.facing = 'down';
@@ -73,7 +76,7 @@ export class SlimeEntity {
     return this.sprite.y;
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -81,6 +84,7 @@ export class SlimeEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
@@ -93,7 +97,7 @@ export class SlimeEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -101,6 +105,7 @@ export class SlimeEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
     this.resetVisualState();
     this.sprite.x = x + SLIME_SPRITE_OFFSET_X;
     this.sprite.y = y;
@@ -211,6 +216,16 @@ export class SlimeEntity {
     this.currentAnimKey = '';
     this.isUsingStaticFrame = true;
     this.staticFrameFacing = this.facing;
+  }
+
+  private applyElite(elite: boolean): void {
+    this.elite = elite;
+    const scale = SLIME_SCALE * (elite ? ELITE_SCALE_MULTIPLIER : 1);
+    this.sprite.setScale(scale);
+    this.healthBar.setLayout(
+      HP_BAR_WIDTH * (elite ? ELITE_SCALE_MULTIPLIER : 1),
+      HP_BAR_OFFSET_Y * (elite ? ELITE_SCALE_MULTIPLIER : 1)
+    );
   }
 
   destroy(): void {

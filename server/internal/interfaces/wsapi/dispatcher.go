@@ -446,6 +446,9 @@ func enemyObj(e enemy.Snapshot) codec.Object {
 		{Key: "hp", Value: e.HP}, {Key: "maxHp", Value: e.MaxHP},
 		{Key: "state", Value: string(e.State)},
 	}
+	if e.Elite {
+		obj = append(obj, codec.Field{Key: "elite", Value: true})
+	}
 	if e.Variant != "" {
 		obj = append(obj, codec.Field{Key: "variant", Value: string(e.Variant)})
 	}

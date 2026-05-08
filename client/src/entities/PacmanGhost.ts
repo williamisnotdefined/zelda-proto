@@ -10,6 +10,7 @@ const PACMAN_GHOST_SCALE = 0.35;
 const PACMAN_GHOST_HP = 40;
 const HP_BAR_WIDTH = 24;
 const HP_BAR_OFFSET_Y = 16;
+const ELITE_SCALE_MULTIPLIER = 2;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -33,6 +34,7 @@ export class PacmanGhostEntity {
   maxHp: number;
   serverState: string;
   readonly variant: PacmanGhostVariant;
+  elite: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
@@ -51,6 +53,7 @@ export class PacmanGhostEntity {
     this.maxHp = PACMAN_GHOST_HP;
     this.serverState = 'idle';
     this.variant = variant;
+    this.elite = false;
     this.prevX = x;
     this.prevY = y;
     this.facing = 'down';
@@ -78,7 +81,7 @@ export class PacmanGhostEntity {
     return this.sprite.y;
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -86,6 +89,7 @@ export class PacmanGhostEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
@@ -98,7 +102,7 @@ export class PacmanGhostEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -106,6 +110,7 @@ export class PacmanGhostEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.applyElite(elite);
     this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
@@ -216,6 +221,16 @@ export class PacmanGhostEntity {
 
     this.sprite.setVisible(visible);
     this.spriteVisible = visible;
+  }
+
+  private applyElite(elite: boolean): void {
+    this.elite = elite;
+    const scale = PACMAN_GHOST_SCALE * (elite ? ELITE_SCALE_MULTIPLIER : 1);
+    this.sprite.setScale(scale);
+    this.healthBar.setLayout(
+      HP_BAR_WIDTH * (elite ? ELITE_SCALE_MULTIPLIER : 1),
+      HP_BAR_OFFSET_Y * (elite ? ELITE_SCALE_MULTIPLIER : 1)
+    );
   }
 
   private applyStaticFrame(): void {

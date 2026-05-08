@@ -151,6 +151,7 @@ export class EnemySnapshotStore {
   private enemySnapshotChanged(previous: EnemySnapshot, next: EnemySnapshot): boolean {
     return (
       previous.kind !== next.kind ||
+      previous.elite !== next.elite ||
       previous.variant !== next.variant ||
       previous.x !== next.x ||
       previous.y !== next.y ||

@@ -281,7 +281,7 @@ func diffEnemiesDetailed(prev, curr []enemy.Snapshot) (
 	for _, s := range curr {
 		currByID[s.ID] = struct{}{}
 		old, ok := prevByID[s.ID]
-		if !ok || old.Kind != s.Kind || old.Variant != s.Variant {
+		if !ok || old.Kind != s.Kind || old.Elite != s.Elite || old.Variant != s.Variant {
 			upsert = append(upsert, s)
 			continue
 		}

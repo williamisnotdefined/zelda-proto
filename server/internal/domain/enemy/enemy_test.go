@@ -20,6 +20,27 @@ func TestNewBlobDefaults(t *testing.T) {
 	}
 }
 
+func TestNewEliteAppliesMultipliers(t *testing.T) {
+	t.Parallel()
+
+	e := NewElite("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	if !e.Elite {
+		t.Fatal("expected enemy to be marked elite")
+	}
+	if got, want := e.HP, BlobConfig.MaxHP*EliteStatMultiplier; got != want {
+		t.Fatalf("expected elite hp %d, got %d", want, got)
+	}
+	if got, want := e.Config.Damage, BlobConfig.Damage*EliteStatMultiplier; got != want {
+		t.Fatalf("expected elite damage %d, got %d", want, got)
+	}
+	if got, want := e.Config.Width, BlobConfig.Width*EliteSizeMultiplier; got != want {
+		t.Fatalf("expected elite width %v, got %v", want, got)
+	}
+	if got, want := e.Config.ContactRadius, BlobConfig.ContactRadius*EliteSizeMultiplier; got != want {
+		t.Fatalf("expected elite contact radius %v, got %v", want, got)
+	}
+}
+
 func TestUpdateMovesTowardTarget(t *testing.T) {
 	t.Parallel()
 
@@ -120,6 +141,19 @@ func TestPacmanGhostVariantPropagated(t *testing.T) {
 	}
 	if snap.Kind != KindPacmanGhost {
 		t.Fatalf("expected kind pacman_ghost, got %s", snap.Kind)
+	}
+}
+
+func TestEliteSnapshotPropagated(t *testing.T) {
+	t.Parallel()
+
+	e := NewElitePacmanGhost("g1", 0, 0, "0,0", PacmanBlue, drop.KindHeartPacman)
+	snap := e.Snapshot()
+	if !snap.Elite {
+		t.Fatal("expected elite flag on snapshot")
+	}
+	if snap.Variant != PacmanBlue {
+		t.Fatalf("expected variant %s, got %s", PacmanBlue, snap.Variant)
 	}
 }
 
