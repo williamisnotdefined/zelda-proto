@@ -738,7 +738,7 @@ func (w *World) preparePlayerWaves() {
 			if !ok {
 				continue
 			}
-			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()))
+			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()+player.PullClusterHoldDuration))
 			continue
 		}
 		p.SetNumbTargets(w.capturePlayerWaveTargets(cx, cy, p.NumbRemainingDuration()+player.NumbFreezeDuration))
@@ -1658,8 +1658,8 @@ func (w *World) resolveCombat() {
 		w.gelehks,
 		w.vanessas,
 		w.safeZone(),
-		func(kind, id string) {
-			w.armPullOverlap(kind, id, player.PullOverlapDuration)
+		func(kind, id string, duration time.Duration) {
+			w.armPullOverlap(kind, id, duration)
 		},
 	) {
 		w.resolveBodyCollisionsLocked()

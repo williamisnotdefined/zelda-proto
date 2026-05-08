@@ -9,6 +9,7 @@ package combat
 
 import (
 	"math"
+	"time"
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/application/safezone"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/boss"
@@ -242,7 +243,7 @@ func (PlayerPullSystem) Resolve(
 
 type waveReleaseConsumer func(*player.Player) (float64, float64, player.WaveTargets, uint64, bool)
 type waveTargetMover func(cx, cy float64, x, y *float64, bodyRadius float64) bool
-type PlayerPullOverlapMarker func(kind, id string)
+type PlayerPullOverlapMarker func(kind, id string, duration time.Duration)
 
 func resolvePlayerWaveLike(
 	players map[string]*player.Player,
@@ -282,8 +283,8 @@ func resolvePlayerWaveLike(
 				e.TargetID = ""
 				e.State = enemy.StateIdle
 				if markOverlap != nil {
-					markOverlap("player", caster.ID)
-					markOverlap("enemy", e.ID)
+					markOverlap("player", caster.ID, player.PullClusterHoldDuration)
+					markOverlap("enemy", e.ID, player.PullClusterHoldDuration)
 				}
 				moved = true
 			}
@@ -305,8 +306,8 @@ func resolvePlayerWaveLike(
 				d.TargetID = ""
 				d.State = boss.StateIdle
 				if markOverlap != nil {
-					markOverlap("player", caster.ID)
-					markOverlap("boss", d.ID)
+					markOverlap("player", caster.ID, player.PullClusterHoldDuration)
+					markOverlap("boss", d.ID, player.PullClusterHoldDuration)
 				}
 				moved = true
 			}
@@ -327,8 +328,8 @@ func resolvePlayerWaveLike(
 			if moveTarget != nil && moveTarget(cx, cy, &g.X, &g.Y, g.ContactRadius()) {
 				g.StopChargeOnCollision()
 				if markOverlap != nil {
-					markOverlap("player", caster.ID)
-					markOverlap("boss", g.ID)
+					markOverlap("player", caster.ID, player.PullClusterHoldDuration)
+					markOverlap("boss", g.ID, player.PullClusterHoldDuration)
 				}
 				moved = true
 			}
@@ -350,8 +351,8 @@ func resolvePlayerWaveLike(
 				v.TargetID = ""
 				v.State = boss.StateIdle
 				if markOverlap != nil {
-					markOverlap("player", caster.ID)
-					markOverlap("boss", v.ID)
+					markOverlap("player", caster.ID, player.PullClusterHoldDuration)
+					markOverlap("boss", v.ID, player.PullClusterHoldDuration)
 				}
 				moved = true
 			}
@@ -372,8 +373,8 @@ func resolvePlayerWaveLike(
 			}
 			if moveTarget != nil && moveTarget(cx, cy, &target.X, &target.Y, player.Width/2) {
 				if markOverlap != nil {
-					markOverlap("player", caster.ID)
-					markOverlap("player", target.ID)
+					markOverlap("player", caster.ID, player.PullOverlapDuration)
+					markOverlap("player", target.ID, player.PullOverlapDuration)
 				}
 				moved = true
 			}

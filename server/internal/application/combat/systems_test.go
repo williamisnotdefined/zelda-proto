@@ -322,6 +322,7 @@ func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
 	marked := make(map[string]struct{})
+	markedDurations := make(map[string]time.Duration)
 
 	queuePlayerPullRelease(caster, player.WaveTargets{
 		EnemyIDs:   []string{"e1"},
@@ -337,8 +338,11 @@ func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
 		map[string]*boss.Gelehk{"g1": g},
 		map[string]*boss.VanessaTheRuthless{"v1": v},
 		zone,
-		func(kind, id string) {
+		func(kind, id string, duration time.Duration) {
 			marked[kind+":"+id] = struct{}{}
+			if duration > markedDurations[kind+":"+id] {
+				markedDurations[kind+":"+id] = duration
+			}
 		},
 	)
 	if !moved {
@@ -376,6 +380,17 @@ func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
 	for _, key := range []string{"player:att", "player:tgt", "enemy:e1", "boss:d1", "boss:g1", "boss:v1"} {
 		if _, ok := marked[key]; !ok {
 			t.Fatalf("expected overlap marker for %s", key)
+		}
+	}
+	if got := markedDurations["player:att"]; got != player.PullClusterHoldDuration {
+		t.Fatalf("expected caster overlap duration %s, got %s", player.PullClusterHoldDuration, got)
+	}
+	if got := markedDurations["player:tgt"]; got != player.PullOverlapDuration {
+		t.Fatalf("expected pulled player overlap duration %s, got %s", player.PullOverlapDuration, got)
+	}
+	for _, key := range []string{"enemy:e1", "boss:d1", "boss:g1", "boss:v1"} {
+		if got := markedDurations[key]; got != player.PullClusterHoldDuration {
+			t.Fatalf("expected hostile overlap duration %s for %s, got %s", player.PullClusterHoldDuration, key, got)
 		}
 	}
 }

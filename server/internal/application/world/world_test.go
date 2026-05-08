@@ -770,21 +770,17 @@ func TestPlayerNumbDamagesPushesAndKeepsTargetsFrozen(t *testing.T) {
 	}
 }
 
-func TestPlayerPullDamagesClustersAndTemporarilyAllowsOverlap(t *testing.T) {
+func TestPlayerPullClustersHostilesAndKeepsThemFrozenForTwoSeconds(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
 	ax, ay := 1000.0, 1000.0
-	tx, ty := 1070.0, 1000.0
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
-	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
 	attacker.TakeDamage(20)
 	attacker.SafeZoneTimer = 0
-	target.SafeZoneTimer = 0
-	passiveConfig := enemy.BlobConfig
-	passiveConfig.Damage = 0
-	passiveConfig.Speed = 0
-	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindHeartSmall)
+	aggressiveConfig := enemy.BlobConfig
+	aggressiveConfig.Damage = 7
+	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindHeartSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
@@ -796,9 +792,6 @@ func TestPlayerPullDamagesClustersAndTemporarilyAllowsOverlap(t *testing.T) {
 	}
 	if e.HP != enemy.BlobConfig.MaxHP {
 		t.Fatalf("expected no enemy damage during pull windup, got %d", e.HP)
-	}
-	if target.HP != player.MaxHP {
-		t.Fatalf("expected no player damage during pull windup, got %d", target.HP)
 	}
 	windupSnap := w.Snapshot()
 	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
@@ -823,30 +816,46 @@ func TestPlayerPullDamagesClustersAndTemporarilyAllowsOverlap(t *testing.T) {
 	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.PullDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after pull, got %d", want, got)
 	}
-	if got, want := target.HP, player.MaxHP-player.PullDamage; got != want {
-		t.Fatalf("expected target HP=%d after pull, got %d", want, got)
-	}
-	if got, want := attacker.HP, player.MaxHP-12; got != want {
+	if got, want := attacker.HP, player.MaxHP-16; got != want {
 		t.Fatalf("expected attacker HP=%d after pull life steal, got %d", want, got)
 	}
 	if e.X != attacker.X || e.Y != attacker.Y {
 		t.Fatalf("expected enemy clustered onto attacker, got enemy at (%.1f, %.1f) attacker at (%.1f, %.1f)", e.X, e.Y, attacker.X, attacker.Y)
 	}
-	if target.X != attacker.X || target.Y != attacker.Y {
-		t.Fatalf("expected target clustered onto attacker, got target at (%.1f, %.1f) attacker at (%.1f, %.1f)", target.X, target.Y, attacker.X, attacker.Y)
-	}
 	if len(w.Snapshot().WaveIndicators) != 0 {
 		t.Fatal("expected no pull indicator after release")
 	}
 
-	w.Tick(40 * time.Millisecond)
-	if e.X != attacker.X || e.Y != attacker.Y || target.X != attacker.X || target.Y != attacker.Y {
-		t.Fatal("expected pull overlap to persist briefly after release")
+	clusterX, clusterY := e.X, e.Y
+	heldHP := attacker.HP
+
+	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
+	w.Tick(100 * time.Millisecond)
+	if attacker.X <= clusterX {
+		t.Fatalf("expected attacker to move away from the pull cluster, got attacker at (%.1f, %.1f)", attacker.X, attacker.Y)
+	}
+	if e.X != clusterX || e.Y != clusterY {
+		t.Fatalf("expected pulled enemy to stay stacked at collapse point during hold, got (%.1f, %.1f)", e.X, e.Y)
+	}
+	if attacker.HP != heldHP {
+		t.Fatalf("expected no contact damage during pull hold, want HP=%d got %d", heldHP, attacker.HP)
 	}
 
-	w.Tick(80 * time.Millisecond)
-	if e.X == attacker.X && e.Y == attacker.Y && target.X == attacker.X && target.Y == attacker.Y {
-		t.Fatal("expected pull overlap to expire and body collisions to separate the cluster")
+	w.HandleInput("p1", player.Input{Seq: 3})
+	w.Tick(1800 * time.Millisecond)
+	if e.X != clusterX || e.Y != clusterY {
+		t.Fatalf("expected pulled enemy to remain stacked for 2s, got (%.1f, %.1f)", e.X, e.Y)
+	}
+	if attacker.HP != heldHP {
+		t.Fatalf("expected no contact damage before pull hold ends, want HP=%d got %d", heldHP, attacker.HP)
+	}
+
+	w.Tick(120 * time.Millisecond)
+	if e.X == clusterX && e.Y == clusterY {
+		t.Fatal("expected stacked enemy to spread once the pull hold expires")
+	}
+	if attacker.HP >= heldHP {
+		t.Fatalf("expected pulled enemy to resume contact damage after hold ends, want HP<%d got %d", heldHP, attacker.HP)
 	}
 }
 
