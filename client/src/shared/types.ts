@@ -142,7 +142,7 @@ export type BossState =
   | 'dead';
 
 export type WaveState = 'windup' | 'expanding' | 'collapsing';
-export type PlayerWaveKind = 'wave' | 'numb' | 'pull';
+export type PlayerWaveKind = 'wave' | 'numb' | 'pull' | 'venom';
 
 export interface BurningStatus {
   ticksRemaining: number;
@@ -189,6 +189,7 @@ export interface EnemySnapshot {
   kind: EnemyKind;
   elite?: boolean;
   variant?: PacmanGhostVariant;
+  venomMarked?: boolean;
   x: number;
   y: number;
   hp: number;
@@ -220,6 +221,7 @@ export interface BossSnapshot {
   maxHp: number;
   state: BossState;
   phase: BossPhase;
+  venomMarked?: boolean;
   targetX?: number;
   targetY?: number;
   speechText?: string;
@@ -372,6 +374,7 @@ export interface InputMessage {
   wave: boolean;
   numb: boolean;
   pull: boolean;
+  venom: boolean;
   dash: boolean;
   fireball: boolean;
   grenade: boolean;

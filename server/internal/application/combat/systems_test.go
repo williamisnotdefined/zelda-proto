@@ -45,6 +45,15 @@ func queuePlayerPullRelease(p *player.Player, targets player.WaveTargets) {
 	p.Update(releaseAfter, 1)
 }
 
+func queuePlayerVenomRelease(p *player.Player, targets player.WaveTargets) {
+	p.ApplyInput(player.Input{Seq: 1, Venom: true})
+	p.Update(10*time.Millisecond, 1)
+	p.ConsumeVenomStart()
+	p.SetVenomTargets(targets)
+	releaseAfter := player.WaveWindup + player.WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+}
+
 func TestContactDamageRespectsSafezone(t *testing.T) {
 	t.Parallel()
 	zone := safezone.Zone{X: 100, Y: 100, Radius: 200}
@@ -391,6 +400,63 @@ func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
 	for _, key := range []string{"enemy:e1", "boss:d1", "boss:g1", "boss:v1"} {
 		if got := markedDurations[key]; got != player.PullClusterHoldDuration {
 			t.Fatalf("expected hostile overlap duration %s for %s, got %s", player.PullClusterHoldDuration, key, got)
+		}
+	}
+}
+
+func TestPlayerVenomDamagesAndMarksOnlyPveTargets(t *testing.T) {
+	t.Parallel()
+
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(20)
+	target := newPlayerOutsideSafezone("tgt", 70, 40)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 0, 50)
+	g := boss.NewGelehk("g1", -60, 0)
+	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+	marked := map[string]time.Duration{}
+
+	queuePlayerVenomRelease(caster, player.WaveTargets{
+		EnemyIDs:   []string{"e1"},
+		DragonIDs:  []string{"d1"},
+		GelehkIDs:  []string{"g1"},
+		VanessaIDs: []string{"v1"},
+	})
+
+	moved := PlayerVenomSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": e},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		func(kind, id, sourcePlayerID string, duration time.Duration) {
+			marked[sourcePlayerID+":"+kind+":"+id] = duration
+		},
+	)
+	if moved {
+		t.Fatal("expected venom to avoid knockback")
+	}
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected venom to skip player damage, got %d", target.HP)
+	}
+	if e.HP != enemy.BlobConfig.MaxHP-player.VenomDamage {
+		t.Fatalf("expected enemy HP=%d, got %d", enemy.BlobConfig.MaxHP-player.VenomDamage, e.HP)
+	}
+	if d.HP != boss.DragonLordMaxHP-player.VenomDamage {
+		t.Fatalf("expected dragon HP=%d, got %d", boss.DragonLordMaxHP-player.VenomDamage, d.HP)
+	}
+	if g.HP != boss.GelehkMaxHP-player.VenomDamage {
+		t.Fatalf("expected gelehk HP=%d, got %d", boss.GelehkMaxHP-player.VenomDamage, g.HP)
+	}
+	if v.HP != boss.VanessaMaxHP-player.VenomDamage {
+		t.Fatalf("expected vanessa HP=%d, got %d", boss.VanessaMaxHP-player.VenomDamage, v.HP)
+	}
+	if got, want := caster.HP, player.MaxHP-5; got != want {
+		t.Fatalf("expected caster HP=%d after venom life steal, got %d", want, got)
+	}
+	for _, key := range []string{"att:enemy:e1", "att:boss:d1", "att:boss:g1", "att:boss:v1"} {
+		if marked[key] != player.VenomDebuffDuration {
+			t.Fatalf("expected venom mark %s for %s, got %s", key, player.VenomDebuffDuration, marked[key])
 		}
 	}
 }

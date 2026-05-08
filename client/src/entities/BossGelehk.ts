@@ -31,6 +31,7 @@ const WAVE_EDGE_SPRITE_SIZE = 42;
 const WAVE_EDGE_SPRITE_ALPHA = 0.68;
 const WAVE_EDGE_STEP = 92;
 const WAVE_EDGE_MAX_SPRITES = 10;
+const VENOM_TINT = 0x6dff8c;
 
 interface IceZoneData {
   x: number;
@@ -86,6 +87,7 @@ export class BossGelehkEntity {
   private lastIceZoneCount: number;
   private lastAoeCount: number;
   private shadowPulseTween: Phaser.Tweens.Tween | null;
+  private venomMarked: boolean;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.scene = scene;
@@ -106,6 +108,7 @@ export class BossGelehkEntity {
     this.lastIceZoneCount = 0;
     this.lastAoeCount = 0;
     this.shadowPulseTween = null;
+    this.venomMarked = false;
     this.waveEdgeSprites = [];
     this.waveState = null;
     this.waveCenterX = x;
@@ -168,6 +171,7 @@ export class BossGelehkEntity {
     maxHp: number,
     state: string,
     phase: number,
+    venomMarked: boolean,
     iceZones: IceZoneData[],
     aoeIndicators: AoeData[],
     waveIndicator: WaveIndicator | null
@@ -180,6 +184,7 @@ export class BossGelehkEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.phase = phase;
+    this.venomMarked = venomMarked;
 
     const dx = x - this.prevX;
     const dy = y - this.prevY;
@@ -535,13 +540,18 @@ export class BossGelehkEntity {
   }
 
   private updateTint(): void {
-    if (this.serverState === 'dead') {
-      this.sprite.clearTint();
-      this.sprite.setAlpha(0.4);
-      return;
-    }
+	if (this.serverState === 'dead') {
+	  this.sprite.clearTint();
+	  this.sprite.setAlpha(0.4);
+	  return;
+	}
 
-    if (this.serverState === 'wave_windup') {
+	if (this.venomMarked) {
+	  this.sprite.setTint(VENOM_TINT);
+	  return;
+	}
+
+	if (this.serverState === 'wave_windup') {
       this.sprite.setTint(0xd67cff);
     } else if (this.serverState === 'enraged' || this.phase === 3) {
       this.sprite.setTint(0xff6666);

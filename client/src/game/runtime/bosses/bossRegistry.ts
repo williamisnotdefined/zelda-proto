@@ -64,6 +64,7 @@ export const bossRegistry: BossRegistry = {
         snapshot.maxHp,
         snapshot.state,
         snapshot.phase,
+        snapshot.venomMarked ?? false,
         context.iceZones,
         context.aoeIndicators.filter((aoe) => aoe.ownerId === snapshot.id),
         context.waveIndicators.find(
@@ -81,7 +82,8 @@ export const bossRegistry: BossRegistry = {
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.phase
+        snapshot.phase,
+        snapshot.venomMarked ?? false
       );
     },
   },
@@ -104,7 +106,8 @@ export const bossRegistry: BossRegistry = {
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.phase
+        snapshot.phase,
+        snapshot.venomMarked ?? false
       );
     },
   },
@@ -127,7 +130,8 @@ export const bossRegistry: BossRegistry = {
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.phase
+        snapshot.phase,
+        snapshot.venomMarked ?? false
       );
     },
   },
@@ -150,7 +154,8 @@ export const bossRegistry: BossRegistry = {
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.phase
+        snapshot.phase,
+        snapshot.venomMarked ?? false
       );
     },
   },
@@ -164,6 +169,7 @@ export const bossRegistry: BossRegistry = {
         snapshot.maxHp,
         snapshot.state,
         snapshot.phase,
+        snapshot.venomMarked ?? false,
         snapshot.speechText,
         snapshot.speechColor
       );

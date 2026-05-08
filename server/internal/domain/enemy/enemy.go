@@ -332,6 +332,7 @@ type Snapshot struct {
 	Kind    Kind
 	Elite   bool
 	Variant PacmanVariant
+	VenomMarked bool
 	X, Y    float64
 	HP      int
 	MaxHP   int

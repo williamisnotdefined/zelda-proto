@@ -59,6 +59,7 @@ export interface GameStore {
   waveCooldownEndsAt: number | null;
   numbCooldownEndsAt: number | null;
   pullCooldownEndsAt: number | null;
+  venomCooldownEndsAt: number | null;
   dashCooldownEndsAt: number | null;
   fireballCooldownEndsAt: number | null;
   grenadeCooldownEndsAt: number | null;
@@ -78,6 +79,7 @@ export interface GameStore {
   setWaveCooldownEndsAt: (time: number | null) => void;
   setNumbCooldownEndsAt: (time: number | null) => void;
   setPullCooldownEndsAt: (time: number | null) => void;
+  setVenomCooldownEndsAt: (time: number | null) => void;
   setDashCooldownEndsAt: (time: number | null) => void;
   setFireballCooldownEndsAt: (time: number | null) => void;
   setGrenadeCooldownEndsAt: (time: number | null) => void;
@@ -101,6 +103,7 @@ export const useGameStore = create<GameStore>((set) => ({
   waveCooldownEndsAt: null,
   numbCooldownEndsAt: null,
   pullCooldownEndsAt: null,
+  venomCooldownEndsAt: null,
   dashCooldownEndsAt: null,
   fireballCooldownEndsAt: null,
   grenadeCooldownEndsAt: null,
@@ -120,6 +123,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
   setNumbCooldownEndsAt: (numbCooldownEndsAt) => set({ numbCooldownEndsAt }),
   setPullCooldownEndsAt: (pullCooldownEndsAt) => set({ pullCooldownEndsAt }),
+  setVenomCooldownEndsAt: (venomCooldownEndsAt) => set({ venomCooldownEndsAt }),
   setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
   setFireballCooldownEndsAt: (fireballCooldownEndsAt) => set({ fireballCooldownEndsAt }),
   setGrenadeCooldownEndsAt: (grenadeCooldownEndsAt) => set({ grenadeCooldownEndsAt }),

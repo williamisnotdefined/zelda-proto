@@ -153,6 +153,7 @@ export class EnemySnapshotStore {
       previous.kind !== next.kind ||
       previous.elite !== next.elite ||
       previous.variant !== next.variant ||
+      previous.venomMarked !== next.venomMarked ||
       previous.x !== next.x ||
       previous.y !== next.y ||
       previous.hp !== next.hp ||

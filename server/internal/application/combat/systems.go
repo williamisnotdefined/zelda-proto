@@ -165,6 +165,10 @@ type PlayerNumbSystem struct{}
 // the caster and temporarily allows stacked bodies to remain overlapped.
 type PlayerPullSystem struct{}
 
+// PlayerVenomSystem resolves the green wave variant that marks hostiles for
+// follow-up bonus damage and lifesteal.
+type PlayerVenomSystem struct{}
+
 // Resolve applies player wave damage and knockback. Returns true when any
 // entity position changed and body collisions should be re-resolved.
 func (PlayerWaveSystem) Resolve(
@@ -239,6 +243,105 @@ func (PlayerPullSystem) Resolve(
 		pullIntoWave,
 		markOverlap,
 	)
+}
+
+// PlayerVenomMarker arms the post-hit venom debuff for the given hostile.
+type PlayerVenomMarker func(kind, id, sourcePlayerID string, duration time.Duration)
+
+// Resolve applies venom damage to PvE targets only and marks surviving
+// hostiles for follow-up amplified damage.
+func (PlayerVenomSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	markVenom PlayerVenomMarker,
+) bool {
+	for _, caster := range players {
+		_, _, targets, castID, ok := caster.ConsumeVenomRelease()
+		if !ok {
+			continue
+		}
+		totalDamage := 0
+		for _, id := range targets.EnemyIDs {
+			e := enemies[id]
+			if e == nil || e.State == enemy.StateDead {
+				continue
+			}
+			beforeHP := e.HP
+			e.TakeDamage(player.VenomDamage)
+			dealt := beforeHP - e.HP
+			totalDamage += dealt
+			if e.State == enemy.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+				continue
+			}
+			if dealt > 0 && markVenom != nil {
+				markVenom("enemy", e.ID, caster.ID, player.VenomDebuffDuration)
+			}
+		}
+		for _, id := range targets.DragonIDs {
+			d := dragons[id]
+			if d == nil || d.State == boss.StateDead {
+				continue
+			}
+			beforeHP := d.HP
+			d.TakeDamage(player.VenomDamage)
+			dealt := beforeHP - d.HP
+			totalDamage += dealt
+			if d.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+				continue
+			}
+			if dealt > 0 && markVenom != nil {
+				markVenom("boss", d.ID, caster.ID, player.VenomDebuffDuration)
+			}
+		}
+		for _, id := range targets.GelehkIDs {
+			g := gelehks[id]
+			if g == nil || g.State == boss.StateDead {
+				continue
+			}
+			beforeHP := g.HP
+			g.TakeDamage(player.VenomDamage)
+			dealt := beforeHP - g.HP
+			totalDamage += dealt
+			if g.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+				continue
+			}
+			if dealt > 0 && markVenom != nil {
+				markVenom("boss", g.ID, caster.ID, player.VenomDebuffDuration)
+			}
+		}
+		for _, id := range targets.VanessaIDs {
+			v := vanessas[id]
+			if v == nil || v.State == boss.StateDead {
+				continue
+			}
+			beforeHP := v.HP
+			v.TakeDamage(player.VenomDamage)
+			dealt := beforeHP - v.HP
+			totalDamage += dealt
+			if v.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+				continue
+			}
+			if dealt > 0 && markVenom != nil {
+				markVenom("boss", v.ID, caster.ID, player.VenomDebuffDuration)
+			}
+		}
+		if totalDamage > 0 {
+			caster.Heal(int(math.Ceil(float64(totalDamage) * player.VenomLifeStealRatio)))
+		}
+		caster.FinishCast(castID)
+	}
+	return false
 }
 
 type waveReleaseConsumer func(*player.Player) (float64, float64, player.WaveTargets, uint64, bool)

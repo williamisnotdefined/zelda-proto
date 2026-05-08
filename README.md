@@ -231,6 +231,7 @@ cloudflared tunnel info wilho
 | Player | Wave (`R`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
 | Player | Numb (`T`) | `3` | `5s` | Wave variant with freeze effect and life steal |
 | Player | Pull (`Y`) | `3` | `5s` | Pulls targets to the caster, then holds overlap briefly |
+| Player | Venom (`U`) | `3` | `5s` | Green wave that marks hostiles for `10s`, causing `2x` player damage and `120%` lifesteal from those targets |
 | Player | Dash | `0` direct | `1s` | Mobility skill; dash itself does not hit directly |
 | Player dash trail | Blue flame | `8` + blue burning | n/a | Spawned along the dash path |
 | Hazard | Fire field | `8` + burning | n/a | Applies `3` burning ticks of `8` each |

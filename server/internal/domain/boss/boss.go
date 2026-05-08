@@ -76,6 +76,7 @@ type Snapshot struct {
 	MaxHP int
 	State State
 	Phase int
+	VenomMarked bool
 }
 
 func nearestAlive(players []PlayerView, x, y, radius float64, find FindNearestPlayer) *PlayerView {

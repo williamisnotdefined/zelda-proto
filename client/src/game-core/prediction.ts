@@ -18,6 +18,7 @@ export interface InputState {
   wave: boolean;
   numb: boolean;
   pull: boolean;
+  venom: boolean;
   dash: boolean;
   fireball: boolean;
   grenade: boolean;

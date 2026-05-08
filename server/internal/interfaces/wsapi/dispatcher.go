@@ -221,6 +221,7 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Wave:     msg.Wave,
 		Numb:     msg.Numb,
 		Pull:     msg.Pull,
+		Venom:    msg.Venom,
 		Dash:     msg.Dash,
 		Fireball: msg.Fireball,
 		Grenade:  msg.Grenade,
@@ -452,6 +453,9 @@ func enemyObj(e enemy.Snapshot) codec.Object {
 	if e.Variant != "" {
 		obj = append(obj, codec.Field{Key: "variant", Value: string(e.Variant)})
 	}
+	if e.VenomMarked {
+		obj = append(obj, codec.Field{Key: "venomMarked", Value: true})
+	}
 	return obj
 }
 
@@ -490,6 +494,9 @@ func bossObj(b appworld.BossSnapshot) codec.Object {
 			codec.Field{Key: "speechText", Value: b.SpeechText},
 			codec.Field{Key: "speechColor", Value: b.SpeechColor},
 		)
+	}
+	if b.VenomMarked {
+		obj = append(obj, codec.Field{Key: "venomMarked", Value: true})
 	}
 	return obj
 }

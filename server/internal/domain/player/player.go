@@ -23,9 +23,11 @@ const (
 	WaveDamage                      = 3
 	NumbDamage                      = WaveDamage
 	PullDamage                      = WaveDamage
+	VenomDamage                     = WaveDamage
 	WaveLifeStealRatio      float64 = 1.20
 	NumbLifeStealRatio      float64 = WaveLifeStealRatio
 	PullLifeStealRatio      float64 = WaveLifeStealRatio
+	VenomLifeStealRatio     float64 = WaveLifeStealRatio
 	WaveWindup                      = 80 * time.Millisecond
 	WaveWindupRadius        float64 = 44
 	DashDistance            float64 = 300
@@ -35,7 +37,9 @@ const (
 	WaveCooldown                    = 5 * time.Second
 	NumbCooldown                    = WaveCooldown
 	PullCooldown                    = WaveCooldown
+	VenomCooldown                   = WaveCooldown
 	NumbFreezeDuration              = 2 * time.Second
+	VenomDebuffDuration             = 10 * time.Second
 	PullClusterHoldDuration         = 2 * time.Second
 	PullOverlapDuration             = 100 * time.Millisecond
 	DashCooldown                    = 1 * time.Second
@@ -97,6 +101,7 @@ type Input struct {
 	Wave     bool
 	Numb     bool
 	Pull     bool
+	Venom    bool
 	Dash     bool
 	Fireball bool
 	Grenade  bool
@@ -204,6 +209,7 @@ const (
 	WaveKindWave WaveKind = "wave"
 	WaveKindNumb WaveKind = "numb"
 	WaveKindPull WaveKind = "pull"
+	WaveKindVenom WaveKind = "venom"
 )
 
 // WaveIndicator is the active player wave visual state.
@@ -257,6 +263,7 @@ type Player struct {
 	WaveCooldown          time.Duration
 	NumbCooldown          time.Duration
 	PullCooldown          time.Duration
+	VenomCooldown         time.Duration
 	DashCooldown          time.Duration
 	FireballCooldown      time.Duration
 	GrenadeCooldown       time.Duration
@@ -300,6 +307,14 @@ type Player struct {
 	pullCenterX           float64
 	pullCenterY           float64
 	pullTargets           WaveTargets
+	venomActive           bool
+	venomStartQueued      bool
+	venomReleaseQueued    bool
+	venomWindupRemaining  time.Duration
+	venomRadius           float64
+	venomCenterX          float64
+	venomCenterY          float64
+	venomTargets          WaveTargets
 	dashCastQueued        bool
 	dashStartX            float64
 	dashStartY            float64
@@ -324,6 +339,7 @@ type Player struct {
 	waveCastID            uint64
 	numbCastID            uint64
 	pullCastID            uint64
+	venomCastID           uint64
 	pistolCastID          uint64
 	fireballCastID        uint64
 	grenadeCastID         uint64
@@ -420,6 +436,12 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.PullCooldown = 0
 		}
 	}
+	if p.VenomCooldown > 0 {
+		p.VenomCooldown -= dt
+		if p.VenomCooldown < 0 {
+			p.VenomCooldown = 0
+		}
+	}
 	if p.DashCooldown > 0 {
 		p.DashCooldown -= dt
 		if p.DashCooldown < 0 {
@@ -498,6 +520,18 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.pullCenterY = p.Y
 		p.pullTargets = WaveTargets{}
 		p.pullCastID = p.beginCast()
+	}
+	if input.Venom && p.VenomCooldown <= 0 && !p.waveLikeActive() {
+		p.VenomCooldown = VenomCooldown
+		p.venomActive = true
+		p.venomStartQueued = true
+		p.venomReleaseQueued = false
+		p.venomWindupRemaining = WaveWindup
+		p.venomRadius = 0
+		p.venomCenterX = p.X
+		p.venomCenterY = p.Y
+		p.venomTargets = WaveTargets{}
+		p.venomCastID = p.beginCast()
 	}
 	if input.Fireball && p.FireballCooldown <= 0 {
 		if fireballDirection := dashDirectionFromInput(input, p.Direction); fireballDirection != "" {
@@ -597,6 +631,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetWave()
 		p.resetNumb()
 		p.resetPull()
+		p.resetVenom()
 		p.resetDash()
 		p.resetPistol()
 		p.resetFireball()
@@ -643,6 +678,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetWave()
 	p.resetNumb()
 	p.resetPull()
+	p.resetVenom()
 	p.resetDash()
 	p.resetPistol()
 	p.resetFireball()
@@ -659,6 +695,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetWave()
 	p.resetNumb()
 	p.resetPull()
+	p.resetVenom()
 	p.resetDash()
 	p.resetPistol()
 	p.resetFireball()
@@ -758,6 +795,16 @@ func (p *Player) ConsumePullStart() (float64, float64, bool) {
 	return p.pullCenterX, p.pullCenterY, true
 }
 
+// ConsumeVenomStart returns the center of a newly triggered venom once so the
+// world can pre-lock affected hostiles before AI movement runs.
+func (p *Player) ConsumeVenomStart() (float64, float64, bool) {
+	if !p.venomStartQueued {
+		return 0, 0, false
+	}
+	p.venomStartQueued = false
+	return p.venomCenterX, p.venomCenterY, true
+}
+
 // SetWaveTargets stores the hostile IDs captured when the wave started.
 func (p *Player) SetWaveTargets(targets WaveTargets) {
 	p.waveTargets = targets
@@ -771,6 +818,11 @@ func (p *Player) SetNumbTargets(targets WaveTargets) {
 // SetPullTargets stores the hostile IDs captured when the pull started.
 func (p *Player) SetPullTargets(targets WaveTargets) {
 	p.pullTargets = targets
+}
+
+// SetVenomTargets stores the hostile IDs captured when venom started.
+func (p *Player) SetVenomTargets(targets WaveTargets) {
+	p.venomTargets = targets
 }
 
 // ConsumeWaveRelease returns the center and captured hostiles of a completed
@@ -815,6 +867,20 @@ func (p *Player) ConsumePullRelease() (float64, float64, WaveTargets, uint64, bo
 	return p.pullCenterX, p.pullCenterY, targets, castID, true
 }
 
+// ConsumeVenomRelease returns the center and captured hostiles of a completed
+// venom once.
+func (p *Player) ConsumeVenomRelease() (float64, float64, WaveTargets, uint64, bool) {
+	if !p.venomReleaseQueued {
+		return 0, 0, WaveTargets{}, 0, false
+	}
+	p.venomReleaseQueued = false
+	targets := p.venomTargets
+	castID := p.venomCastID
+	p.venomTargets = WaveTargets{}
+	p.venomCastID = 0
+	return p.venomCenterX, p.venomCenterY, targets, castID, true
+}
+
 // WaveRemainingDuration returns how long the current wave will keep hostiles
 // frozen before it releases.
 func (p *Player) WaveRemainingDuration() time.Duration {
@@ -840,6 +906,15 @@ func (p *Player) PullRemainingDuration() time.Duration {
 		return 0
 	}
 	return remainingCollapsingWaveLikeDuration(p.pullWindupRemaining, p.pullRadius)
+}
+
+// VenomRemainingDuration returns how long the current venom will keep hostiles
+// locked before the hit resolves.
+func (p *Player) VenomRemainingDuration() time.Duration {
+	if !p.venomActive {
+		return 0
+	}
+	return remainingWaveLikeDuration(p.venomWindupRemaining, p.venomRadius)
 }
 
 // ConsumeDashCast returns a newly triggered dash once.
@@ -905,7 +980,13 @@ func (p *Player) WaveIndicator() *WaveIndicator {
 	}
 	if !p.numbActive {
 		if !p.pullActive {
-			return nil
+			if !p.venomActive {
+				return nil
+			}
+			if p.venomWindupRemaining > 0 {
+				return &WaveIndicator{X: p.venomCenterX, Y: p.venomCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindVenom}
+			}
+			return &WaveIndicator{X: p.venomCenterX, Y: p.venomCenterY, Radius: p.venomRadius, State: WaveStateExpanding, Kind: WaveKindVenom}
 		}
 		if p.pullWindupRemaining > 0 {
 			return &WaveIndicator{X: p.pullCenterX, Y: p.pullCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindPull}
@@ -995,6 +1076,7 @@ func (p *Player) advanceWaveLikeCasts(dt time.Duration) {
 	advanceWaveLikeCast(&p.waveActive, &p.waveReleaseQueued, &p.waveWindupRemaining, &p.waveRadius, dt)
 	advanceWaveLikeCast(&p.numbActive, &p.numbReleaseQueued, &p.numbWindupRemaining, &p.numbRadius, dt)
 	advanceCollapsingWaveLikeCast(&p.pullActive, &p.pullReleaseQueued, &p.pullWindupRemaining, &p.pullRadius, dt)
+	advanceWaveLikeCast(&p.venomActive, &p.venomReleaseQueued, &p.venomWindupRemaining, &p.venomRadius, dt)
 }
 
 func (p *Player) resetWave() {
@@ -1034,6 +1116,19 @@ func (p *Player) resetPull() {
 	p.pullCenterY = 0
 	p.pullTargets = WaveTargets{}
 	p.pullCastID = 0
+}
+
+func (p *Player) resetVenom() {
+	p.VenomCooldown = 0
+	p.venomActive = false
+	p.venomStartQueued = false
+	p.venomReleaseQueued = false
+	p.venomWindupRemaining = 0
+	p.venomRadius = 0
+	p.venomCenterX = 0
+	p.venomCenterY = 0
+	p.venomTargets = WaveTargets{}
+	p.venomCastID = 0
 }
 
 func (p *Player) resetDash() {
@@ -1091,6 +1186,7 @@ func (p *Player) resetCastTracking() {
 	p.waveCastID = 0
 	p.numbCastID = 0
 	p.pullCastID = 0
+	p.venomCastID = 0
 	p.pistolCastID = 0
 	p.fireballCastID = 0
 	p.grenadeCastID = 0
@@ -1108,7 +1204,7 @@ func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direct
 }
 
 func (p *Player) waveLikeActive() bool {
-	return p.waveActive || p.numbActive || p.pullActive
+	return p.waveActive || p.numbActive || p.pullActive || p.venomActive
 }
 
 func remainingWaveLikeDuration(windupRemaining time.Duration, radius float64) time.Duration {

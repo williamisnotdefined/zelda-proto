@@ -1,4 +1,4 @@
-- elite enemy 2 por chunk
+- drop mobile / pwa support
 - net
 - machine gun
 - flamethrower

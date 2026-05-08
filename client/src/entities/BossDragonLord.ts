@@ -14,6 +14,7 @@ const CONTACT_SHADOW_ALPHA = 0.3;
 const EXPULSION_PULSE_ALPHA = 0.55;
 const EXPULSION_PULSE_DISTANCE = 72;
 const EXPULSION_PULSE_DURATION_MS = 140;
+const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 
@@ -29,6 +30,7 @@ export class BossDragonLordEntity {
   maxHp: number;
   serverState: string;
   phase: number;
+  venomMarked: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
@@ -44,6 +46,7 @@ export class BossDragonLordEntity {
     this.maxHp = 220;
     this.serverState = 'idle';
     this.phase = 1;
+    this.venomMarked = false;
     this.facing = 'down';
     this.currentAnimKey = '';
     this.shadowPulseTween = null;
@@ -91,7 +94,8 @@ export class BossDragonLordEntity {
     hp: number,
     maxHp: number,
     state: string,
-    phase: number
+    phase: number,
+    venomMarked: boolean
   ): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
@@ -101,6 +105,7 @@ export class BossDragonLordEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.phase = phase;
+    this.venomMarked = venomMarked;
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
@@ -165,6 +170,11 @@ export class BossDragonLordEntity {
     this.hpBar.x = this.sprite.x - (HP_BAR_WIDTH - this.hpBar.width) / 2;
     this.hpBar.y = this.sprite.y - HP_BAR_OFFSET_Y;
     this.hpBar.fillColor = 0xff8844;
+    if (this.venomMarked) {
+      this.sprite.setTint(VENOM_TINT);
+    } else {
+      this.sprite.clearTint();
+    }
 
     this.updateAnimation();
 

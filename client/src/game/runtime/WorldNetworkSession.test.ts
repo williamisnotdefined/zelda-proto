@@ -60,6 +60,7 @@ function createUiSink(): GameUiSink & {
   setLastConnectionAttempt: ReturnType<typeof vi.fn>;
   setWaveCooldownEndsAt: ReturnType<typeof vi.fn>;
   setNumbCooldownEndsAt: ReturnType<typeof vi.fn>;
+  setVenomCooldownEndsAt: ReturnType<typeof vi.fn>;
   setDashCooldownEndsAt: ReturnType<typeof vi.fn>;
   setFireballCooldownEndsAt: ReturnType<typeof vi.fn>;
   setGrenadeCooldownEndsAt: ReturnType<typeof vi.fn>;
@@ -68,6 +69,7 @@ function createUiSink(): GameUiSink & {
 } {
   return {
     setPullCooldownEndsAt: vi.fn(),
+    setVenomCooldownEndsAt: vi.fn(),
     syncConnectionState: vi.fn(),
     setLastConnectionAttempt: vi.fn(),
     setConnectionError: vi.fn(),

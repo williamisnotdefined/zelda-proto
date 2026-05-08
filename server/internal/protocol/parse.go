@@ -183,11 +183,12 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		wave, okWave := getBool(record, "wave")
 		numb, okNumb := getBool(record, "numb")
 		pull, okPull := getBool(record, "pull")
+		venom, okVenom := getBool(record, "venom")
 		dash, okDash := getBool(record, "dash")
 		fireball, okFireball := getBool(record, "fireball")
 		grenade, okGrenade := getBool(record, "grenade")
 		landmine, okLandmine := getBool(record, "landmine")
-		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okNumb || !okPull || !okDash || !okFireball || !okGrenade || !okLandmine {
+		if !okUp || !okDown || !okLeft || !okRight || !okAttack || !okWave || !okNumb || !okPull || !okVenom || !okDash || !okFireball || !okGrenade || !okLandmine {
 			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
 		}
 
@@ -202,6 +203,7 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 				Wave:     wave,
 				Numb:     numb,
 				Pull:     pull,
+				Venom:    venom,
 				Dash:     dash,
 				Fireball: fireball,
 				Grenade:  grenade,

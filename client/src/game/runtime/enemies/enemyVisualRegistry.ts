@@ -33,7 +33,8 @@ export interface EnemyVisualEntity {
     hp: number,
     maxHp: number,
     state: string,
-    elite?: boolean
+    elite?: boolean,
+    venomMarked?: boolean
   ): void;
   restoreFromServer(
     x: number,
@@ -41,7 +42,8 @@ export interface EnemyVisualEntity {
     hp: number,
     maxHp: number,
     state: string,
-    elite?: boolean
+    elite?: boolean,
+    venomMarked?: boolean
   ): void;
   setDormant(): void;
   destroy(): void;
@@ -97,7 +99,8 @@ function createCommonEntry(
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.elite
+        snapshot.elite,
+        snapshot.venomMarked
       );
     },
     update: (entity, snapshot) => {
@@ -107,7 +110,8 @@ function createCommonEntry(
         snapshot.hp,
         snapshot.maxHp,
         snapshot.state,
-        snapshot.elite
+        snapshot.elite,
+        snapshot.venomMarked
       );
     },
     matches: () => true,
@@ -173,7 +177,8 @@ export function createEnemyVisualRegistry(
           snapshot.hp,
           snapshot.maxHp,
           snapshot.state,
-          snapshot.elite
+          snapshot.elite,
+          snapshot.venomMarked
         );
       },
       update: (entity, snapshot) => {
@@ -183,7 +188,8 @@ export function createEnemyVisualRegistry(
           snapshot.hp,
           snapshot.maxHp,
           snapshot.state,
-          snapshot.elite
+          snapshot.elite,
+          snapshot.venomMarked
         );
       },
       matches: (entity, snapshot) =>

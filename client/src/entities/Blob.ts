@@ -9,6 +9,7 @@ const SNAP_DISTANCE = 180;
 const HP_BAR_WIDTH = 30;
 const HP_BAR_OFFSET_Y = 28;
 const ELITE_SCALE_MULTIPLIER = 2;
+const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -31,6 +32,7 @@ export class BlobEntity {
   maxHp: number;
   serverState: string;
   elite: boolean;
+  venomMarked: boolean;
 
   private prevX: number;
   private prevY: number;
@@ -55,6 +57,7 @@ export class BlobEntity {
     this.currentAnimKey = '';
     this.deathPlayed = false;
     this.facing = 'down';
+    this.venomMarked = false;
     this.isUsingStaticFrame = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
@@ -69,7 +72,7 @@ export class BlobEntity {
     });
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
+  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -78,6 +81,7 @@ export class BlobEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.applyElite(elite);
+    this.applyVenomMarked(venomMarked);
 
     const dx = x - this.prevX;
     const dy = y - this.prevY;
@@ -90,7 +94,7 @@ export class BlobEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -99,6 +103,7 @@ export class BlobEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.applyElite(elite);
+    this.applyVenomMarked(venomMarked);
     this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
@@ -224,6 +229,15 @@ export class BlobEntity {
     );
   }
 
+  private applyVenomMarked(venomMarked: boolean): void {
+	this.venomMarked = venomMarked;
+	if (venomMarked) {
+	  this.sprite.setTint(VENOM_TINT);
+	  return;
+	}
+	this.sprite.clearTint();
+  }
+
   private resetVisualState(): void {
     this.facing = 'down';
     this.currentAnimKey = '';
@@ -234,6 +248,7 @@ export class BlobEntity {
     this.sprite.anims.timeScale = 1;
     this.animationTimeScale = 1;
     this.sprite.setFlipX(false);
+    this.sprite.clearTint();
     this.sprite.setFrame(STATIC_FRAME_BY_FACING.down);
   }
 

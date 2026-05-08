@@ -861,6 +861,73 @@ func TestPlayerPullClustersHostilesAndKeepsThemFrozenForTwoSeconds(t *testing.T)
 	}
 }
 
+func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	attacker.TakeDamage(40)
+	attacker.SafeZoneTimer = 0
+	aggressiveConfig := enemy.BlobConfig
+	aggressiveConfig.Damage = 0
+	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	e.TargetID = attacker.ID
+	e.State = enemy.StateChasing
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Venom: true})
+	w.Tick(20 * time.Millisecond)
+	windupSnap := w.Snapshot()
+	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
+		t.Fatalf("expected player venom windup indicator, got %#v", windupSnap.WaveIndicators)
+	}
+	if windupSnap.WaveIndicators[0].Kind != "venom" {
+		t.Fatalf("expected venom indicator kind 'venom', got %#v", windupSnap.WaveIndicators[0])
+	}
+
+	w.Tick(player.WaveWindup)
+	expandingSnap := w.Snapshot()
+	if len(expandingSnap.WaveIndicators) == 0 || expandingSnap.WaveIndicators[0].State != boss.WaveExpanding {
+		t.Fatalf("expected expanding venom indicator, got %#v", expandingSnap.WaveIndicators)
+	}
+	if expandingSnap.WaveIndicators[0].Kind != "venom" {
+		t.Fatalf("expected expanding venom kind 'venom', got %#v", expandingSnap.WaveIndicators[0])
+	}
+
+	w.Tick(player.WaveExpandDuration() + 20*time.Millisecond)
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after venom, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-36; got != want {
+		t.Fatalf("expected attacker HP=%d after venom life steal, got %d", want, got)
+	}
+
+	w.HandleInput("p1", player.Input{Seq: 2, Down: true, Attack: true})
+	w.Tick(20 * time.Millisecond)
+	w.Tick(220 * time.Millisecond)
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.PistolDamage*2; got != want {
+		t.Fatalf("expected enemy HP=%d after doubled pistol damage, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-31; got != want {
+		t.Fatalf("expected attacker HP=%d after venom follow-up lifesteal, got %d", want, got)
+	}
+
+	w.Tick(player.VenomDebuffDuration)
+	w.HandleInput("p1", player.Input{Seq: 3, Down: true, Attack: true})
+	w.Tick(20 * time.Millisecond)
+	w.Tick(220 * time.Millisecond)
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.PistolDamage*2-player.PistolDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after venom expired, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-31; got != want {
+		t.Fatalf("expected attacker HP=%d to stop gaining venom lifesteal, got %d", want, got)
+	}
+	if len(w.Snapshot().WaveIndicators) != 0 {
+		t.Fatal("expected no venom indicator after release")
+	}
+}
+
 func TestAdoptPlayer(t *testing.T) {
 	t.Parallel()
 

@@ -283,6 +283,56 @@ func TestPullTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestVenomTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Venom: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.VenomCooldown != VenomCooldown {
+		t.Fatalf("expected venom cooldown %s, got %s", VenomCooldown, p.VenomCooldown)
+	}
+	cx, cy, ok := p.ConsumeVenomStart()
+	if !ok {
+		t.Fatal("expected queued venom start")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected venom center at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if _, _, ok := p.ConsumeVenomStart(); ok {
+		t.Fatal("expected venom start to be consumed once")
+	}
+	wave := p.WaveIndicator()
+	if wave == nil || wave.Radius <= 0 || wave.State != WaveStateWindup {
+		t.Fatalf("expected active venom indicator, got %#v", wave)
+	}
+	if wave.Kind != WaveKindVenom {
+		t.Fatalf("expected venom indicator kind %q, got %q", WaveKindVenom, wave.Kind)
+	}
+
+	releaseAfter := WaveWindup + WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+	cx, cy, targets, castID, ok := p.ConsumeVenomRelease()
+	if !ok {
+		t.Fatal("expected queued venom release")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for venom release")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected venom release at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if len(targets.EnemyIDs)+len(targets.DragonIDs)+len(targets.GelehkIDs)+len(targets.VanessaIDs) != 0 {
+		t.Fatalf("expected no prelocked targets in unit test, got %#v", targets)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Venom: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, ok := p.ConsumeVenomStart(); ok {
+		t.Fatal("expected cooldown to block second venom cast")
+	}
+}
+
 func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	t.Parallel()
 

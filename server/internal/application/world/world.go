@@ -93,6 +93,7 @@ type World struct {
 	waveFrozenGelehks      map[string]time.Duration
 	waveFrozenVanessas     map[string]time.Duration
 	pullOverlapBodies      map[string]time.Duration
+	venomDebuffs           map[string]venomDebuff
 }
 
 type pendingFireLine struct {
@@ -102,6 +103,11 @@ type pendingFireLine struct {
 	tint       uint32
 	nextSeg    int
 	nextSpawn  time.Time
+}
+
+type venomDebuff struct {
+	SourcePlayerID string
+	Remaining      time.Duration
 }
 
 // New constructs a World with empty state.
@@ -136,6 +142,7 @@ func New(cfg Config) *World {
 		waveFrozenGelehks:      make(map[string]time.Duration),
 		waveFrozenVanessas:     make(map[string]time.Duration),
 		pullOverlapBodies:      make(map[string]time.Duration),
+		venomDebuffs:           make(map[string]venomDebuff),
 	}
 	if cfg.Definition != nil {
 		w.def = cfg.Definition
@@ -616,6 +623,7 @@ func (w *World) Tick(dt time.Duration) {
 	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
 		w.expelHostilesFromSafeZone()
 	}
+	w.advanceVenomDebuffs(dt)
 	w.advancePullOverlapBodies(dt)
 	w.resolveBodyCollisionsLocked()
 	w.wasSafeZoneActive = safeZoneActive
@@ -736,6 +744,11 @@ func (w *World) preparePlayerWaves() {
 		if !ok {
 			cx, cy, ok = p.ConsumePullStart()
 			if !ok {
+				cx, cy, ok = p.ConsumeVenomStart()
+				if !ok {
+					continue
+				}
+				p.SetVenomTargets(w.capturePlayerWaveTargets(cx, cy, p.VenomRemainingDuration()))
 				continue
 			}
 			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()+player.PullClusterHoldDuration))
@@ -795,6 +808,7 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
 	find := w.findNearestPlayerFunc()
 	for id, e := range w.enemies {
 		if e.TryRespawn(dt) {
+			delete(w.venomDebuffs, dynamicBodyKey("enemy", id))
 			w.enemyIndex.Upsert(id, e.X, e.Y)
 			continue
 		}
@@ -881,6 +895,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	}
 	for id, d := range w.dragons {
 		if d.TryRespawn(dt) {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, d.X, d.Y)
 			continue
 		}
@@ -896,6 +911,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	}
 	for id, g := range w.gelehks {
 		if g.TryRespawn(dt) {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, g.X, g.Y)
 			continue
 		}
@@ -922,6 +938,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	}
 	for id, v := range w.vanessas {
 		if v.TryRespawn(dt) {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, v.X, v.Y)
 			continue
 		}
@@ -991,6 +1008,95 @@ func (w *World) advancePullOverlapBodies(dt time.Duration) {
 		}
 		w.pullOverlapBodies[key] = remaining
 	}
+}
+
+func (w *World) advanceVenomDebuffs(dt time.Duration) {
+	for key, debuff := range w.venomDebuffs {
+		debuff.Remaining -= dt
+		if debuff.Remaining <= 0 {
+			delete(w.venomDebuffs, key)
+			continue
+		}
+		w.venomDebuffs[key] = debuff
+	}
+}
+
+func (w *World) armVenomDebuff(kind, id, sourcePlayerID string, duration time.Duration) {
+	if duration <= 0 || sourcePlayerID == "" {
+		return
+	}
+	key := dynamicBodyKey(kind, id)
+	current, ok := w.venomDebuffs[key]
+	if ok && current.SourcePlayerID == sourcePlayerID && current.Remaining >= duration {
+		return
+	}
+	w.venomDebuffs[key] = venomDebuff{SourcePlayerID: sourcePlayerID, Remaining: duration}
+}
+
+func (w *World) venomDamage(sourcePlayerID, kind, id string, baseDamage int) (int, *player.Player) {
+	if sourcePlayerID == "" || baseDamage <= 0 {
+		return baseDamage, nil
+	}
+	debuff, ok := w.venomDebuffs[dynamicBodyKey(kind, id)]
+	if !ok || debuff.SourcePlayerID != sourcePlayerID || debuff.Remaining <= 0 {
+		return baseDamage, nil
+	}
+	return baseDamage * 2, w.players[sourcePlayerID]
+}
+
+func healVenomSource(source *player.Player, dealt int) {
+	if source == nil || dealt <= 0 {
+		return
+	}
+	source.Heal(int(math.Ceil(float64(dealt) * player.VenomLifeStealRatio)))
+}
+
+func (w *World) applyPlayerDamageToEnemy(sourcePlayerID string, e *enemy.Enemy, baseDamage int) int {
+	damage, venomSource := w.venomDamage(sourcePlayerID, "enemy", e.ID, baseDamage)
+	beforeHP := e.HP
+	e.TakeDamage(damage)
+	dealt := beforeHP - e.HP
+	if e.State == enemy.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
+	}
+	healVenomSource(venomSource, dealt)
+	return dealt
+}
+
+func (w *World) applyPlayerDamageToDragon(sourcePlayerID string, d *boss.DragonLord, baseDamage int) int {
+	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", d.ID, baseDamage)
+	beforeHP := d.HP
+	d.TakeDamage(damage)
+	dealt := beforeHP - d.HP
+	if d.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
+	}
+	healVenomSource(venomSource, dealt)
+	return dealt
+}
+
+func (w *World) applyPlayerDamageToGelehk(sourcePlayerID string, g *boss.Gelehk, baseDamage int) int {
+	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", g.ID, baseDamage)
+	beforeHP := g.HP
+	g.TakeDamage(damage)
+	dealt := beforeHP - g.HP
+	if g.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
+	}
+	healVenomSource(venomSource, dealt)
+	return dealt
+}
+
+func (w *World) applyPlayerDamageToVanessa(sourcePlayerID string, v *boss.VanessaTheRuthless, baseDamage int) int {
+	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", v.ID, baseDamage)
+	beforeHP := v.HP
+	v.TakeDamage(damage)
+	dealt := beforeHP - v.HP
+	if v.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
+	}
+	healVenomSource(venomSource, dealt)
+	return dealt
 }
 
 func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
@@ -1126,7 +1232,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				continue
 			}
 			wasAlive := e.State != enemy.StateDead
-			e.TakeDamage(h.Damage)
+			w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
 			if wasAlive && e.State == enemy.StateDead {
 				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
@@ -1147,7 +1253,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				continue
 			}
 			wasAlive := d.State != boss.StateDead
-			d.TakeDamage(h.Damage)
+			w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
 			if wasAlive && d.State == boss.StateDead {
 				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
@@ -1168,7 +1274,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				continue
 			}
 			wasAlive := g.State != boss.StateDead
-			g.TakeDamage(h.Damage)
+			w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
 			if wasAlive && g.State == boss.StateDead {
 				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
@@ -1189,7 +1295,7 @@ func (w *World) tickHazards(dt time.Duration) {
 				continue
 			}
 			wasAlive := v.State != boss.StateDead
-			v.TakeDamage(h.Damage)
+			w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
 			if wasAlive && v.State == boss.StateDead {
 				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 			}
@@ -1255,7 +1361,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 			continue
 		}
 		wasAlive := e.State != enemy.StateDead
-		e.TakeDamage(h.Damage)
+		w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
 		if wasAlive && e.State == enemy.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1275,7 +1381,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 			continue
 		}
 		wasAlive := d.State != boss.StateDead
-		d.TakeDamage(h.Damage)
+		w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
 		if wasAlive && d.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1295,7 +1401,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 			continue
 		}
 		wasAlive := g.State != boss.StateDead
-		g.TakeDamage(h.Damage)
+		w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
 		if wasAlive && g.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1315,7 +1421,7 @@ func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag fl
 			continue
 		}
 		wasAlive := v.State != boss.StateDead
-		v.TakeDamage(h.Damage)
+		w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
 		if wasAlive && v.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1664,6 +1770,16 @@ func (w *World) resolveCombat() {
 	) {
 		w.resolveBodyCollisionsLocked()
 	}
+	(appcombat.PlayerVenomSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		func(kind, id, sourcePlayerID string, duration time.Duration) {
+			w.armVenomDebuff(kind, id, sourcePlayerID, duration)
+		},
+	)
 	(appcombat.PlayerLandmineSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
@@ -1794,11 +1910,14 @@ func (w *World) Snapshot() SnapshotView {
 		}
 	}
 	for _, e := range w.enemies {
-		view.Enemies = append(view.Enemies, e.Snapshot())
+		snapshot := e.Snapshot()
+		snapshot.VenomMarked = w.venomDebuffs[dynamicBodyKey("enemy", e.ID)].Remaining > 0
+		view.Enemies = append(view.Enemies, snapshot)
 	}
 	playerViews := w.playerViewsLocked()
 	for _, d := range w.dragons {
 		bs := BossSnapshot{Snapshot: d.Snapshot()}
+		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", d.ID)].Remaining > 0
 		if tx, ty, ok := d.TargetPosition(playerViews); ok {
 			bs.TargetX, bs.TargetY, bs.HasTarget = physics.QuantizePosition(tx), physics.QuantizePosition(ty), true
 		}
@@ -1806,6 +1925,7 @@ func (w *World) Snapshot() SnapshotView {
 	}
 	for _, g := range w.gelehks {
 		bs := BossSnapshot{Snapshot: g.Snapshot()}
+		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", g.ID)].Remaining > 0
 		view.Bosses = append(view.Bosses, bs)
 		view.IceZones = append(view.IceZones, g.IceZones...)
 		view.AOEIndicators = append(view.AOEIndicators, g.AOEIndicators...)
@@ -1815,6 +1935,7 @@ func (w *World) Snapshot() SnapshotView {
 	}
 	for _, v := range w.vanessas {
 		bs := BossSnapshot{Snapshot: v.Snapshot()}
+		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", v.ID)].Remaining > 0
 		if text, color, ok := v.Speech(); ok {
 			bs.SpeechText = text
 			bs.SpeechColor = color
@@ -1973,7 +2094,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 			continue
 		}
 		wasAlive := e.State != enemy.StateDead
-		e.TakeDamage(h.Damage)
+		w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
 		if wasAlive && e.State == enemy.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1983,7 +2104,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 			continue
 		}
 		wasAlive := d.State != boss.StateDead
-		d.TakeDamage(h.Damage)
+		w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
 		if wasAlive && d.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1993,7 +2114,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 			continue
 		}
 		wasAlive := g.State != boss.StateDead
-		g.TakeDamage(h.Damage)
+		w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
 		if wasAlive && g.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -2003,7 +2124,7 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 			continue
 		}
 		wasAlive := v.State != boss.StateDead
-		v.TakeDamage(h.Damage)
+		w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
 		if wasAlive && v.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}

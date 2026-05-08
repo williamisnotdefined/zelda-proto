@@ -11,6 +11,7 @@ const LANDMINE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 2
 const GRENADE_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 330px)';
 const NUMB_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 412px)';
 const PULL_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 494px)';
+const VENOM_BUTTON_BOTTOM_OFFSET = 'calc(env(safe-area-inset-bottom, 0px) + 576px)';
 
 interface KnobPosition {
   x: number;
@@ -35,6 +36,7 @@ export function TouchControls() {
   const waveCooldownEndsAt = useGameStore((state) => state.waveCooldownEndsAt);
   const numbCooldownEndsAt = useGameStore((state) => state.numbCooldownEndsAt);
   const pullCooldownEndsAt = useGameStore((state) => state.pullCooldownEndsAt);
+  const venomCooldownEndsAt = useGameStore((state) => state.venomCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((state) => state.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((state) => state.grenadeCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((state) => state.landmineCooldownEndsAt);
@@ -45,6 +47,7 @@ export function TouchControls() {
   const setWavePressed = useTouchInputStore((state) => state.setWavePressed);
   const setNumbPressed = useTouchInputStore((state) => state.setNumbPressed);
   const setPullPressed = useTouchInputStore((state) => state.setPullPressed);
+  const setVenomPressed = useTouchInputStore((state) => state.setVenomPressed);
   const setFireballPressed = useTouchInputStore((state) => state.setFireballPressed);
   const setGrenadePressed = useTouchInputStore((state) => state.setGrenadePressed);
   const setLandminePressed = useTouchInputStore((state) => state.setLandminePressed);
@@ -56,6 +59,7 @@ export function TouchControls() {
   const wavePointerId = useRef<number | null>(null);
   const numbPointerId = useRef<number | null>(null);
   const pullPointerId = useRef<number | null>(null);
+  const venomPointerId = useRef<number | null>(null);
   const fireballPointerId = useRef<number | null>(null);
   const grenadePointerId = useRef<number | null>(null);
   const landminePointerId = useRef<number | null>(null);
@@ -87,6 +91,7 @@ export function TouchControls() {
       !waveCooldownEndsAt &&
       !numbCooldownEndsAt &&
       !pullCooldownEndsAt &&
+      !venomCooldownEndsAt &&
       !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
       !landmineCooldownEndsAt
@@ -103,6 +108,7 @@ export function TouchControls() {
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (numbCooldownEndsAt ?? 0) &&
         now >= (pullCooldownEndsAt ?? 0) &&
+        now >= (venomCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0)
@@ -118,6 +124,7 @@ export function TouchControls() {
     landmineCooldownEndsAt,
     numbCooldownEndsAt,
     pullCooldownEndsAt,
+    venomCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
 
@@ -254,6 +261,14 @@ export function TouchControls() {
     setPullPressed(false);
   };
 
+  const releaseVenom = (target?: EventTarget | null) => {
+    if (target instanceof Element && venomPointerId.current !== null) {
+      target.releasePointerCapture(venomPointerId.current);
+    }
+    venomPointerId.current = null;
+    setVenomPressed(false);
+  };
+
   const releaseLandmine = (target?: EventTarget | null) => {
     if (target instanceof Element && landminePointerId.current !== null) {
       target.releasePointerCapture(landminePointerId.current);
@@ -276,6 +291,8 @@ export function TouchControls() {
   const numbReady = !numbCooldownEndsAt || numbCooldownRemainingMs <= 0;
   const pullCooldownRemainingMs = Math.max(0, (pullCooldownEndsAt ?? 0) - cooldownNowMs);
   const pullReady = !pullCooldownEndsAt || pullCooldownRemainingMs <= 0;
+  const venomCooldownRemainingMs = Math.max(0, (venomCooldownEndsAt ?? 0) - cooldownNowMs);
+  const venomReady = !venomCooldownEndsAt || venomCooldownRemainingMs <= 0;
   const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
   const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
   const grenadeCooldownRemainingMs = Math.max(0, (grenadeCooldownEndsAt ?? 0) - cooldownNowMs);
@@ -338,6 +355,25 @@ export function TouchControls() {
   const handlePullPointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.pointerId !== pullPointerId.current) return;
     releasePull(event.currentTarget);
+  };
+
+  const handleVenomPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (!venomReady || venomPointerId.current !== null) return;
+    event.preventDefault();
+    venomPointerId.current = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setVenomPressed(true);
+  };
+
+  const handleVenomPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== venomPointerId.current) return;
+    event.preventDefault();
+    releaseVenom(event.currentTarget);
+  };
+
+  const handleVenomPointerCancel = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerId !== venomPointerId.current) return;
+    releaseVenom(event.currentTarget);
   };
 
   const handleFireballPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -449,6 +485,40 @@ export function TouchControls() {
           }}
         />
       </div>
+
+      <button
+        type="button"
+        onPointerDown={handleVenomPointerDown}
+        onPointerUp={handleVenomPointerUp}
+        onPointerCancel={handleVenomPointerCancel}
+        onLostPointerCapture={() => releaseVenom()}
+        onContextMenu={(event) => event.preventDefault()}
+        style={{
+          position: 'absolute',
+          right: 136,
+          bottom: VENOM_BUTTON_BOTTOM_OFFSET,
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          border: venomReady
+            ? '2px solid rgba(132, 234, 140, 0.82)'
+            : '2px solid rgba(88, 165, 95, 0.55)',
+          background: venomReady ? 'rgba(39, 153, 63, 0.3)' : 'rgba(18, 72, 30, 0.46)',
+          color: '#e8ffe9',
+          fontSize: venomReady ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: 0.4,
+          fontFamily: 'monospace',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          opacity: venomReady ? 1 : 0.8,
+          boxShadow: venomReady ? '0 0 18px rgba(112, 233, 122, 0.18)' : 'none',
+        }}
+      >
+        {venomReady ? 'Venom' : `${(venomCooldownRemainingMs / 1000).toFixed(1)}s`}
+      </button>
 
       <button
         type="button"

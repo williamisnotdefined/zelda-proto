@@ -11,6 +11,7 @@ const PACMAN_GHOST_HP = 40;
 const HP_BAR_WIDTH = 24;
 const HP_BAR_OFFSET_Y = 16;
 const ELITE_SCALE_MULTIPLIER = 2;
+const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -35,6 +36,7 @@ export class PacmanGhostEntity {
   serverState: string;
   readonly variant: PacmanGhostVariant;
   elite: boolean;
+  venomMarked: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
@@ -60,6 +62,7 @@ export class PacmanGhostEntity {
     this.currentAnimKey = '';
     this.animPrefix = `pacman_ghost_${variant}`;
     this.isUsingStaticFrame = false;
+    this.venomMarked = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
     this.animationTimeScale = 1;
@@ -81,7 +84,7 @@ export class PacmanGhostEntity {
     return this.sprite.y;
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
+  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -90,6 +93,7 @@ export class PacmanGhostEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.applyElite(elite);
+    this.applyVenomMarked(venomMarked);
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
@@ -102,7 +106,7 @@ export class PacmanGhostEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false): void {
+  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -111,6 +115,7 @@ export class PacmanGhostEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.applyElite(elite);
+    this.applyVenomMarked(venomMarked);
     this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
@@ -211,7 +216,17 @@ export class PacmanGhostEntity {
     this.sprite.anims.timeScale = 1;
     this.animationTimeScale = 1;
     this.sprite.setFlipX(false);
+    this.sprite.clearTint();
     this.sprite.setFrame(STATIC_FRAME_BY_FACING.down);
+  }
+
+  private applyVenomMarked(venomMarked: boolean): void {
+    this.venomMarked = venomMarked;
+    if (venomMarked) {
+      this.sprite.setTint(VENOM_TINT);
+      return;
+    }
+    this.sprite.clearTint();
   }
 
   private setSpriteVisible(visible: boolean): void {

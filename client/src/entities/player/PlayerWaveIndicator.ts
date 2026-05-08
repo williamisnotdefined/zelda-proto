@@ -16,13 +16,15 @@ const NUMB_RING_COLOR = 0x9aa3ad;
 const NUMB_EDGE_TINT = 0xd2d7dd;
 const PULL_RING_COLOR = 0xff5b5b;
 const PULL_EDGE_TINT = 0xff8c8c;
+const VENOM_RING_COLOR = 0x43d86b;
+const VENOM_EDGE_TINT = 0x93f5a5;
 
 interface WaveData {
   x: number;
   y: number;
   radius: number;
   state: 'windup' | 'expanding' | 'collapsing';
-  kind?: 'wave' | 'numb' | 'pull';
+  kind?: 'wave' | 'numb' | 'pull' | 'venom';
 }
 
 export class PlayerWaveIndicator {
@@ -99,9 +101,17 @@ export class PlayerWaveIndicator {
         ? NUMB_RING_COLOR
         : this.waveKind === 'pull'
           ? PULL_RING_COLOR
+          : this.waveKind === 'venom'
+            ? VENOM_RING_COLOR
           : WAVE_RING_COLOR;
     const edgeTint =
-      this.waveKind === 'numb' ? NUMB_EDGE_TINT : this.waveKind === 'pull' ? PULL_EDGE_TINT : null;
+      this.waveKind === 'numb'
+        ? NUMB_EDGE_TINT
+        : this.waveKind === 'pull'
+          ? PULL_EDGE_TINT
+          : this.waveKind === 'venom'
+            ? VENOM_EDGE_TINT
+            : null;
 
     if (this.waveState === 'windup') {
       this.waveRing.setVisible(false);

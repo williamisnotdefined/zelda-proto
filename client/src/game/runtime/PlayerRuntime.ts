@@ -33,6 +33,9 @@ export class PlayerRuntime {
         this.ui.setPullCooldownEndsAt(time);
       },
       (time) => {
+        this.ui.setVenomCooldownEndsAt(time);
+      },
+      (time) => {
         this.ui.setDashCooldownEndsAt(time);
       },
       (time) => {

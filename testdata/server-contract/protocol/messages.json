@@ -57,6 +57,7 @@
         "wave": false,
         "numb": false,
         "pull": false,
+        "venom": false,
         "dash": false,
         "fireball": false,
         "grenade": false,
@@ -74,12 +75,13 @@
         "wave": false,
         "numb": false,
         "pull": false,
+        "venom": false,
         "dash": false,
         "fireball": false,
         "grenade": false,
         "landmine": false
       },
-      "msgpackBase64": "3gAPr3Byb3RvY29sVmVyc2lvbgukdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRudW1iwqRwdWxswqRkYXNowqhmaXJlYmFsbMKnZ3JlbmFkZcKobGFuZG1pbmXC"
+      "msgpackBase64": "3gAQr3Byb3RvY29sVmVyc2lvbgukdHlwZaVpbnB1dKNzZXEqonVww6Rkb3duwqRsZWZ0wqVyaWdodMOmYXR0YWNrw6R3YXZlwqRudW1iwqRwdWxswqV2ZW5vbcKkZGFzaMKoZmlyZWJhbGzCp2dyZW5hZGXCqGxhbmRtaW5lwg=="
     },
     {
       "name": "snapshot_resync_tick_gap",

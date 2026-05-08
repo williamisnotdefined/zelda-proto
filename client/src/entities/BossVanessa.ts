@@ -15,6 +15,7 @@ const EXPULSION_PULSE_ALPHA = 0.55;
 const EXPULSION_PULSE_DISTANCE = 72;
 const EXPULSION_PULSE_DURATION_MS = 140;
 const SPEECH_OFFSET_Y = 92;
+const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 
@@ -38,6 +39,7 @@ export class BossVanessaEntity {
   private shadowPulseTween: Phaser.Tweens.Tween | null;
   private speechText: string | null;
   private speechColor: string;
+  private venomMarked: boolean;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     this.targetX = x;
@@ -53,6 +55,7 @@ export class BossVanessaEntity {
     this.shadowPulseTween = null;
     this.speechText = null;
     this.speechColor = '#ff3b30';
+    this.venomMarked = false;
 
     this.sprite = scene.add.sprite(x, y, 'vanessa');
     this.sprite.setDepth(8);
@@ -111,6 +114,7 @@ export class BossVanessaEntity {
     maxHp: number,
     state: string,
     phase: number,
+    venomMarked: boolean,
     speechText?: string,
     speechColor?: string
   ): void {
@@ -122,6 +126,7 @@ export class BossVanessaEntity {
     this.maxHp = maxHp;
     this.serverState = state;
     this.phase = phase;
+    this.venomMarked = venomMarked;
     this.speechText = speechText ?? null;
     this.speechColor = speechColor ?? '#ff3b30';
 
@@ -244,6 +249,11 @@ export class BossVanessaEntity {
   }
 
   private updateTint(): void {
+    if (this.venomMarked) {
+      this.sprite.setTint(VENOM_TINT);
+      return;
+    }
+
     if (this.serverState === 'attacking') {
       this.sprite.setTint(0xffd36e);
       return;

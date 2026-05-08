@@ -6,6 +6,7 @@ import {
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_NUMB_COOLDOWN,
   PLAYER_PULL_COOLDOWN,
+  PLAYER_VENOM_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
 import { weaponDefinitions } from '@/shared/definitions';
@@ -30,6 +31,7 @@ export function HUD() {
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
   const numbCooldownEndsAt = useGameStore((s) => s.numbCooldownEndsAt);
   const pullCooldownEndsAt = useGameStore((s) => s.pullCooldownEndsAt);
+  const venomCooldownEndsAt = useGameStore((s) => s.venomCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
@@ -58,6 +60,7 @@ export function HUD() {
       !waveCooldownEndsAt &&
       !numbCooldownEndsAt &&
       !pullCooldownEndsAt &&
+      !venomCooldownEndsAt &&
       !dashCooldownEndsAt &&
       !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
@@ -75,6 +78,7 @@ export function HUD() {
         now >= (waveCooldownEndsAt ?? 0) &&
         now >= (numbCooldownEndsAt ?? 0) &&
         now >= (pullCooldownEndsAt ?? 0) &&
+        now >= (venomCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
@@ -92,6 +96,7 @@ export function HUD() {
     landmineCooldownEndsAt,
     numbCooldownEndsAt,
     pullCooldownEndsAt,
+    venomCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
 
@@ -184,6 +189,9 @@ export function HUD() {
   const pullCooldownRemainingMs = Math.max(0, (pullCooldownEndsAt ?? 0) - cooldownNowMs);
   const pullReady = !pullCooldownEndsAt || pullCooldownRemainingMs <= 0;
   const pullCooldownProgress = pullReady ? 1 : 1 - pullCooldownRemainingMs / PLAYER_PULL_COOLDOWN;
+  const venomCooldownRemainingMs = Math.max(0, (venomCooldownEndsAt ?? 0) - cooldownNowMs);
+  const venomReady = !venomCooldownEndsAt || venomCooldownRemainingMs <= 0;
+  const venomCooldownProgress = venomReady ? 1 : 1 - venomCooldownRemainingMs / PLAYER_VENOM_COOLDOWN;
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
@@ -431,6 +439,49 @@ export function HUD() {
                     : 'linear-gradient(90deg, #2f7db8 0%, #5ad7ff 100%)',
                   boxShadow: dashReady ? '0 0 12px rgba(127, 238, 255, 0.45)' : 'none',
                   transition: dashReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '11px',
+                marginBottom: 4,
+                opacity: 0.92,
+              }}
+            >
+              <span>Venom (U)</span>
+              <span
+                style={{
+                  color: venomReady ? '#9df6a4' : '#d4ffd8',
+                }}
+              >
+                {venomReady ? 'READY' : `${(venomCooldownRemainingMs / 1000).toFixed(1)}s`}
+              </span>
+            </div>
+            <div
+              style={{
+                width: 200,
+                height: 10,
+                background: 'rgba(12, 32, 15, 0.92)',
+                border: '1px solid rgba(112, 234, 122, 0.28)',
+                borderRadius: 999,
+                overflow: 'hidden',
+                boxShadow: 'inset 0 0 12px rgba(90, 210, 100, 0.1)',
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  width: `${venomCooldownProgress * 100}%`,
+                  height: '100%',
+                  background: venomReady
+                    ? 'linear-gradient(90deg, #4fd26a 0%, #a3f7ae 100%)'
+                    : 'linear-gradient(90deg, #287a39 0%, #5fd375 100%)',
+                  boxShadow: venomReady ? '0 0 12px rgba(122, 241, 133, 0.45)' : 'none',
+                  transition: venomReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
                 }}
               />
             </div>
@@ -728,7 +779,7 @@ export function HUD() {
           }}
         >
           Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
-          wave | T: numb | Y: pull | Space: attack | Tab: players
+          wave | T: numb | Y: pull | U: venom | Space: attack | Tab: players
         </div>
       )}
 
