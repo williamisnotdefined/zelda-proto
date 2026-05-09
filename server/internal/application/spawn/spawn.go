@@ -202,10 +202,14 @@ func (s *System) makeEnemy(id string, x, y float64, chunkKey string, index int, 
 		}
 		return enemy.NewPacmanGhost(id, x, y, chunkKey, variant, s.cfg.DefaultDropKind)
 	}
-	if elite {
-		return enemy.NewElite(id, x, y, chunkKey, s.cfg.EnemyConfig, s.cfg.DefaultDropKind)
+	cfg := s.cfg.EnemyConfig
+	if len(s.cfg.MixedEnemyConfigs) > 0 {
+		cfg = s.cfg.MixedEnemyConfigs[index%len(s.cfg.MixedEnemyConfigs)]
 	}
-	return enemy.New(id, x, y, chunkKey, s.cfg.EnemyConfig, s.cfg.DefaultDropKind)
+	if elite {
+		return enemy.NewElite(id, x, y, chunkKey, cfg, s.cfg.DefaultDropKind)
+	}
+	return enemy.New(id, x, y, chunkKey, cfg, s.cfg.DefaultDropKind)
 }
 
 // seededRandom mirrors client/src/shared/utils.ts (32-bit semantics via int32).

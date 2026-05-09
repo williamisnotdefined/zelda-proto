@@ -244,6 +244,8 @@ cloudflared tunnel info wilho
 | Blob | Contact | `5` | `1s` | Body collision damage |
 | Skeleton | Contact | `10` | `1s` | Body collision damage |
 | Hand | Contact | `15` | `1s` | Body collision damage |
+| Knight | Contact | `14` | `1s` | Body collision damage |
+| Knight | Blade wave | `12` | ability rotation | Ranged moving sword-wave projectile |
 | Pacman Ghost | Contact | `20` | `1s` | Body collision damage |
 | Gelehk | Contact | `10` | `1s` per target | Body collision damage |
 | Gelehk | Charge | `20` | `2.5s` in phase 2 | Charge attack during phase 2 |
@@ -273,6 +275,8 @@ cloudflared tunnel info wilho
 | Skeleton (Elite) | Enemy | `135` | `30` contact | Phase 2 elite enemy, 2x size |
 | Hand | Enemy | `60` | `15` contact | Phase 3 enemy |
 | Hand (Elite) | Enemy | `180` | `45` contact | Phase 3 elite enemy, 2x size |
+| Knight | Enemy | `70` | `14` contact, `12` blade wave | Phase 3 mixed enemy; can shield, sprint, roll, and cast ranged sword waves |
+| Knight (Elite) | Enemy | `210` | `42` contact, `18` blade wave | Phase 3 elite enemy, 2x collision size, faster ability cadence |
 | Pacman Ghost | Enemy | `80` | `20` contact | Phase 4 enemy |
 | Pacman Ghost (Elite) | Enemy | `240` | `60` contact | Phase 4 elite enemy, 2x size |
 | Gelehk | Boss | `130` | `10` contact, `20` charge, `15` wave | Three-phase phase 1 boss |
@@ -288,7 +292,7 @@ cloudflared tunnel info wilho
 | --- | --- | --- |
 | Phase 1 | Blob | `10` monsters per chunk |
 | Phase 2 | Skeleton | `14` monsters per chunk |
-| Phase 3 | Hand | `18` monsters per chunk |
+| Phase 3 | Hand + Knight | `18` monsters per chunk |
 | Phase 4 | Pacman Ghost | `24` monsters per chunk |
 
 ## Notes About Current Behavior

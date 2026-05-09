@@ -189,6 +189,14 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'hand_up', start: 6, end: 7, frameRate: 2.5 },
   ]);
 
+  createFullStripAnim(scene, 'knight_idle', 'knight_idle', 8);
+  createFullStripAnim(scene, 'knight_run', 'knight_run', 12);
+  createFullStripAnim(scene, 'knight_attack', 'knight_attack', 18, 0);
+  createFullStripAnim(scene, 'knight_roll', 'knight_roll', 18, 0);
+  createFullStripAnim(scene, 'knight_jump', 'knight_jump', 14, 0);
+  createFullStripAnim(scene, 'knight_shield', 'knight_shield', 10);
+  createFullStripAnim(scene, 'knight_death', 'knight_death', 9, 0);
+
   for (const variant of Object.values(PACMAN_GHOST_VARIANTS)) {
     createStripDirectionAnims(scene, `pacman_ghost_${variant}`, [
       { key: `pacman_ghost_${variant}_down`, start: 6, end: 7, frameRate: 8 },

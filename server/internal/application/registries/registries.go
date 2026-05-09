@@ -71,15 +71,16 @@ var Phase4BossDefinition = Phase4Boss{
 
 // SpawnSystemConfig configures the chunk-based monster spawner.
 type SpawnSystemConfig struct {
-	ChunkSize       int
-	EnemiesPerChunk int
-	ActiveRange     float64
-	DespawnTimeMS   int64
-	EnemyPrefix     string
-	EnemyKind       enemy.Kind
-	EnemyConfig     enemy.Config
-	DefaultDropKind drop.Kind
-	PacmanVariants  bool
+	ChunkSize         int
+	EnemiesPerChunk   int
+	ActiveRange       float64
+	DespawnTimeMS     int64
+	EnemyPrefix       string
+	EnemyKind         enemy.Kind
+	EnemyConfig       enemy.Config
+	MixedEnemyConfigs []enemy.Config
+	DefaultDropKind   drop.Kind
+	PacmanVariants    bool
 }
 
 // BossRegionConfig configures the player-relative boss respawner.
@@ -208,9 +209,10 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			SpawnSystem: SpawnSystemConfig{
 				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.DefaultEnemiesPerChunk,
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
-				EnemyPrefix: "hand",
+				EnemyPrefix: "phase3_enemy",
 				EnemyKind:   enemy.KindHand, EnemyConfig: enemy.HandConfig,
-				DefaultDropKind: drop.KindHeartLarge,
+				MixedEnemyConfigs: []enemy.Config{enemy.HandConfig, enemy.KnightConfig},
+				DefaultDropKind:   drop.KindHeartLarge,
 			},
 			BossRegion: BossRegionConfig{
 				Enabled: false, RegionSize: 2600, ActiveRange: 2200,

@@ -175,6 +175,63 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
+    this.load.spritesheet(
+      'knight_idle',
+      'assets/sprites/monsters/Knight/noBKG_KnightIdle_strip.png',
+      {
+        frameWidth: 64,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_run',
+      'assets/sprites/monsters/Knight/noBKG_KnightRun_strip.png',
+      {
+        frameWidth: 96,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_attack',
+      'assets/sprites/monsters/Knight/noBKG_KnightAttack_strip.png',
+      {
+        frameWidth: 144,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_roll',
+      'assets/sprites/monsters/Knight/noBKG_KnightRoll_strip.png',
+      {
+        frameWidth: 180,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_jump',
+      'assets/sprites/monsters/Knight/noBKG_KnightJumpAndFall_strip.png',
+      {
+        frameWidth: 144,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_shield',
+      'assets/sprites/monsters/Knight/noBKG_KnightShield_strip.png',
+      {
+        frameWidth: 96,
+        frameHeight: 64,
+      }
+    );
+    this.load.spritesheet(
+      'knight_death',
+      'assets/sprites/monsters/Knight/noBKG_KnightDeath_strip.png',
+      {
+        frameWidth: 96,
+        frameHeight: 64,
+      }
+    );
+
     this.load.spritesheet('pacman_ghost_red', 'assets/sprites/monsters/pacman_ghost_red.png', {
       frameWidth: 86,
       frameHeight: 86,

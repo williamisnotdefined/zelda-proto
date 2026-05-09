@@ -144,6 +144,34 @@ func TestPacmanGhostVariantPropagated(t *testing.T) {
 	}
 }
 
+func TestKnightQueuesBladeWaveAtRange(t *testing.T) {
+	t.Parallel()
+
+	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindHeartLarge)
+	e.Update(50*time.Millisecond, []PlayerView{aliveTarget("p1", 320, 0)}, false, 0, 0, 0, nil)
+	if e.State != StateCasting {
+		t.Fatalf("expected knight casting, got %s", e.State)
+	}
+	direction, ok := e.ConsumeKnightBladeWave()
+	if !ok || direction != "right" {
+		t.Fatalf("expected right blade wave, got direction=%q ok=%v", direction, ok)
+	}
+	if _, ok := e.ConsumeKnightBladeWave(); ok {
+		t.Fatal("expected blade wave queue to be drained")
+	}
+}
+
+func TestKnightShieldReducesDamage(t *testing.T) {
+	t.Parallel()
+
+	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindHeartLarge)
+	e.State = StateShielding
+	e.TakeDamage(10)
+	if got, want := e.HP, KnightConfig.MaxHP-5; got != want {
+		t.Fatalf("expected shielded damage to halve hp to %d, got %d", want, got)
+	}
+}
+
 func TestEliteSnapshotPropagated(t *testing.T) {
 	t.Parallel()
 

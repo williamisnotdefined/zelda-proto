@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/config"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/enemy"
 	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
@@ -60,5 +61,15 @@ func TestPhase3HasEntryBosses(t *testing.T) {
 	def := All()[domworld.InstancePhase3]
 	if len(def.Phase3EntryBosses) != 3 {
 		t.Fatalf("phase3 must seed 3 entry bosses, got %d", len(def.Phase3EntryBosses))
+	}
+}
+
+func TestPhase3MixesHandsAndKnights(t *testing.T) {
+	def := All()[domworld.InstancePhase3]
+	if len(def.SpawnSystem.MixedEnemyConfigs) != 2 {
+		t.Fatalf("phase3 must mix hand and knight configs, got %d", len(def.SpawnSystem.MixedEnemyConfigs))
+	}
+	if def.SpawnSystem.MixedEnemyConfigs[0].Kind != enemy.KindHand || def.SpawnSystem.MixedEnemyConfigs[1].Kind != enemy.KindKnight {
+		t.Fatalf("phase3 mix mismatch: %+v", def.SpawnSystem.MixedEnemyConfigs)
 	}
 }

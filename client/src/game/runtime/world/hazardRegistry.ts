@@ -4,6 +4,7 @@ import type Phaser from 'phaser';
 import { BlueFlameHazardEntity } from '../../../entities/BlueFlameHazardEntity';
 import { FireFieldHazardEntity } from '../../../entities/FireFieldHazardEntity';
 import { GrenadeHazardEntity } from '../../../entities/GrenadeHazardEntity';
+import { KnightBladeWaveHazardEntity } from '../../../entities/KnightBladeWaveHazardEntity';
 import { LandmineHazardEntity } from '../../../entities/LandmineHazardEntity';
 import { PurpleFieldHazardEntity } from '../../../entities/PurpleFieldHazardEntity';
 
@@ -12,7 +13,8 @@ type HazardEntity =
   | PurpleFieldHazardEntity
   | BlueFlameHazardEntity
   | GrenadeHazardEntity
-  | LandmineHazardEntity;
+  | LandmineHazardEntity
+  | KnightBladeWaveHazardEntity;
 
 export const hazardRegistry: Record<
   HazardKind,
@@ -45,5 +47,8 @@ export const hazardRegistry: Record<
   [HAZARD_KINDS.MOLOTOV_EXPLOSION]: {
     create: (scene, snapshot) =>
       new LandmineHazardEntity(scene, snapshot.x, snapshot.y, snapshot.kind),
+  },
+  [HAZARD_KINDS.KNIGHT_BLADE_WAVE]: {
+    create: (scene, snapshot) => new KnightBladeWaveHazardEntity(scene, snapshot),
   },
 };

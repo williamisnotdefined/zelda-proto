@@ -20,6 +20,7 @@ const (
 	KindLandmine          Kind = "landmine"
 	KindLandmineExplosion Kind = "landmine_explosion"
 	KindMolotovExplosion  Kind = "molotov_explosion"
+	KindKnightBladeWave   Kind = "knight_blade_wave"
 )
 
 // Tick parameters.
@@ -40,6 +41,11 @@ const (
 	LandmineTTL             = 30 * time.Second
 	LandmineExplosionTTL    = 420 * time.Millisecond
 	LandmineExplosionRadius = 180
+	KnightBladeWaveTTL      = 900 * time.Millisecond
+	KnightBladeWaveDamage   = 12
+	KnightBladeWaveRadius   = 28
+	KnightBladeWaveDistance = 460
+	KnightBladeWaveSpeed    = 520
 )
 
 // Effect identifies the status effect applied by a hazard.
@@ -76,6 +82,8 @@ func TTLFor(k Kind) time.Duration {
 		return LandmineTTL
 	case KindLandmineExplosion, KindMolotovExplosion:
 		return LandmineExplosionTTL
+	case KindKnightBladeWave:
+		return KnightBladeWaveTTL
 	}
 	return DefaultTTL
 }
@@ -153,6 +161,26 @@ func NewLandmineExplosion(id string, x, y float64) *Hazard {
 	h.Damage = 0
 	h.BurningTicks = 0
 	h.HitRadius = LandmineExplosionRadius
+	return h
+}
+
+// NewKnightBladeWave builds the Knight's moving sword-wave projectile.
+func NewKnightBladeWave(id string, x, y float64, direction domworld.Direction, elite bool) *Hazard {
+	h := New(id, x, y, KindKnightBladeWave)
+	h.TTL = KnightBladeWaveTTL
+	h.Damage = KnightBladeWaveDamage
+	if elite {
+		h.Damage += 6
+		h.Tint = 0xff4f6d
+	} else {
+		h.Tint = 0xffd76b
+	}
+	h.BurningTicks = 0
+	h.HitRadius = KnightBladeWaveRadius
+	h.Direction = direction
+	h.Speed = KnightBladeWaveSpeed
+	h.RemainingDistance = KnightBladeWaveDistance
+	h.HitsPlayers = true
 	return h
 }
 

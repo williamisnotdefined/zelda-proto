@@ -9,6 +9,10 @@ vi.mock('../../../entities/Hand', () => ({
   HandEntity: class HandEntity {},
 }));
 
+vi.mock('../../../entities/Knight', () => ({
+  KnightEntity: class KnightEntity {},
+}));
+
 vi.mock('../../../entities/PacmanGhost', () => ({
   PacmanGhostEntity: class PacmanGhostEntity {
     variant?: string;

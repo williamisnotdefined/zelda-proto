@@ -6,6 +6,16 @@ export type PlayerState = 'idle' | 'moving' | 'dead';
 
 export type BlobState = 'idle' | 'chasing' | 'attacking' | 'dead';
 
+export type KnightState =
+  | 'idle'
+  | 'chasing'
+  | 'attacking'
+  | 'shielding'
+  | 'sprinting'
+  | 'rolling'
+  | 'casting'
+  | 'dead';
+
 export const INSTANCE_IDS = {
   PHASE1: 'phase1',
   PHASE2: 'phase2',
@@ -19,6 +29,7 @@ export const ENEMY_KINDS = {
   BLOB: 'blob',
   SKELETON: 'skeleton',
   HAND: 'hand',
+  KNIGHT: 'knight',
   PACMAN_GHOST: 'pacman_ghost',
 } as const;
 
@@ -72,6 +83,7 @@ export const HAZARD_KINDS = {
   LANDMINE: 'landmine',
   LANDMINE_EXPLOSION: 'landmine_explosion',
   MOLOTOV_EXPLOSION: 'molotov_explosion',
+  KNIGHT_BLADE_WAVE: 'knight_blade_wave',
 } as const;
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
@@ -190,7 +202,7 @@ export interface EnemySnapshot {
   state: EnemyState;
 }
 
-export type EnemyState = BlobState;
+export type EnemyState = BlobState | KnightState;
 
 export interface EnemyTransformSnapshot {
   id: string;

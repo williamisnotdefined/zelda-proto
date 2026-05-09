@@ -1,5 +1,5 @@
 // Package enemy hosts the Enemy aggregate (Blob and its variants Skeleton, Hand,
-// PacmanGhost). Variants are configuration-driven: a single Enemy struct
+// Knight, PacmanGhost). Variants are configuration-driven: a single Enemy struct
 // covers all kinds.
 package enemy
 
@@ -10,6 +10,7 @@ import (
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/drop"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/physics"
+	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
 // Kind identifies the enemy variant. Mirrors client/src/shared/types.ts.
@@ -20,6 +21,7 @@ const (
 	KindBlob        Kind = "blob"
 	KindSkeleton    Kind = "skeleton"
 	KindHand        Kind = "hand"
+	KindKnight      Kind = "knight"
 	KindPacmanGhost Kind = "pacman_ghost"
 )
 
@@ -31,6 +33,10 @@ const (
 	StateIdle      State = "idle"
 	StateChasing   State = "chasing"
 	StateAttacking State = "attacking"
+	StateShielding State = "shielding"
+	StateSprinting State = "sprinting"
+	StateRolling   State = "rolling"
+	StateCasting   State = "casting"
 	StateDead      State = "dead"
 )
 
@@ -51,6 +57,22 @@ const TargetReacquireInterval = 120 * time.Millisecond
 const (
 	EliteSizeMultiplier = 2
 	EliteStatMultiplier = 3
+)
+
+const (
+	knightBladeWaveMinRange = 150
+	knightBladeWaveMaxRange = 620
+	knightSprintMinRange    = 180
+	knightSprintMaxRange    = 520
+	knightRollRange         = 115
+	knightShieldRange       = 130
+	knightCastDuration      = 420 * time.Millisecond
+	knightSprintDuration    = 360 * time.Millisecond
+	knightRollDuration      = 420 * time.Millisecond
+	knightShieldDuration    = 520 * time.Millisecond
+	knightAbilityCooldown   = 1500 * time.Millisecond
+	knightSprintSpeed       = 265
+	knightRollSpeed         = 215
 )
 
 // PlayerSize is the conventional axis-aligned player extent.
@@ -89,6 +111,11 @@ var (
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}
+	KnightConfig = Config{
+		Kind: KindKnight, MaxHP: 70, Speed: 74, Damage: 14,
+		AggroRadius: 760, ContactRadius: 26,
+		Width: 56, Height: 56, RespawnTime: 10 * time.Second,
+	}
 	PacmanGhostConfig = Config{
 		Kind: KindPacmanGhost, MaxHP: 80, Speed: 90, Damage: 20,
 		AggroRadius: 600, ContactRadius: 24,
@@ -125,6 +152,13 @@ type Enemy struct {
 
 	reacquireTimer  time.Duration
 	reacquireOffset time.Duration
+
+	knightAbilityTimer       time.Duration
+	knightAbilityCooldown    time.Duration
+	knightDirX, knightDirY   float64
+	knightAbilitySerial      int
+	knightBladeWaveQueued    bool
+	knightBladeWaveDirection domworld.Direction
 }
 
 // New constructs an enemy at (x, y) with the supplied configuration.
@@ -199,6 +233,16 @@ func (e *Enemy) Update(dt time.Duration, players []PlayerView, spawnSafeZoneActi
 	if e.State == StateDead {
 		return
 	}
+	if e.knightAbilityCooldown > 0 {
+		e.knightAbilityCooldown -= dt
+		if e.knightAbilityCooldown < 0 {
+			e.knightAbilityCooldown = 0
+		}
+	}
+	if e.Kind == KindKnight {
+		e.updateKnight(dt, players, spawnSafeZoneActive, spawnX, spawnY, safeRadius, find)
+		return
+	}
 
 	e.reacquireTimer -= dt
 	if e.reacquireTimer <= 0 {
@@ -235,6 +279,166 @@ func (e *Enemy) Update(dt time.Duration, players []PlayerView, spawnSafeZoneActi
 	if e.overlapsTarget(target) && e.DamageCooldown <= 0 {
 		e.State = StateAttacking
 	}
+}
+
+func (e *Enemy) updateKnight(dt time.Duration, players []PlayerView, spawnSafeZoneActive bool, spawnX, spawnY, safeRadius float64, find FindNearestPlayer) {
+	e.reacquireTimer -= dt
+	if e.reacquireTimer <= 0 {
+		e.reacquireTimer = TargetReacquireInterval + e.reacquireOffset
+		e.acquireTarget(players, find)
+	}
+
+	target := e.lookupTarget(players)
+	if target == nil {
+		e.TargetID = ""
+		e.State = StateIdle
+		e.knightAbilityTimer = 0
+		return
+	}
+
+	dx := target.X - e.X
+	dy := target.Y - e.Y
+	dist := math.Hypot(dx, dy)
+	if dist == 0 {
+		dx, dist = 1, 1
+	}
+	dirX := dx / dist
+	dirY := dy / dist
+
+	if e.knightAbilityTimer > 0 {
+		e.advanceKnightAbility(dt, spawnSafeZoneActive, spawnX, spawnY, safeRadius)
+		return
+	}
+
+	if e.overlapsTarget(target) && e.DamageCooldown <= 0 {
+		e.State = StateAttacking
+		return
+	}
+
+	if e.knightAbilityCooldown <= 0 && e.tryStartKnightAbility(dist, dirX, dirY) {
+		return
+	}
+
+	step := e.Config.Speed * dt.Seconds()
+	e.moveKnightBy(dirX, dirY, step, spawnSafeZoneActive, spawnX, spawnY, safeRadius)
+	e.State = StateChasing
+	if e.overlapsTarget(target) && e.DamageCooldown <= 0 {
+		e.State = StateAttacking
+	}
+}
+
+func (e *Enemy) tryStartKnightAbility(dist, dirX, dirY float64) bool {
+	choice := e.knightAbilitySerial % 4
+
+	if dist <= knightRollRange {
+		rollX, rollY := -dirX, -dirY
+		if choice%2 == 1 {
+			rollX, rollY = -dirY, dirX
+		}
+		e.startKnightAbility(StateRolling, knightRollDuration, rollX, rollY)
+		return true
+	}
+
+	if dist <= knightShieldRange && choice == 3 {
+		e.startKnightAbility(StateShielding, knightShieldDuration, 0, 0)
+		return true
+	}
+
+	if dist >= knightSprintMinRange && dist <= knightSprintMaxRange && (choice == 1 || choice == 2) {
+		e.startKnightAbility(StateSprinting, knightSprintDuration, dirX, dirY)
+		return true
+	}
+
+	if dist >= knightBladeWaveMinRange && dist <= knightBladeWaveMaxRange {
+		e.startKnightAbility(StateCasting, knightCastDuration, 0, 0)
+		e.knightBladeWaveQueued = true
+		e.knightBladeWaveDirection = cardinalDirection(dirX, dirY)
+		return true
+	}
+
+	if dist <= knightShieldRange {
+		e.startKnightAbility(StateShielding, knightShieldDuration, 0, 0)
+		return true
+	}
+
+	return false
+}
+
+func (e *Enemy) startKnightAbility(state State, duration time.Duration, dirX, dirY float64) {
+	e.State = state
+	e.knightAbilityTimer = duration
+	e.knightAbilityCooldown = e.knightCooldown(knightAbilityCooldown)
+	e.knightDirX = dirX
+	e.knightDirY = dirY
+	e.knightAbilitySerial++
+}
+
+func (e *Enemy) advanceKnightAbility(dt time.Duration, spawnSafeZoneActive bool, spawnX, spawnY, safeRadius float64) {
+	if e.State == StateSprinting || e.State == StateRolling {
+		speed := knightSprintSpeed
+		if e.State == StateRolling {
+			speed = knightRollSpeed
+		}
+		if e.Elite {
+			speed = int(float64(speed) * 1.18)
+		}
+		e.moveKnightBy(e.knightDirX, e.knightDirY, float64(speed)*dt.Seconds(), spawnSafeZoneActive, spawnX, spawnY, safeRadius)
+	}
+
+	e.knightAbilityTimer -= dt
+	if e.knightAbilityTimer <= 0 {
+		e.knightAbilityTimer = 0
+		e.State = StateIdle
+	}
+}
+
+func (e *Enemy) moveKnightBy(dirX, dirY, step float64, spawnSafeZoneActive bool, spawnX, spawnY, safeRadius float64) {
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	nx := e.X + dirX*step
+	ny := e.Y + dirY*step
+	if spawnSafeZoneActive && physics.IsInSafeZone(nx, ny, spawnX, spawnY, safeRadius) {
+		nx = e.X + (-dirY)*step
+		ny = e.Y + dirX*step
+	}
+	e.X, e.Y = nx, ny
+}
+
+func (e *Enemy) knightCooldown(base time.Duration) time.Duration {
+	if e.Elite {
+		return time.Duration(float64(base) * 0.72)
+	}
+	return base
+}
+
+func cardinalDirection(dx, dy float64) domworld.Direction {
+	if math.Abs(dx) >= math.Abs(dy) {
+		if dx < 0 {
+			return domworld.DirectionLeft
+		}
+		return domworld.DirectionRight
+	}
+	if dy < 0 {
+		return domworld.DirectionUp
+	}
+	return domworld.DirectionDown
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// ConsumeKnightBladeWave drains the one-shot ranged attack queued by the Knight AI.
+func (e *Enemy) ConsumeKnightBladeWave() (domworld.Direction, bool) {
+	if !e.knightBladeWaveQueued {
+		return "", false
+	}
+	e.knightBladeWaveQueued = false
+	return e.knightBladeWaveDirection, e.knightBladeWaveDirection != ""
 }
 
 func (e *Enemy) acquireTarget(players []PlayerView, find FindNearestPlayer) {
@@ -297,6 +501,9 @@ func (e *Enemy) TakeDamage(amount int) {
 	if amount <= 0 || e.State == StateDead {
 		return
 	}
+	if e.Kind == KindKnight && e.State == StateShielding {
+		amount = max(1, amount/2)
+	}
 	e.HP -= amount
 	if e.HP <= 0 {
 		e.HP = 0
@@ -323,6 +530,10 @@ func (e *Enemy) TryRespawn(dt time.Duration) bool {
 	e.DamageCooldown = 0
 	e.TargetID = ""
 	e.HasDropped = false
+	e.knightAbilityTimer = 0
+	e.knightAbilityCooldown = 0
+	e.knightBladeWaveQueued = false
+	e.knightBladeWaveDirection = ""
 	return true
 }
 

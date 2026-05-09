@@ -60,6 +60,10 @@ export const enemyDefinitions: Record<EnemyKind, EnemyDefinition> = {
     kind: ENEMY_KINDS.HAND,
     family: 'hand',
   },
+  [ENEMY_KINDS.KNIGHT]: {
+    kind: ENEMY_KINDS.KNIGHT,
+    family: 'knight',
+  },
   [ENEMY_KINDS.PACMAN_GHOST]: {
     kind: ENEMY_KINDS.PACMAN_GHOST,
     family: 'pacman_ghost',
@@ -206,5 +210,12 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     hitRadius: 180,
     burningTicks: 0,
     idPrefix: 'hazard_molotov_explosion',
+  },
+  [HAZARD_KINDS.KNIGHT_BLADE_WAVE]: {
+    kind: HAZARD_KINDS.KNIGHT_BLADE_WAVE,
+    ttlMs: 900,
+    hitRadius: 28,
+    burningTicks: 0,
+    idPrefix: 'hazard_knight_blade_wave',
   },
 };

@@ -829,6 +829,9 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
 			continue
 		}
 		e.Update(dt, views, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius, find)
+		if direction, ok := e.ConsumeKnightBladeWave(); ok {
+			w.spawnKnightBladeWave(e, direction)
+		}
 		w.enemyIndex.Upsert(id, e.X, e.Y)
 	}
 }
@@ -1397,6 +1400,9 @@ func (w *World) tickHazards(dt time.Duration) {
 			w.hazardIndex.Remove(id)
 			continue
 		}
+		if h.Speed > 0 {
+			w.hazardIndex.Upsert(id, h.X, h.Y)
+		}
 		effect := hazard.EffectFor(h.Kind)
 
 		for _, p := range w.players {
@@ -1582,6 +1588,16 @@ func (w *World) spawnDashTrail(
 		w.hazards[id] = h
 		w.hazardIndex.Upsert(id, x, y)
 	}
+}
+
+func (w *World) spawnKnightBladeWave(e *enemy.Enemy, direction domworld.Direction) {
+	if w.cfg.IDs == nil || e == nil || direction == "" {
+		return
+	}
+	id := w.cfg.IDs.NewID(string(hazard.KindKnightBladeWave))
+	h := hazard.NewKnightBladeWave(id, e.X, e.Y, direction, e.Elite)
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, h.X, h.Y)
 }
 
 func (w *World) spawnPlayerGrenade(
