@@ -33,6 +33,7 @@ func NewInputMessage(seq int64, input ClientInputState) InputMessage {
 		Grenade:         input.Grenade,
 		Molotov:         input.Molotov,
 		Landmine:        input.Landmine,
+		Shuriken:        input.Shuriken,
 	}
 }
 

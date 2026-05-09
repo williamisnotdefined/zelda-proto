@@ -593,6 +593,58 @@ func TestProtectedCasterMolotovSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	}
 }
 
+func TestPlayerShurikenDamagesNearbyActorsStealsLifeAndAbsorbsDamage(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	tx, ty := ax+90, ay
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	attacker.TakeDamage(10)
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", ax, ay+120, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+	d := boss.NewDragonLord("d1", ax-120, ay)
+	d.Speed = 0
+	d.Damage = 0
+	d.AttackCD = time.Hour
+	w.SpawnDragon(d)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Shuriken: true})
+	w.Tick(20 * time.Millisecond)
+	if !attacker.Snapshot().ShurikenActive {
+		t.Fatal("expected shuriken to be active after cast")
+	}
+
+	attacker.TakeDamage(10)
+	if got, want := attacker.HP, player.MaxHP-18; got != want {
+		t.Fatalf("expected shuriken to absorb 20%% incoming damage, want HP=%d got %d", want, got)
+	}
+
+	for i := 0; i < 4; i++ {
+		w.Tick(player.ShurikenTickInterval)
+	}
+
+	if got, want := e.HP, passiveConfig.MaxHP-player.ShurikenDamage*4; got != want {
+		t.Fatalf("expected enemy HP=%d after shuriken ticks, got %d", want, got)
+	}
+	if got, want := d.HP, boss.DragonLordMaxHP-player.ShurikenDamage*4; got != want {
+		t.Fatalf("expected boss HP=%d after shuriken ticks, got %d", want, got)
+	}
+	if got, want := target.HP, player.MaxHP-player.ShurikenDamage*4; got != want {
+		t.Fatalf("expected target HP=%d after shuriken ticks, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-15; got != want {
+		t.Fatalf("expected attacker HP=%d after shuriken lifesteal, got %d", want, got)
+	}
+}
+
 func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	t.Parallel()
 

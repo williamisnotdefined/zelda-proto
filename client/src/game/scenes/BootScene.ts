@@ -181,11 +181,13 @@ export class BootScene extends Phaser.Scene {
     this.load.image('grenade', 'assets/sprites/attacks/grenade_48x48.png');
     this.load.image('molotov', 'assets/sprites/attacks/molotov.png');
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
+    this.load.spritesheet('shuriken', 'assets/sprites/attacks/shuriken.png', {
+      frameWidth: 99,
+      frameHeight: 99,
+      spacing: 1,
+    });
     this.load.image(EXPLOSION_STRIP_TEXTURE_KEY, 'assets/sprites/attacks/explosion.png');
-    this.load.image(
-      MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY,
-      'assets/sprites/attacks/explosion_2.png'
-    );
+    this.load.image(MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY, 'assets/sprites/attacks/explosion_2.png');
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');

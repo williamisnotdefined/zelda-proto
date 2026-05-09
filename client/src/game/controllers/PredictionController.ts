@@ -55,7 +55,8 @@ export class PredictionController {
           serverPlayer.maxHp,
           serverPlayer.state,
           serverPlayer.direction,
-          serverPlayer.statusEffects
+          serverPlayer.statusEffects,
+          serverPlayer.shurikenActive === true
         );
       }
       onResetAccumulator();
@@ -78,7 +79,8 @@ export class PredictionController {
         serverPlayer.maxHp,
         serverPlayer.state,
         serverPlayer.direction,
-        serverPlayer.statusEffects
+        serverPlayer.statusEffects,
+        serverPlayer.shurikenActive === true
       );
 
       return reconciled.filteredPending;

@@ -46,6 +46,9 @@ export class PlayerRuntime {
       },
       (time) => {
         this.ui.setLandmineCooldownEndsAt(time);
+      },
+      (time) => {
+        this.ui.setShurikenCooldownEndsAt(time);
       }
     );
   }
@@ -196,7 +199,8 @@ export class PlayerRuntime {
       player.maxHp,
       player.state,
       player.direction,
-      player.statusEffects
+      player.statusEffects,
+      player.shurikenActive === true
     );
     entity.syncWaveIndicator(waveIndicator);
     if (damageTaken > 0) {

@@ -61,6 +61,7 @@ export interface GameStore {
   grenadeCooldownEndsAt: number | null;
   molotovCooldownEndsAt: number | null;
   landmineCooldownEndsAt: number | null;
+  shurikenCooldownEndsAt: number | null;
   boss: BossData | null;
   connected: boolean;
   connectionState: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
@@ -80,6 +81,7 @@ export interface GameStore {
   setGrenadeCooldownEndsAt: (time: number | null) => void;
   setMolotovCooldownEndsAt: (time: number | null) => void;
   setLandmineCooldownEndsAt: (time: number | null) => void;
+  setShurikenCooldownEndsAt: (time: number | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
   setConnectionState: (state: GameStore['connectionState']) => void;
@@ -103,6 +105,7 @@ export const useGameStore = create<GameStore>((set) => ({
   grenadeCooldownEndsAt: null,
   molotovCooldownEndsAt: null,
   landmineCooldownEndsAt: null,
+  shurikenCooldownEndsAt: null,
   boss: null,
   connected: false,
   connectionState: 'DISCONNECTED',
@@ -122,6 +125,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setGrenadeCooldownEndsAt: (grenadeCooldownEndsAt) => set({ grenadeCooldownEndsAt }),
   setMolotovCooldownEndsAt: (molotovCooldownEndsAt) => set({ molotovCooldownEndsAt }),
   setLandmineCooldownEndsAt: (landmineCooldownEndsAt) => set({ landmineCooldownEndsAt }),
+  setShurikenCooldownEndsAt: (shurikenCooldownEndsAt) => set({ shurikenCooldownEndsAt }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),
   setConnectionState: (state) => set({ connectionState: state }),

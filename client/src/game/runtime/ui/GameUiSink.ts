@@ -18,6 +18,7 @@ export interface GameUiSink {
   setGrenadeCooldownEndsAt(time: number | null): void;
   setMolotovCooldownEndsAt(time: number | null): void;
   setLandmineCooldownEndsAt(time: number | null): void;
+  setShurikenCooldownEndsAt(time: number | null): void;
   setBoss(boss: BossData | null): void;
   setLeaderboard(players: PlayerLeaderboardEntry[]): void;
 }

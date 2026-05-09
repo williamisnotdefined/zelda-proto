@@ -17,6 +17,7 @@ type ClientInputState struct {
 	Grenade  bool
 	Molotov  bool
 	Landmine bool
+	Shuriken bool
 }
 
 type JoinMessage struct {
@@ -55,6 +56,7 @@ type InputMessage struct {
 	Grenade         bool              `json:"grenade" msgpack:"grenade"`
 	Molotov         bool              `json:"molotov" msgpack:"molotov"`
 	Landmine        bool              `json:"landmine" msgpack:"landmine"`
+	Shuriken        bool              `json:"shuriken" msgpack:"shuriken"`
 }
 
 func (InputMessage) MessageType() ClientMessageType {

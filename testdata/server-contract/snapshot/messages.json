@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 13,
+  "protocolVersion": 14,
   "inputs": {
     "initialBundle": {
       "instanceId": "phase1",
@@ -22,7 +22,8 @@
             "burning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-2",
@@ -38,7 +39,8 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {}
+          "statusEffects": {},
+          "shurikenActive": false
         }
       ],
       "enemies": [
@@ -153,7 +155,8 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-3",
@@ -173,7 +176,8 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         }
       ],
       "enemies": [
@@ -278,7 +282,7 @@
   },
   "messages": {
     "initialFullSnapshot": {
-      "protocolVersion": 13,
+      "protocolVersion": 14,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -300,7 +304,8 @@
             "burning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-2",
@@ -316,7 +321,8 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {}
+          "statusEffects": {},
+          "shurikenActive": false
         }
       ],
       "enemies": [
@@ -408,7 +414,7 @@
       ]
     },
     "initialFullDelta": {
-      "protocolVersion": 13,
+      "protocolVersion": 14,
       "type": "snapshot_delta",
       "tick": 4,
       "full": true,
@@ -432,7 +438,8 @@
             "burning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-2",
@@ -448,7 +455,8 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {}
+          "statusEffects": {},
+          "shurikenActive": false
         }
       ],
       "removedPlayerIds": [],
@@ -548,7 +556,7 @@
       ]
     },
     "updatedIncrementalDelta": {
-      "protocolVersion": 13,
+      "protocolVersion": 14,
       "type": "snapshot_delta",
       "tick": 5,
       "full": false,
@@ -575,7 +583,8 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-3",
@@ -595,7 +604,8 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         }
       ],
       "removedPlayerIds": [
@@ -708,7 +718,7 @@
       ]
     },
     "updatedFullSnapshot": {
-      "protocolVersion": 13,
+      "protocolVersion": 14,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -733,7 +743,8 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          }
+          },
+          "shurikenActive": false
         },
         {
           "id": "player-3",
@@ -753,7 +764,8 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          }
+          },
+          "shurikenActive": false
         }
       ],
       "enemies": [

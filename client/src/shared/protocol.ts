@@ -41,6 +41,7 @@ export type ClientInputState = Pick<
   | 'grenade'
   | 'molotov'
   | 'landmine'
+  | 'shuriken'
 >;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
 
@@ -49,17 +50,6 @@ const SNAPSHOT_RESYNC_REASON_SET = new Set<string>(Object.values(SNAPSHOT_RESYNC
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
-}
-
-function hasControlCharacters(value: string): boolean {
-  for (const char of value) {
-    const code = char.charCodeAt(0);
-    if ((code >= 0 && code <= 31) || code === 127) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function hasBooleanFields(
@@ -144,6 +134,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     grenade: input.grenade,
     molotov: input.molotov,
     landmine: input.landmine,
+    shuriken: input.shuriken,
   };
 }
 
@@ -218,6 +209,7 @@ export function parseClientMessage(
         'grenade',
         'molotov',
         'landmine',
+        'shuriken',
       ])
     ) {
       return { ok: false, reason: 'invalid_message' };
@@ -240,6 +232,7 @@ export function parseClientMessage(
         grenade: input.grenade,
         molotov: input.molotov,
         landmine: input.landmine,
+        shuriken: input.shuriken,
       }),
     };
   }

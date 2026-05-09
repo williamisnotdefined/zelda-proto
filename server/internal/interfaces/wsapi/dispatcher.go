@@ -225,6 +225,7 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Grenade:  msg.Grenade,
 		Molotov:  msg.Molotov,
 		Landmine: msg.Landmine,
+		Shuriken: msg.Shuriken,
 	})
 	return nil
 }
@@ -417,6 +418,7 @@ func playerObj(p player.Snapshot) codec.Object {
 		{Key: "toastyCount", Value: p.ToastyCount},
 		{Key: "lastProcessedInputSeq", Value: p.LastProcessedInputSeq},
 		{Key: "statusEffects", Value: statusEffects},
+		{Key: "shurikenActive", Value: p.ShurikenActive},
 	}
 }
 

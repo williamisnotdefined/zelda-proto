@@ -5,6 +5,7 @@ import {
   PLAYER_MOLOTOV_COOLDOWN,
   PLAYER_NUMB_COOLDOWN,
   PLAYER_PULL_COOLDOWN,
+  PLAYER_SHURIKEN_COOLDOWN,
   PLAYER_VENOM_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
@@ -93,6 +94,7 @@ export function HUD() {
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
   const molotovCooldownEndsAt = useGameStore((s) => s.molotovCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((s) => s.landmineCooldownEndsAt);
+  const shurikenCooldownEndsAt = useGameStore((s) => s.shurikenCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
@@ -113,7 +115,8 @@ export function HUD() {
       !dashCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
       !molotovCooldownEndsAt &&
-      !landmineCooldownEndsAt
+      !landmineCooldownEndsAt &&
+      !shurikenCooldownEndsAt
     ) {
       setCooldownNowMs(Date.now());
       return;
@@ -131,7 +134,8 @@ export function HUD() {
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (molotovCooldownEndsAt ?? 0) &&
-        now >= (landmineCooldownEndsAt ?? 0)
+        now >= (landmineCooldownEndsAt ?? 0) &&
+        now >= (shurikenCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
       }
@@ -145,6 +149,7 @@ export function HUD() {
     molotovCooldownEndsAt,
     numbCooldownEndsAt,
     pullCooldownEndsAt,
+    shurikenCooldownEndsAt,
     venomCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
@@ -193,6 +198,11 @@ export function HUD() {
   const landmineCooldownProgress = landmineReady
     ? 1
     : 1 - landmineCooldownRemainingMs / PLAYER_LANDMINE_COOLDOWN;
+  const shurikenCooldownRemainingMs = Math.max(0, (shurikenCooldownEndsAt ?? 0) - cooldownNowMs);
+  const shurikenReady = !shurikenCooldownEndsAt || shurikenCooldownRemainingMs <= 0;
+  const shurikenCooldownProgress = shurikenReady
+    ? 1
+    : 1 - shurikenCooldownRemainingMs / PLAYER_SHURIKEN_COOLDOWN;
   const hpRatio = localPlayer ? localPlayer.hp / localPlayer.maxHp : 0;
 
   const weaponAbilityMeters = [
@@ -251,6 +261,22 @@ export function HUD() {
       fillReadyClassName: 'bg-[linear-gradient(90deg,#d5c25b_0%,#fff2a6_100%)]',
       fillCooldownClassName: 'bg-[linear-gradient(90deg,#8f7b1f_0%,#d0b13a_100%)]',
       glowClassName: 'shadow-[0_0_12px_rgba(255,232,139,0.45)]',
+    },
+    {
+      label: 'Shuriken (F)',
+      ready: shurikenReady,
+      remainingMs: shurikenCooldownRemainingMs,
+      progress: shurikenCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#ffdcff]',
+      valueCooldownClassName: 'text-[#efe8ff]',
+      trackClassName:
+        'bg-[rgba(23,15,38,0.92)] border-[rgba(190,140,255,0.28)] shadow-[inset_0_0_12px_rgba(120,160,255,0.1)]',
+      fillReadyClassName:
+        'bg-[linear-gradient(90deg,#ff5bd8_0%,#59d8ff_38%,#8dff86_68%,#ffe25e_100%)]',
+      fillCooldownClassName:
+        'bg-[linear-gradient(90deg,#7346d8_0%,#2b9fcc_45%,#6bbf55_72%,#c4972d_100%)]',
+      glowClassName: 'shadow-[0_0_14px_rgba(183,129,255,0.55)]',
     },
   ];
 

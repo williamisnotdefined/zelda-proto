@@ -1,4 +1,3 @@
-- shuriken attack / protection
 - confusion (enemies start to attack other enemies)
 - more kind of monsters per phase
 - net (?)

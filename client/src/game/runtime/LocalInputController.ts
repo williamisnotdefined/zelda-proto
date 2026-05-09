@@ -6,6 +6,7 @@ import {
   PLAYER_MOLOTOV_COOLDOWN,
   PLAYER_NUMB_COOLDOWN,
   PLAYER_PULL_COOLDOWN,
+  PLAYER_SHURIKEN_COOLDOWN,
   PLAYER_VENOM_COOLDOWN,
   PLAYER_WAVE_CAST_DURATION,
   PLAYER_WAVE_COOLDOWN,
@@ -31,6 +32,7 @@ export class LocalInputController {
   private grenadeKey!: Phaser.Input.Keyboard.Key;
   private molotovKey!: Phaser.Input.Keyboard.Key;
   private landmineKey!: Phaser.Input.Keyboard.Key;
+  private shurikenKey!: Phaser.Input.Keyboard.Key;
   private prevGrenadeDown = false;
   private prevMolotovDown = false;
   private prevWaveDown = false;
@@ -38,6 +40,7 @@ export class LocalInputController {
   private prevPullDown = false;
   private prevVenomDown = false;
   private prevLandmineDown = false;
+  private prevShurikenDown = false;
   private prevUpDown = false;
   private prevDownDown = false;
   private prevLeftDown = false;
@@ -54,6 +57,7 @@ export class LocalInputController {
   private grenadeCooldownEndsAtMs = 0;
   private molotovCooldownEndsAtMs = 0;
   private landmineCooldownEndsAtMs = 0;
+  private shurikenCooldownEndsAtMs = 0;
   private waveLikeActiveUntilMs = 0;
   private readonly lastDirectionalTapAtMs: Record<Direction, number> = {
     up: 0,
@@ -73,7 +77,8 @@ export class LocalInputController {
     private readonly setDashCooldownEndsAt: (time: number | null) => void,
     private readonly setGrenadeCooldownEndsAt: (time: number | null) => void,
     private readonly setMolotovCooldownEndsAt: (time: number | null) => void,
-    private readonly setLandmineCooldownEndsAt: (time: number | null) => void
+    private readonly setLandmineCooldownEndsAt: (time: number | null) => void,
+    private readonly setShurikenCooldownEndsAt: (time: number | null) => void
   ) {
     this.bindKeys();
   }
@@ -90,6 +95,7 @@ export class LocalInputController {
     this.prevPullDown = false;
     this.prevVenomDown = false;
     this.prevLandmineDown = false;
+    this.prevShurikenDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
@@ -99,6 +105,7 @@ export class LocalInputController {
     this.grenadeCooldownEndsAtMs = 0;
     this.molotovCooldownEndsAtMs = 0;
     this.landmineCooldownEndsAtMs = 0;
+    this.shurikenCooldownEndsAtMs = 0;
     this.waveLikeActiveUntilMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setNumbCooldownEndsAt(null);
@@ -108,6 +115,7 @@ export class LocalInputController {
     this.setGrenadeCooldownEndsAt(null);
     this.setMolotovCooldownEndsAt(null);
     this.setLandmineCooldownEndsAt(null);
+    this.setShurikenCooldownEndsAt(null);
   }
 
   reset(): void {
@@ -121,6 +129,7 @@ export class LocalInputController {
     this.prevPullDown = false;
     this.prevVenomDown = false;
     this.prevLandmineDown = false;
+    this.prevShurikenDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
@@ -130,6 +139,7 @@ export class LocalInputController {
     this.grenadeCooldownEndsAtMs = 0;
     this.molotovCooldownEndsAtMs = 0;
     this.landmineCooldownEndsAtMs = 0;
+    this.shurikenCooldownEndsAtMs = 0;
     this.waveLikeActiveUntilMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setNumbCooldownEndsAt(null);
@@ -139,6 +149,7 @@ export class LocalInputController {
     this.setGrenadeCooldownEndsAt(null);
     this.setMolotovCooldownEndsAt(null);
     this.setLandmineCooldownEndsAt(null);
+    this.setShurikenCooldownEndsAt(null);
   }
 
   reconcileLocalPlayer(
@@ -198,6 +209,10 @@ export class LocalInputController {
       this.landmineCooldownEndsAtMs = 0;
       this.setLandmineCooldownEndsAt(null);
     }
+    if (localDead && this.shurikenCooldownEndsAtMs !== 0) {
+      this.shurikenCooldownEndsAtMs = 0;
+      this.setShurikenCooldownEndsAt(null);
+    }
     if (localDead) {
       this.waveLikeActiveUntilMs = 0;
       this.resetDirectionalTapState();
@@ -221,6 +236,9 @@ export class LocalInputController {
     const rawLandmineDown = this.landmineKey.isDown;
     const manualLandmine = rawLandmineDown && !this.prevLandmineDown;
     this.prevLandmineDown = rawLandmineDown;
+    const rawShurikenDown = this.shurikenKey.isDown;
+    const manualShuriken = rawShurikenDown && !this.prevShurikenDown;
+    this.prevShurikenDown = rawShurikenDown;
     const rawUpDown = this.cursors.up.isDown;
     const rawDownDown = this.cursors.down.isDown;
     const rawLeftDown = this.cursors.left.isDown;
@@ -244,6 +262,7 @@ export class LocalInputController {
     const grenadeReady = nowMs >= this.grenadeCooldownEndsAtMs;
     const molotovReady = nowMs >= this.molotovCooldownEndsAtMs;
     const landmineReady = nowMs >= this.landmineCooldownEndsAtMs;
+    const shurikenReady = nowMs >= this.shurikenCooldownEndsAtMs;
     const waveLikeReady = nowMs >= this.waveLikeActiveUntilMs;
     const manualWave = rawWaveDown && !this.prevWaveDown;
     const wave = manualWave && waveReady && waveLikeReady;
@@ -254,6 +273,7 @@ export class LocalInputController {
     const grenade = manualGrenade && grenadeReady;
     const molotov = manualMolotov && molotovReady;
     const landmine = manualLandmine && landmineReady;
+    const shuriken = manualShuriken && shurikenReady;
     this.prevWaveDown = rawWaveDown;
     if (wave) {
       this.waveCooldownEndsAtMs = nowMs + PLAYER_WAVE_COOLDOWN;
@@ -291,6 +311,10 @@ export class LocalInputController {
       this.landmineCooldownEndsAtMs = nowMs + PLAYER_LANDMINE_COOLDOWN;
       this.setLandmineCooldownEndsAt(this.landmineCooldownEndsAtMs);
     }
+    if (shuriken) {
+      this.shurikenCooldownEndsAtMs = nowMs + PLAYER_SHURIKEN_COOLDOWN;
+      this.setShurikenCooldownEndsAt(this.shurikenCooldownEndsAtMs);
+    }
 
     const inputState: InputState = {
       up: !uiBlocked && !localDead && rawUpDown,
@@ -305,6 +329,7 @@ export class LocalInputController {
       grenade: !uiBlocked && !localDead && grenade,
       molotov: !uiBlocked && !localDead && molotov,
       landmine: !uiBlocked && !localDead && landmine,
+      shuriken: !uiBlocked && !localDead && shuriken,
     };
 
     this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
@@ -323,7 +348,8 @@ export class LocalInputController {
       !inputState.dash &&
       !inputState.grenade &&
       !inputState.molotov &&
-      !inputState.landmine
+      !inputState.landmine &&
+      !inputState.shuriken
     ) {
       return;
     }
@@ -355,6 +381,7 @@ export class LocalInputController {
       grenade: false,
       molotov: false,
       landmine: false,
+      shuriken: false,
     };
     this.connection.send(input);
   }
@@ -368,6 +395,7 @@ export class LocalInputController {
     this.grenadeKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.A, false);
     this.molotovKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.D, false);
     this.landmineKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.S, false);
+    this.shurikenKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.F, false);
   }
 
   private consumeDashDirectionTap(

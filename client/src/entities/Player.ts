@@ -5,6 +5,7 @@ import { PlayerAnimationController } from './player/PlayerAnimationController';
 import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';
 import { PlayerPresentation } from './player/PlayerPresentation';
 import { PlayerStatusOverlays } from './player/PlayerStatusOverlays';
+import { PlayerShurikenOrbit } from './player/PlayerShurikenOrbit';
 import { PlayerWaveIndicator } from './player/PlayerWaveIndicator';
 import {
   LOCAL_LERP_BASE,
@@ -28,10 +29,12 @@ export class PlayerEntity {
   maxHp: number;
   nickname: string;
   statusEffects: PlayerStatusSnapshot;
+  shurikenActive: boolean;
 
   private readonly presentation: PlayerPresentation;
   private readonly statusOverlays: PlayerStatusOverlays;
   private readonly attackTelegraph: PlayerAttackTelegraph;
+  private readonly shurikenOrbit: PlayerShurikenOrbit;
   private readonly animationController: PlayerAnimationController;
   private readonly waveIndicator: PlayerWaveIndicator;
 
@@ -45,6 +48,7 @@ export class PlayerEntity {
     this.maxHp = 100;
     this.nickname = nickname;
     this.statusEffects = {};
+    this.shurikenActive = false;
     this.animationController = new PlayerAnimationController();
     this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
@@ -52,6 +56,7 @@ export class PlayerEntity {
     this.presentation = new PlayerPresentation(scene, x, y, nickname);
     this.statusOverlays = new PlayerStatusOverlays(scene, x, y);
     this.attackTelegraph = new PlayerAttackTelegraph(scene, x, y);
+    this.shurikenOrbit = new PlayerShurikenOrbit(scene);
     this.waveIndicator = new PlayerWaveIndicator(scene);
     this.hpBar = this.presentation.hpBar;
     this.hpBarBg = this.presentation.hpBarBg;
@@ -69,7 +74,8 @@ export class PlayerEntity {
     maxHp: number,
     state: string,
     direction: string,
-    statusEffects: PlayerStatusSnapshot = {}
+    statusEffects: PlayerStatusSnapshot = {},
+    shurikenActive = false
   ): void {
     const targetSpriteY = y + SPRITE_Y_OFFSET;
 
@@ -90,6 +96,7 @@ export class PlayerEntity {
     this.serverState = state;
     this.serverDirection = direction;
     this.statusEffects = statusEffects;
+    this.shurikenActive = shurikenActive;
   }
 
   update(dt: number): void {
@@ -113,6 +120,13 @@ export class PlayerEntity {
       this.serverState,
       this.serverDirection
     );
+    this.shurikenOrbit.sync(this.shurikenActive && this.serverState !== 'dead');
+    this.shurikenOrbit.update(
+      dt,
+      this.sprite.x,
+      this.sprite.y - SPRITE_Y_OFFSET,
+      this.serverState !== 'dead'
+    );
     this.waveIndicator.update(dt);
     this.animationController.update(this.sprite, this.serverState, this.serverDirection);
   }
@@ -134,6 +148,7 @@ export class PlayerEntity {
     this.presentation.destroy();
     this.attackTelegraph.destroy();
     this.statusOverlays.destroy();
+    this.shurikenOrbit.destroy();
     this.waveIndicator.destroy();
   }
 }

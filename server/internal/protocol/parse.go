@@ -144,7 +144,8 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		grenade, okGrenade := getBool(record, "grenade")
 		molotov, okMolotov := getBool(record, "molotov")
 		landmine, okLandmine := getBool(record, "landmine")
-		if !okUp || !okDown || !okLeft || !okRight || !okWave || !okNumb || !okPull || !okVenom || !okDash || !okGrenade || !okMolotov || !okLandmine {
+		shuriken, okShuriken := getBool(record, "shuriken")
+		if !okUp || !okDown || !okLeft || !okRight || !okWave || !okNumb || !okPull || !okVenom || !okDash || !okGrenade || !okMolotov || !okLandmine || !okShuriken {
 			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
 		}
 
@@ -163,6 +164,7 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 				Grenade:  grenade,
 				Molotov:  molotov,
 				Landmine: landmine,
+				Shuriken: shuriken,
 			}),
 		}
 	case ClientMessageTypeSnapshotResync:

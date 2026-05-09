@@ -1237,6 +1237,101 @@ func (w *World) applyPlayerDamageToVanessa(sourcePlayerID string, v *boss.Vaness
 	return dealt
 }
 
+func (w *World) resolvePlayerShurikens() {
+	for _, caster := range w.players {
+		ticks, castID := caster.ConsumeShurikenTicks()
+		if ticks <= 0 || caster.State == player.StateDead {
+			continue
+		}
+		for i := 0; i < ticks; i++ {
+			w.resolvePlayerShurikenTick(caster, castID)
+		}
+		caster.FinishExpiredShurikenCast(castID)
+	}
+}
+
+func (w *World) resolvePlayerShurikenTick(caster *player.Player, castID uint64) {
+	totalDamage := 0
+	for _, e := range w.enemies {
+		if e.State == enemy.StateDead || !withinShurikenRadius(caster.X, caster.Y, e.X, e.Y, e.CollisionRadius()) {
+			continue
+		}
+		beforeHP := e.HP
+		e.TakeDamage(player.ShurikenDamage)
+		dealt := beforeHP - e.HP
+		totalDamage += dealt
+		if e.State == enemy.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
+			delete(w.molotovBurns, dynamicBodyKey("enemy", e.ID))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	}
+	for _, d := range w.dragons {
+		if d.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, d.X, d.Y, d.ContactRadius()) {
+			continue
+		}
+		beforeHP := d.HP
+		d.TakeDamage(player.ShurikenDamage)
+		dealt := beforeHP - d.HP
+		totalDamage += dealt
+		if d.State == boss.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
+			delete(w.molotovBurns, dynamicBodyKey("boss", d.ID))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	}
+	for _, g := range w.gelehks {
+		if g.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, g.X, g.Y, g.ContactRadius()) {
+			continue
+		}
+		beforeHP := g.HP
+		g.TakeDamage(player.ShurikenDamage)
+		dealt := beforeHP - g.HP
+		totalDamage += dealt
+		if g.State == boss.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
+			delete(w.molotovBurns, dynamicBodyKey("boss", g.ID))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	}
+	for _, v := range w.vanessas {
+		if v.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, v.X, v.Y, v.ContactRadius()) {
+			continue
+		}
+		beforeHP := v.HP
+		v.TakeDamage(player.ShurikenDamage)
+		dealt := beforeHP - v.HP
+		totalDamage += dealt
+		if v.State == boss.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
+			delete(w.molotovBurns, dynamicBodyKey("boss", v.ID))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	}
+
+	casterProtected := w.isProtected(caster)
+	for _, target := range w.players {
+		if target.ID == caster.ID || target.State == player.StateDead || casterProtected || w.isProtected(target) {
+			continue
+		}
+		if !withinShurikenRadius(caster.X, caster.Y, target.X, target.Y, player.Width/2) {
+			continue
+		}
+		beforeHP := target.HP
+		target.TakeDamage(player.ShurikenDamage)
+		dealt := beforeHP - target.HP
+		totalDamage += dealt
+		if target.State == player.StateDead {
+			caster.PlayerKills++
+		}
+	}
+	caster.HealFromShuriken(totalDamage)
+}
+
 func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
 	if duration <= 0 {
 		return
@@ -1245,6 +1340,11 @@ func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
 	if duration > w.pullOverlapBodies[key] {
 		w.pullOverlapBodies[key] = duration
 	}
+}
+
+func withinShurikenRadius(cx, cy, x, y, bodyRadius float64) bool {
+	reach := player.ShurikenRadius + bodyRadius
+	return physics.DistanceSquared(cx, cy, x, y) <= reach*reach
 }
 
 func (w *World) tickHazards(dt time.Duration) {
@@ -1717,7 +1817,7 @@ func (w *World) tickPortals() {
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
 	// PlayerWave → PlayerNumb → PlayerPull → PlayerLandmine → PlayerGrenade →
-	// PlayerMolotov → PlayerDash → ContactDamage. Each system is
+	// PlayerMolotov → PlayerDash → PlayerShuriken → ContactDamage. Each system is
 	// stateless and reads/mutates only the slices it needs.
 	if (appcombat.PlayerWaveSystem{}).Resolve(
 		w.players,
@@ -1795,6 +1895,7 @@ func (w *World) resolveCombat() {
 	) {
 		w.syncDynamicIndexesLocked()
 	}
+	w.resolvePlayerShurikens()
 	appcombat.ContactDamageSystem{}.Resolve(
 		w.players,
 		filterFrozenMap(w.enemies, w.waveFrozenEnemies),

@@ -23,6 +23,13 @@ const (
 	MolotovBurnTicks                  = 5
 	MolotovBurnTickInterval           = 1000 * time.Millisecond
 	MolotovBurnLifeStealRatio         = 0.10
+	ShurikenDamage                    = 5
+	ShurikenRadius            float64 = 150
+	ShurikenDuration                  = 30 * time.Second
+	ShurikenCooldown                  = 30 * time.Second
+	ShurikenTickInterval              = 1 * time.Second
+	ShurikenLifeStealRatio    float64 = 0.05
+	ShurikenDamageAbsorbRatio float64 = 0.20
 	WaveDamage                        = 3
 	NumbDamage                        = WaveDamage
 	PullDamage                        = WaveDamage
@@ -94,6 +101,7 @@ type Input struct {
 	Grenade  bool
 	Molotov  bool
 	Landmine bool
+	Shuriken bool
 }
 
 // WaveExpandDuration returns how long the player wave spends expanding from
@@ -186,6 +194,7 @@ type Snapshot struct {
 	ToastyCount           int
 	LastProcessedInputSeq int64
 	StatusEffects         map[StatusEffect]BurningSnapshot
+	ShurikenActive        bool
 }
 
 // WaveKind identifies which wave-like player skill is currently visualized.
@@ -252,6 +261,7 @@ type Player struct {
 	GrenadeCooldown       time.Duration
 	MolotovCooldown       time.Duration
 	LandmineCooldown      time.Duration
+	ShurikenCooldown      time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
 	AttackMonsterKills    int
@@ -315,6 +325,10 @@ type Player struct {
 	landmineStartX        float64
 	landmineStartY        float64
 	landmineDirection     world.Direction
+	shurikenRemaining     time.Duration
+	shurikenTickTimer     time.Duration
+	shurikenPendingTicks  int
+	shurikenLifeStealBank float64
 	nextCastID            uint64
 	waveCastID            uint64
 	numbCastID            uint64
@@ -323,6 +337,7 @@ type Player struct {
 	grenadeCastID         uint64
 	molotovCastID         uint64
 	landmineCastID        uint64
+	shurikenCastID        uint64
 	castMonsterKills      map[uint64]int
 
 	burning       BurningStatus
@@ -438,6 +453,13 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.LandmineCooldown = 0
 		}
 	}
+	if p.ShurikenCooldown > 0 {
+		p.ShurikenCooldown -= dt
+		if p.ShurikenCooldown < 0 {
+			p.ShurikenCooldown = 0
+		}
+	}
+	p.advanceShuriken(dt)
 
 	input := p.pendingInput
 	if input == nil {
@@ -524,6 +546,13 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.landmineCastID = p.beginCast()
 		}
 	}
+	if input.Shuriken && p.ShurikenCooldown <= 0 && !p.ShurikenActive() {
+		p.ShurikenCooldown = ShurikenCooldown
+		p.shurikenRemaining = ShurikenDuration
+		p.shurikenTickTimer = ShurikenTickInterval
+		p.shurikenPendingTicks = 0
+		p.shurikenCastID = p.beginCast()
+	}
 	triggeredDash := false
 	if input.Dash && p.DashCooldown <= 0 {
 		if dashDirection := dashDirectionFromInput(input, p.Direction); dashDirection != "" {
@@ -586,6 +615,12 @@ func (p *Player) TakeDamage(amount int) {
 	if p.State == StateDead || amount <= 0 {
 		return
 	}
+	if p.ShurikenActive() {
+		amount -= int(float64(amount) * ShurikenDamageAbsorbRatio)
+		if amount <= 0 {
+			return
+		}
+	}
 	p.HP -= amount
 	if p.HP <= 0 {
 		p.HP = 0
@@ -597,6 +632,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetGrenade()
 		p.resetMolotov()
 		p.resetLandmine()
+		p.resetShuriken()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -642,6 +678,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetGrenade()
 	p.resetMolotov()
 	p.resetLandmine()
+	p.resetShuriken()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -658,6 +695,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetGrenade()
 	p.resetMolotov()
 	p.resetLandmine()
+	p.resetShuriken()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
@@ -916,6 +954,44 @@ func (p *Player) ConsumeLandmineCast() (float64, float64, world.Direction, uint6
 	return p.landmineStartX, p.landmineStartY, p.landmineDirection, castID, true
 }
 
+// ConsumeShurikenTicks returns queued shuriken damage ticks once.
+func (p *Player) ConsumeShurikenTicks() (int, uint64) {
+	if p.shurikenPendingTicks <= 0 {
+		return 0, p.shurikenCastID
+	}
+	ticks := p.shurikenPendingTicks
+	p.shurikenPendingTicks = 0
+	return ticks, p.shurikenCastID
+}
+
+// ShurikenActive reports whether the orbiting shuriken aura is currently up.
+func (p *Player) ShurikenActive() bool {
+	return p.shurikenRemaining > 0
+}
+
+// HealFromShuriken applies the 5% shuriken lifesteal, preserving fractional HP.
+func (p *Player) HealFromShuriken(dealt int) {
+	if dealt <= 0 {
+		return
+	}
+	p.shurikenLifeStealBank += float64(dealt) * ShurikenLifeStealRatio
+	heal := int(p.shurikenLifeStealBank)
+	if heal <= 0 {
+		return
+	}
+	p.shurikenLifeStealBank -= float64(heal)
+	p.Heal(heal)
+}
+
+// FinishExpiredShurikenCast clears cast bookkeeping after the final queued tick.
+func (p *Player) FinishExpiredShurikenCast(castID uint64) {
+	if castID == 0 || p.shurikenCastID != castID || p.ShurikenActive() || p.shurikenPendingTicks > 0 {
+		return
+	}
+	p.FinishCast(castID)
+	p.shurikenCastID = 0
+}
+
 // WaveIndicator returns the active player wave visual, if any.
 func (p *Player) WaveIndicator() *WaveIndicator {
 	if p.waveActive {
@@ -973,6 +1049,7 @@ func (p *Player) Snapshot() Snapshot {
 		ToastyCount:           p.ToastyCount,
 		LastProcessedInputSeq: p.LastProcessedInputSeq,
 		StatusEffects:         effects,
+		ShurikenActive:        p.ShurikenActive(),
 	}
 }
 
@@ -1111,6 +1188,15 @@ func (p *Player) resetLandmine() {
 	p.landmineCastID = 0
 }
 
+func (p *Player) resetShuriken() {
+	p.ShurikenCooldown = 0
+	p.shurikenRemaining = 0
+	p.shurikenTickTimer = 0
+	p.shurikenPendingTicks = 0
+	p.shurikenLifeStealBank = 0
+	p.shurikenCastID = 0
+}
+
 func (p *Player) beginCast() uint64 {
 	p.nextCastID += 1
 	return p.nextCastID
@@ -1127,6 +1213,29 @@ func (p *Player) resetCastTracking() {
 	p.grenadeCastID = 0
 	p.molotovCastID = 0
 	p.landmineCastID = 0
+	p.shurikenCastID = 0
+}
+
+func (p *Player) advanceShuriken(dt time.Duration) {
+	if p.shurikenRemaining <= 0 || dt <= 0 {
+		return
+	}
+	activeDt := dt
+	if activeDt > p.shurikenRemaining {
+		activeDt = p.shurikenRemaining
+	}
+
+	p.shurikenRemaining -= activeDt
+	p.shurikenTickTimer -= activeDt
+	for p.shurikenTickTimer <= 0 {
+		p.shurikenPendingTicks++
+		p.shurikenTickTimer += ShurikenTickInterval
+	}
+
+	if p.shurikenRemaining <= 0 {
+		p.shurikenRemaining = 0
+		p.shurikenTickTimer = 0
+	}
 }
 
 func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direction {

@@ -76,7 +76,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 13 as const;
+export const PROTOCOL_VERSION = 14 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -173,6 +173,7 @@ export interface PlayerSnapshot {
   toastyCount: number;
   lastProcessedInputSeq: number;
   statusEffects: PlayerStatusSnapshot;
+  shurikenActive?: boolean;
 }
 
 export interface EnemySnapshot {
@@ -363,6 +364,7 @@ export interface InputMessage {
   grenade: boolean;
   molotov: boolean;
   landmine: boolean;
+  shuriken: boolean;
 }
 
 export interface JoinMessage {
