@@ -1,5 +1,6 @@
-- confusion (enemies start to attack other enemies)
 - shuriken attack / protection
+- confusion (enemies start to attack other enemies)
+- more kind of monsters per phase
 - net (?)
 - grid 8 cmds
 - drop space attack
