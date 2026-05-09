@@ -122,11 +122,17 @@ export class SkeletonEntity {
       return;
     }
     if (hp < previousHp) {
-      this.oneShotAnimKey = SKELETON_ANIMS.HIT;
+      this.queueOneShot(SKELETON_ANIMS.HIT);
+      return;
+    }
+    if (state === 'attacking') {
+      if (previousState !== 'attacking') {
+        this.queueOneShot(SKELETON_ANIMS.ATTACK);
+      }
       return;
     }
     if (previousState === 'idle' && state !== 'idle') {
-      this.oneShotAnimKey = SKELETON_ANIMS.REACT;
+      this.queueOneShot(SKELETON_ANIMS.REACT);
     }
   }
 
@@ -237,7 +243,7 @@ export class SkeletonEntity {
 
     if (this.oneShotAnimKey) {
       if (this.currentAnimKey !== this.oneShotAnimKey) {
-        this.playIfExists(this.oneShotAnimKey);
+        this.playIfExists(this.oneShotAnimKey, false);
         this.currentAnimKey = this.oneShotAnimKey;
         this.isUsingStaticFrame = false;
         this.staticFrameFacing = null;
@@ -269,14 +275,19 @@ export class SkeletonEntity {
     this.staticFrameFacing = null;
   }
 
-  private playIfExists(animKey: string): void {
+  private queueOneShot(animKey: string): void {
+    this.oneShotAnimKey = animKey;
+    this.currentAnimKey = '';
+  }
+
+  private playIfExists(animKey: string, ignoreIfPlaying = true): void {
     const anim = this.sprite.scene.anims.get(animKey);
     if (!anim || !anim.frames || anim.frames.length === 0) {
       return;
     }
 
     try {
-      this.sprite.play(animKey, true);
+      this.sprite.play(animKey, ignoreIfPlaying);
     } catch {
       return;
     }
