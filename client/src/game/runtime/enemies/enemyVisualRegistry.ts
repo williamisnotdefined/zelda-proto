@@ -2,7 +2,6 @@ import type { EnemyKind, EnemySnapshot, PacmanGhostVariant } from '@/shared';
 import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@/shared';
 import type Phaser from 'phaser';
 import { BlobEntity } from '../../../entities/Blob';
-import { HandEntity } from '../../../entities/Hand';
 import { KnightEntity } from '../../../entities/Knight';
 import { PacmanGhostEntity } from '../../../entities/PacmanGhost';
 import { SkeletonEntity } from '../../../entities/Skeleton';
@@ -149,13 +148,6 @@ export function createEnemyVisualRegistry(
       (scene, snapshot) => new SkeletonEntity(scene, snapshot.x, snapshot.y),
       (entity) => (entity as SkeletonEntity).x,
       (entity) => (entity as SkeletonEntity).y
-    ),
-    [ENEMY_KINDS.HAND]: createCommonEntry(
-      ENEMY_KINDS.HAND,
-      maxCommonEnemyPoolSize,
-      (scene, snapshot) => new HandEntity(scene, snapshot.x, snapshot.y),
-      (entity) => (entity as HandEntity).x,
-      (entity) => (entity as HandEntity).y
     ),
     [ENEMY_KINDS.KNIGHT]: createCommonEntry(
       ENEMY_KINDS.KNIGHT,

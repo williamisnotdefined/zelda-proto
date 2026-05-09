@@ -56,10 +56,6 @@ export const enemyDefinitions: Record<EnemyKind, EnemyDefinition> = {
     kind: ENEMY_KINDS.SKELETON,
     family: 'skeleton',
   },
-  [ENEMY_KINDS.HAND]: {
-    kind: ENEMY_KINDS.HAND,
-    family: 'hand',
-  },
   [ENEMY_KINDS.KNIGHT]: {
     kind: ENEMY_KINDS.KNIGHT,
     family: 'knight',

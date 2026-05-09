@@ -1,4 +1,4 @@
-// Package enemy hosts the Enemy aggregate (Blob and its variants Skeleton, Hand,
+// Package enemy hosts the Enemy aggregate (Blob and its variants Skeleton,
 // Knight, PacmanGhost). Variants are configuration-driven: a single Enemy struct
 // covers all kinds.
 package enemy
@@ -20,7 +20,6 @@ type Kind string
 const (
 	KindBlob        Kind = "blob"
 	KindSkeleton    Kind = "skeleton"
-	KindHand        Kind = "hand"
 	KindKnight      Kind = "knight"
 	KindPacmanGhost Kind = "pacman_ghost"
 )
@@ -103,11 +102,6 @@ var (
 	}
 	SkeletonConfig = Config{
 		Kind: KindSkeleton, MaxHP: 45, Speed: 60, Damage: 10,
-		AggroRadius: 600, ContactRadius: 24,
-		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
-	}
-	HandConfig = Config{
-		Kind: KindHand, MaxHP: 60, Speed: 90, Damage: 15,
 		AggroRadius: 600, ContactRadius: 24,
 		Width: 48, Height: 48, RespawnTime: 10 * time.Second,
 	}

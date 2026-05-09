@@ -64,12 +64,12 @@ func TestPhase3HasEntryBosses(t *testing.T) {
 	}
 }
 
-func TestPhase3MixesHandsAndKnights(t *testing.T) {
+func TestPhase3MixesKnightsAndSkeletons(t *testing.T) {
 	def := All()[domworld.InstancePhase3]
 	if len(def.SpawnSystem.MixedEnemyConfigs) != 2 {
-		t.Fatalf("phase3 must mix hand and knight configs, got %d", len(def.SpawnSystem.MixedEnemyConfigs))
+		t.Fatalf("phase3 must mix knight and skeleton configs, got %d", len(def.SpawnSystem.MixedEnemyConfigs))
 	}
-	if def.SpawnSystem.MixedEnemyConfigs[0].Kind != enemy.KindHand || def.SpawnSystem.MixedEnemyConfigs[1].Kind != enemy.KindKnight {
+	if def.SpawnSystem.MixedEnemyConfigs[0].Kind != enemy.KindKnight || def.SpawnSystem.MixedEnemyConfigs[1].Kind != enemy.KindSkeleton {
 		t.Fatalf("phase3 mix mismatch: %+v", def.SpawnSystem.MixedEnemyConfigs)
 	}
 }

@@ -170,11 +170,6 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
-    this.load.spritesheet('hand', 'assets/sprites/monsters/hand.png', {
-      frameWidth: 64,
-      frameHeight: 64,
-    });
-
     this.load.spritesheet(
       'knight_idle',
       'assets/sprites/monsters/Knight/noBKG_KnightIdle_strip.png',

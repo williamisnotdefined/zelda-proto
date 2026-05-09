@@ -5,10 +5,6 @@ vi.mock('../../../entities/Blob', () => ({
   BlobEntity: class BlobEntity {},
 }));
 
-vi.mock('../../../entities/Hand', () => ({
-  HandEntity: class HandEntity {},
-}));
-
 vi.mock('../../../entities/Knight', () => ({
   KnightEntity: class KnightEntity {},
 }));

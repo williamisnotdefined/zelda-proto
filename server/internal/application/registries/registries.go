@@ -210,8 +210,8 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.DefaultEnemiesPerChunk,
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "phase3_enemy",
-				EnemyKind:   enemy.KindHand, EnemyConfig: enemy.HandConfig,
-				MixedEnemyConfigs: []enemy.Config{enemy.HandConfig, enemy.KnightConfig},
+				EnemyKind:   enemy.KindKnight, EnemyConfig: enemy.KnightConfig,
+				MixedEnemyConfigs: []enemy.Config{enemy.KnightConfig, enemy.SkeletonConfig},
 				DefaultDropKind:   drop.KindHeartLarge,
 			},
 			BossRegion: BossRegionConfig{

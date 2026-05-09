@@ -3,7 +3,7 @@ package protocol
 import "regexp"
 
 const (
-	ProtocolVersion int64 = 14
+	ProtocolVersion int64 = 15
 
 	MinNicknameLength     = 2
 	MaxNicknameLength     = 16

@@ -9,6 +9,7 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/drop"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/enemy"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/player"
+	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
 type counter struct{ n int }
@@ -101,6 +102,29 @@ func TestPopulateCreatesTwoElitesPerChunk(t *testing.T) {
 	}
 	if eliteCount != 2 {
 		t.Fatalf("expected 2 elites per chunk, got %d", eliteCount)
+	}
+}
+
+func TestPhase3PopulateCreatesKnightAndSkeletonElites(t *testing.T) {
+	def := registries.All()[domworld.InstancePhase3]
+	sys := New(def.SpawnSystem, &counter{})
+	enemies := map[string]*enemy.Enemy{}
+	sys.populate(&chunk{cx: 0, cy: 0, enemyIDs: make(map[string]struct{})}, enemies, func(*enemy.Enemy) {})
+
+	elitesByKind := map[enemy.Kind]int{}
+	countByKind := map[enemy.Kind]int{}
+	for _, e := range enemies {
+		countByKind[e.Kind]++
+		if e.Elite {
+			elitesByKind[e.Kind]++
+		}
+	}
+
+	if countByKind[enemy.KindKnight] == 0 || countByKind[enemy.KindSkeleton] == 0 {
+		t.Fatalf("expected phase3 to spawn knights and skeletons, got %+v", countByKind)
+	}
+	if elitesByKind[enemy.KindKnight] != 1 || elitesByKind[enemy.KindSkeleton] != 1 {
+		t.Fatalf("expected 1 elite knight and 1 elite skeleton, got %+v", elitesByKind)
 	}
 }
 

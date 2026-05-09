@@ -182,13 +182,6 @@ export function setupAnimations(scene: Phaser.Scene): void {
     });
   }
 
-  createStripDirectionAnims(scene, 'hand', [
-    { key: 'hand_down', start: 0, end: 1, frameRate: 2.5 },
-    { key: 'hand_right', start: 4, end: 5, frameRate: 2.5 },
-    { key: 'hand_left', start: 2, end: 3, frameRate: 2.5 },
-    { key: 'hand_up', start: 6, end: 7, frameRate: 2.5 },
-  ]);
-
   createFullStripAnim(scene, 'knight_idle', 'knight_idle', 8);
   createFullStripAnim(scene, 'knight_run', 'knight_run', 12);
   createFullStripAnim(scene, 'knight_attack', 'knight_attack', 18, 0);

@@ -28,7 +28,6 @@ export type InstanceId = (typeof INSTANCE_IDS)[keyof typeof INSTANCE_IDS];
 export const ENEMY_KINDS = {
   BLOB: 'blob',
   SKELETON: 'skeleton',
-  HAND: 'hand',
   KNIGHT: 'knight',
   PACMAN_GHOST: 'pacman_ghost',
 } as const;
@@ -88,7 +87,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 14 as const;
+export const PROTOCOL_VERSION = 15 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
