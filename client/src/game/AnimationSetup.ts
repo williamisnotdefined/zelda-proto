@@ -59,6 +59,31 @@ function createStripDirectionAnims(
   }
 }
 
+function createFullStripAnim(
+  scene: Phaser.Scene,
+  textureKey: string,
+  key: string,
+  frameRate: number,
+  repeat = -1
+): void {
+  const texture = scene.textures.get(textureKey);
+  const frameIndexes = texture
+    .getFrameNames()
+    .map((name) => Number(name))
+    .filter((value) => Number.isInteger(value));
+  const lastFrameIndex = frameIndexes.length > 0 ? Math.max(...frameIndexes) : 0;
+  const frames = scene.anims.generateFrameNumbers(textureKey, { start: 0, end: lastFrameIndex });
+  if (frames.length === 0) return;
+
+  scene.anims.remove(key);
+  scene.anims.create({
+    key,
+    frames,
+    frameRate,
+    repeat,
+  });
+}
+
 export function setupAnimations(scene: Phaser.Scene): void {
   // --- Player (48x48, 6 cols x 10 rows) ---
   // Rows: 0=idle_down, 1=idle_right, 2=idle_up
@@ -118,35 +143,12 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'death', row: 12, repeat: 0, frameRate: 6 },
   ]);
 
-  // Slime spritesheet is a single horizontal strip split by direction blocks.
-  // No death animation is used (slime disappears on death).
-  const slimeAnims = [
-    { key: 'slime_down', start: 0, end: 7 },
-    { key: 'slime_right', start: 8, end: 15 },
-    { key: 'slime_left', start: 16, end: 23 },
-    { key: 'slime_up', start: 24, end: 31 },
-  ] as const;
-
-  const slimeTexture = scene.textures.get('slime');
-  const slimeFrameIndexes = slimeTexture
-    .getFrameNames()
-    .map((name) => Number(name))
-    .filter((value) => Number.isInteger(value));
-  const slimeLastFrameIndex = slimeFrameIndexes.length > 0 ? Math.max(...slimeFrameIndexes) : 0;
-
-  for (const anim of slimeAnims) {
-    const start = Math.min(anim.start, slimeLastFrameIndex);
-    const end = Math.min(anim.end, slimeLastFrameIndex);
-    if (end < start) continue;
-
-    scene.anims.remove(anim.key);
-    scene.anims.create({
-      key: anim.key,
-      frames: scene.anims.generateFrameNumbers('slime', { start, end }),
-      frameRate: 10,
-      repeat: -1,
-    });
-  }
+  createFullStripAnim(scene, 'skeleton_enemy_idle', 'skeleton_enemy_idle', 8);
+  createFullStripAnim(scene, 'skeleton_enemy_walk', 'skeleton_enemy_walk', 10);
+  createFullStripAnim(scene, 'skeleton_enemy_attack', 'skeleton_enemy_attack', 14, 0);
+  createFullStripAnim(scene, 'skeleton_enemy_hit', 'skeleton_enemy_hit', 12, 0);
+  createFullStripAnim(scene, 'skeleton_enemy_react', 'skeleton_enemy_react', 10, 0);
+  createFullStripAnim(scene, 'skeleton_enemy_dead', 'skeleton_enemy_dead', 8, 0);
 
   // Dragon Lord spritesheet is a single horizontal strip:
   // 1st frame = dead, frames 2..9 = down, then left, right, up.
@@ -223,5 +225,4 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'vanessa_right', start: 16, end: 23, frameRate: 10 },
     { key: 'vanessa_up', start: 24, end: 31, frameRate: 10 },
   ]);
-
 }

@@ -161,7 +161,7 @@ func (s *System) SpawnMinions(x, y float64, enemies map[string]*enemy.Enemy, add
 }
 
 // SpawnStarterEnemies seeds count enemies in a circle around (cx, cy) with
-// radius. Used by Phase 2 (slimes) and Phase 4 (pacman ghosts).
+// radius. Used by Phase 2 (skeletons) and Phase 4 (pacman ghosts).
 func (s *System) SpawnStarterEnemies(cx, cy float64, count int, radius float64,
 	enemies map[string]*enemy.Enemy, addEnemy func(*enemy.Enemy)) {
 	for i := 0; i < count; i++ {

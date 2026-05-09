@@ -34,7 +34,7 @@ func TestPhase1HasGelehkRegion(t *testing.T) {
 	}
 }
 
-func TestPhase2UsesDedicatedSlimeDensity(t *testing.T) {
+func TestPhase2UsesDedicatedSkeletonDensity(t *testing.T) {
 	def := All()[domworld.InstancePhase2]
 	if def.SpawnSystem.EnemiesPerChunk != config.DefaultBalancing.Phase2EnemiesPerChunk {
 		t.Fatalf("phase2 EnemiesPerChunk: got %d want %d",

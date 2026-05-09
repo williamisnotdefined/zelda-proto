@@ -1,5 +1,5 @@
-Player and skeleton sprites are on a 48x48 grid.
-Slime is on a 32x32 grid.
+Player and Gelehk skeleton sprites are on a 48x48 grid.
+Phase 2 skeleton enemy sprites use individual action strips.
 
 Flip right facing sprites to get the left facing sprites.
 

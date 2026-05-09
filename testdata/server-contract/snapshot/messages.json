@@ -192,7 +192,7 @@
         },
         {
           "id": "enemy-3",
-          "kind": "slime",
+          "kind": "skeleton",
           "x": 650,
           "y": 710,
           "hp": 12,
@@ -614,7 +614,7 @@
       "enemies": [
         {
           "id": "enemy-3",
-          "kind": "slime",
+          "kind": "skeleton",
           "x": 650,
           "y": 710,
           "hp": 12,
@@ -780,7 +780,7 @@
         },
         {
           "id": "enemy-3",
-          "kind": "slime",
+          "kind": "skeleton",
           "x": 650,
           "y": 710,
           "hp": 12,

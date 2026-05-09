@@ -242,7 +242,7 @@ cloudflared tunnel info wilho
 | Source | Attack | Damage | Cooldown | Notes |
 | --- | --- | --- | --- | --- |
 | Blob | Contact | `5` | `1s` | Body collision damage |
-| Slime | Contact | `10` | `1s` | Body collision damage |
+| Skeleton | Contact | `10` | `1s` | Body collision damage |
 | Hand | Contact | `15` | `1s` | Body collision damage |
 | Pacman Ghost | Contact | `20` | `1s` | Body collision damage |
 | Gelehk | Contact | `10` | `1s` per target | Body collision damage |
@@ -269,8 +269,8 @@ cloudflared tunnel info wilho
 | --- | --- | --- | --- | --- |
 | Blob | Enemy | `30` | `5` contact | Phase 1 enemy |
 | Blob (Elite) | Enemy | `90` | `15` contact | Phase 1 elite enemy, 2x size |
-| Slime | Enemy | `45` | `10` contact | Phase 2 enemy |
-| Slime (Elite) | Enemy | `135` | `30` contact | Phase 2 elite enemy, 2x size |
+| Skeleton | Enemy | `45` | `10` contact | Phase 2 enemy |
+| Skeleton (Elite) | Enemy | `135` | `30` contact | Phase 2 elite enemy, 2x size |
 | Hand | Enemy | `60` | `15` contact | Phase 3 enemy |
 | Hand (Elite) | Enemy | `180` | `45` contact | Phase 3 elite enemy, 2x size |
 | Pacman Ghost | Enemy | `80` | `20` contact | Phase 4 enemy |
@@ -287,7 +287,7 @@ cloudflared tunnel info wilho
 | Phase | Primary monster | Density |
 | --- | --- | --- |
 | Phase 1 | Blob | `10` monsters per chunk |
-| Phase 2 | Slime | `14` monsters per chunk |
+| Phase 2 | Skeleton | `14` monsters per chunk |
 | Phase 3 | Hand | `18` monsters per chunk |
 | Phase 4 | Pacman Ghost | `24` monsters per chunk |
 

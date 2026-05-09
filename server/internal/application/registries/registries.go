@@ -175,8 +175,8 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			SpawnSystem: SpawnSystemConfig{
 				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.Phase2EnemiesPerChunk,
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
-				EnemyPrefix: "slime",
-				EnemyKind:   enemy.KindSlime, EnemyConfig: enemy.SlimeConfig,
+				EnemyPrefix: "skeleton",
+				EnemyKind:   enemy.KindSkeleton, EnemyConfig: enemy.SkeletonConfig,
 				DefaultDropKind: drop.KindHeartLarge,
 			},
 			BossRegion: BossRegionConfig{
@@ -199,8 +199,8 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				ToInstance: domworld.InstancePhase1,
 				TargetX:    domworld.SpawnX, TargetY: domworld.SpawnY,
 			}},
-			StarterEnemies:     b.Phase2StarterSlimes,
-			StarterEnemyRadius: b.Phase2StarterSlimeRadius,
+			StarterEnemies:     b.Phase2StarterSkeletons,
+			StarterEnemyRadius: b.Phase2StarterSkeletonRadius,
 		},
 		domworld.InstancePhase3: {
 			InstanceID: domworld.InstancePhase3,

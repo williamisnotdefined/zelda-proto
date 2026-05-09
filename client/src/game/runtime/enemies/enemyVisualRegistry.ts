@@ -4,7 +4,7 @@ import type Phaser from 'phaser';
 import { BlobEntity } from '../../../entities/Blob';
 import { HandEntity } from '../../../entities/Hand';
 import { PacmanGhostEntity } from '../../../entities/PacmanGhost';
-import { SlimeEntity } from '../../../entities/Slime';
+import { SkeletonEntity } from '../../../entities/Skeleton';
 
 export type EnemyVisualLodTier = 'near' | 'mid' | 'far';
 
@@ -142,12 +142,12 @@ export function createEnemyVisualRegistry(
       (entity) => (entity as BlobEntity).sprite.x,
       (entity) => (entity as BlobEntity).sprite.y
     ),
-    [ENEMY_KINDS.SLIME]: createCommonEntry(
-      ENEMY_KINDS.SLIME,
+    [ENEMY_KINDS.SKELETON]: createCommonEntry(
+      ENEMY_KINDS.SKELETON,
       maxCommonEnemyPoolSize,
-      (scene, snapshot) => new SlimeEntity(scene, snapshot.x, snapshot.y),
-      (entity) => (entity as SlimeEntity).x,
-      (entity) => (entity as SlimeEntity).y
+      (scene, snapshot) => new SkeletonEntity(scene, snapshot.x, snapshot.y),
+      (entity) => (entity as SkeletonEntity).x,
+      (entity) => (entity as SkeletonEntity).y
     ),
     [ENEMY_KINDS.HAND]: createCommonEntry(
       ENEMY_KINDS.HAND,

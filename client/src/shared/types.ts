@@ -17,7 +17,7 @@ export type InstanceId = (typeof INSTANCE_IDS)[keyof typeof INSTANCE_IDS];
 
 export const ENEMY_KINDS = {
   BLOB: 'blob',
-  SLIME: 'slime',
+  SKELETON: 'skeleton',
   HAND: 'hand',
   PACMAN_GHOST: 'pacman_ghost',
 } as const;

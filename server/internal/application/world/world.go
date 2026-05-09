@@ -279,10 +279,10 @@ func (w *World) EnsurePhase3BossesNear(entryX, entryY float64) {
 	w.resolveBodyCollisionsLocked()
 }
 
-// EnsurePhase2PopulationNear tops up the Phase 2 starter slime ring around
+// EnsurePhase2PopulationNear tops up the Phase 2 starter skeleton ring around
 // the given entry point if too few are alive nearby, and seeds a Dragon Lord
 // when none is in range. No-op for instances that aren't Phase 2 (i.e.
-// the SpawnSystem is not configured for slimes), keeping the call site safe
+// the SpawnSystem is not configured for skeletons), keeping the call site safe
 // to dispatch by InstanceID.
 func (w *World) EnsurePhase2PopulationNear(entryX, entryY float64) {
 	w.mu.Lock()
@@ -290,14 +290,14 @@ func (w *World) EnsurePhase2PopulationNear(entryX, entryY float64) {
 	if w.def == nil || w.spawnSystem == nil || w.cfg.IDs == nil {
 		return
 	}
-	if w.def.SpawnSystem.EnemyKind != enemy.KindSlime {
+	if w.def.SpawnSystem.EnemyKind != enemy.KindSkeleton {
 		return
 	}
 	b := config.DefaultBalancing
 	radiusSq := b.Phase2NearbyRadius * b.Phase2NearbyRadius
 	nearby := 0
 	for _, e := range w.enemies {
-		if e.Kind != enemy.KindSlime || e.State == enemy.StateDead {
+		if e.Kind != enemy.KindSkeleton || e.State == enemy.StateDead {
 			continue
 		}
 		dx := e.X - entryX
@@ -306,9 +306,9 @@ func (w *World) EnsurePhase2PopulationNear(entryX, entryY float64) {
 			nearby++
 		}
 	}
-	if nearby < b.Phase2MinNearbySlimes {
+	if nearby < b.Phase2MinNearbySkeletons {
 		w.spawnSystem.SpawnStarterEnemies(
-			entryX, entryY, b.Phase2StarterSlimes, b.Phase2StarterSlimeRadius,
+			entryX, entryY, b.Phase2StarterSkeletons, b.Phase2StarterSkeletonRadius,
 			w.enemies, func(e *enemy.Enemy) { w.enemyIndex.Upsert(e.ID, e.X, e.Y) },
 		)
 	}

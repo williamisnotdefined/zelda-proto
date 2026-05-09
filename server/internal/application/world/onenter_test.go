@@ -145,34 +145,34 @@ func TestEnsurePhase3BossesNear_RemovesUnexpectedDragons(t *testing.T) {
 	}
 }
 
-// EnsurePhase2PopulationNear must top up slimes and seed a Dragon Lord when
+// EnsurePhase2PopulationNear must top up skeletons and seed a Dragon Lord when
 // none is in range. Mirrors InstanceManager.ensurePhase2PopulationNear.
-func TestEnsurePhase2PopulationNear_TopsUpSlimesAndDragon(t *testing.T) {
+func TestEnsurePhase2PopulationNear_TopsUpSkeletonsAndDragon(t *testing.T) {
 	t.Parallel()
 
 	w := newPhaseWorld(t, domworld.InstancePhase2)
-	startSlimes := 0
+	startSkeletons := 0
 	for _, e := range w.enemies {
-		if e.Kind == enemy.KindSlime {
-			startSlimes++
+		if e.Kind == enemy.KindSkeleton {
+			startSkeletons++
 		}
 	}
 	startDragons := len(w.dragons)
 
-	// Far entry: no nearby slimes / dragons trigger both seeders.
+	// Far entry: no nearby skeletons / dragons trigger both seeders.
 	entryX, entryY := w.def.SpawnX+8000.0, w.def.SpawnY+8000.0
 	w.EnsurePhase2PopulationNear(entryX, entryY)
 
 	b := config.DefaultBalancing
-	wantSlimes := startSlimes + b.Phase2StarterSlimes
-	gotSlimes := 0
+	wantSkeletons := startSkeletons + b.Phase2StarterSkeletons
+	gotSkeletons := 0
 	for _, e := range w.enemies {
-		if e.Kind == enemy.KindSlime {
-			gotSlimes++
+		if e.Kind == enemy.KindSkeleton {
+			gotSkeletons++
 		}
 	}
-	if gotSlimes != wantSlimes {
-		t.Errorf("slime count: got %d want %d", gotSlimes, wantSlimes)
+	if gotSkeletons != wantSkeletons {
+		t.Errorf("skeleton count: got %d want %d", gotSkeletons, wantSkeletons)
 	}
 	if got := len(w.dragons); got != startDragons+1 {
 		t.Fatalf("expected one seed dragon, got dragons=%d (start=%d)", got, startDragons)
@@ -187,23 +187,23 @@ func TestEnsurePhase2PopulationNear_IsIdempotentOnceSatisfied(t *testing.T) {
 	w := newPhaseWorld(t, domworld.InstancePhase2)
 	entryX, entryY := w.def.SpawnX+8000.0, w.def.SpawnY+8000.0
 	w.EnsurePhase2PopulationNear(entryX, entryY)
-	slimesAfter1 := 0
+	skeletonsAfter1 := 0
 	for _, e := range w.enemies {
-		if e.Kind == enemy.KindSlime {
-			slimesAfter1++
+		if e.Kind == enemy.KindSkeleton {
+			skeletonsAfter1++
 		}
 	}
 	dragonsAfter1 := len(w.dragons)
 
 	w.EnsurePhase2PopulationNear(entryX, entryY)
-	slimesAfter2 := 0
+	skeletonsAfter2 := 0
 	for _, e := range w.enemies {
-		if e.Kind == enemy.KindSlime {
-			slimesAfter2++
+		if e.Kind == enemy.KindSkeleton {
+			skeletonsAfter2++
 		}
 	}
-	if slimesAfter2 != slimesAfter1 {
-		t.Errorf("slime count drifted: %d -> %d", slimesAfter1, slimesAfter2)
+	if skeletonsAfter2 != skeletonsAfter1 {
+		t.Errorf("skeleton count drifted: %d -> %d", skeletonsAfter1, skeletonsAfter2)
 	}
 	if got := len(w.dragons); got != dragonsAfter1 {
 		t.Errorf("dragon count drifted: %d -> %d", dragonsAfter1, got)

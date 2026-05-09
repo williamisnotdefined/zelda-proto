@@ -19,8 +19,8 @@ vi.mock('../../../entities/PacmanGhost', () => ({
   },
 }));
 
-vi.mock('../../../entities/Slime', () => ({
-  SlimeEntity: class SlimeEntity {},
+vi.mock('../../../entities/Skeleton', () => ({
+  SkeletonEntity: class SkeletonEntity {},
 }));
 
 async function loadRegistryFactory() {

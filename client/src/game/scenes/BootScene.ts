@@ -108,10 +108,54 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 32,
     });
 
-    this.load.spritesheet('slime', 'assets/sprites/monsters/Slime.png', {
-      frameWidth: 64,
-      frameHeight: 64,
-    });
+    this.load.spritesheet(
+      'skeleton_enemy_idle',
+      'assets/sprites/monsters/Skeleton/Skeleton Idle.png',
+      {
+        frameWidth: 24,
+        frameHeight: 32,
+      }
+    );
+    this.load.spritesheet(
+      'skeleton_enemy_walk',
+      'assets/sprites/monsters/Skeleton/Skeleton Walk.png',
+      {
+        frameWidth: 22,
+        frameHeight: 33,
+      }
+    );
+    this.load.spritesheet(
+      'skeleton_enemy_attack',
+      'assets/sprites/monsters/Skeleton/Skeleton Attack.png',
+      {
+        frameWidth: 43,
+        frameHeight: 37,
+      }
+    );
+    this.load.spritesheet(
+      'skeleton_enemy_hit',
+      'assets/sprites/monsters/Skeleton/Skeleton Hit.png',
+      {
+        frameWidth: 30,
+        frameHeight: 32,
+      }
+    );
+    this.load.spritesheet(
+      'skeleton_enemy_react',
+      'assets/sprites/monsters/Skeleton/Skeleton React.png',
+      {
+        frameWidth: 22,
+        frameHeight: 32,
+      }
+    );
+    this.load.spritesheet(
+      'skeleton_enemy_dead',
+      'assets/sprites/monsters/Skeleton/Skeleton Dead.png',
+      {
+        frameWidth: 33,
+        frameHeight: 32,
+      }
+    );
 
     this.load.audio('bg_music', 'assets/sounds/bg_music.mp3');
     this.load.audio('toasty_sfx', 'assets/sounds/toasty.mp3');

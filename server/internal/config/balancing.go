@@ -23,7 +23,7 @@ type Balancing struct {
 	DefaultEnemiesPerChunk int
 	// Phase1EnemiesPerChunk overrides the chunk population for Phase 1 blobs.
 	Phase1EnemiesPerChunk int
-	// Phase2EnemiesPerChunk overrides the chunk population for Phase 2 slimes.
+	// Phase2EnemiesPerChunk overrides the chunk population for Phase 2 skeletons.
 	Phase2EnemiesPerChunk int
 	// Phase4EnemiesPerChunk overrides DefaultEnemiesPerChunk for the pacman
 	// ghost phase, which intentionally feels denser.
@@ -36,17 +36,17 @@ type Balancing struct {
 	// torn down.
 	SpawnDespawnTimeMS int64
 
-	// Phase2StarterSlimes is the number of slimes seeded around the phase 2
+	// Phase2StarterSkeletons is the number of skeletons seeded around the phase 2
 	// spawn point on world boot.
-	Phase2StarterSlimes int
-	// Phase2StarterSlimeRadius is the seeding ring radius for phase 2.
-	Phase2StarterSlimeRadius float64
+	Phase2StarterSkeletons int
+	// Phase2StarterSkeletonRadius is the seeding ring radius for phase 2.
+	Phase2StarterSkeletonRadius float64
 	// Phase2NearbyRadius is the proximity radius used by the on-enter
-	// repopulation hook to count nearby slimes around a player entry.
+	// repopulation hook to count nearby skeletons around a player entry.
 	Phase2NearbyRadius float64
-	// Phase2MinNearbySlimes is the minimum slime count below which the
-	// on-enter hook will reseed Phase2StarterSlimes around the entry.
-	Phase2MinNearbySlimes int
+	// Phase2MinNearbySkeletons is the minimum skeleton count below which the
+	// on-enter hook will reseed Phase2StarterSkeletons around the entry.
+	Phase2MinNearbySkeletons int
 	// Phase2DragonNearbyRadius is the proximity radius used to detect a
 	// nearby Dragon Lord on entry; if absent, a seed dragon is spawned to
 	// guarantee the boss fight is reachable before BossRegionSystem ticks.
@@ -98,15 +98,15 @@ var DefaultBalancing = Balancing{
 	SpawnActiveRange:       1024,
 	SpawnDespawnTimeMS:     30000,
 
-	Phase2StarterSlimes:       12,
-	Phase2StarterSlimeRadius:  240,
-	Phase2NearbyRadius:        900,
-	Phase2MinNearbySlimes:     6,
-	Phase2DragonNearbyRadius:  1800,
-	Phase4StarterPacmans:      24,
-	Phase4StarterPacmanRadius: 600,
-	Phase4NearbyRadius:        900,
-	Phase4MinNearbyPacmans:    24,
+	Phase2StarterSkeletons:      12,
+	Phase2StarterSkeletonRadius: 240,
+	Phase2NearbyRadius:          900,
+	Phase2MinNearbySkeletons:    6,
+	Phase2DragonNearbyRadius:    1800,
+	Phase4StarterPacmans:        24,
+	Phase4StarterPacmanRadius:   600,
+	Phase4NearbyRadius:          900,
+	Phase4MinNearbyPacmans:      24,
 
 	Phase1BossRegionSize:    2000,
 	Phase1BossActiveRange:   2000,

@@ -52,9 +52,9 @@ export const enemyDefinitions: Record<EnemyKind, EnemyDefinition> = {
     kind: ENEMY_KINDS.BLOB,
     family: 'blob',
   },
-  [ENEMY_KINDS.SLIME]: {
-    kind: ENEMY_KINDS.SLIME,
-    family: 'slime',
+  [ENEMY_KINDS.SKELETON]: {
+    kind: ENEMY_KINDS.SKELETON,
+    family: 'skeleton',
   },
   [ENEMY_KINDS.HAND]: {
     kind: ENEMY_KINDS.HAND,
