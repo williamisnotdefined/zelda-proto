@@ -8,7 +8,9 @@ const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
 const HP_BAR_WIDTH = 30;
 const HP_BAR_OFFSET_Y = 28;
-const ELITE_SCALE_MULTIPLIER = 2;
+const BLOB_SCALE = 2;
+const ELITE_SCALE_MULTIPLIER = 1.3;
+const ELITE_TINT = 0xff6b6b;
 const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
@@ -64,7 +66,7 @@ export class BlobEntity {
     this.animationTimeScale = 1;
 
     this.sprite = scene.add.sprite(x, y, 'blob');
-    this.sprite.setScale(2);
+    this.sprite.setScale(BLOB_SCALE);
     this.sprite.setDepth(8);
     this.healthBar = new EnemyHealthBar(scene, x, y, {
       width: HP_BAR_WIDTH,
@@ -102,9 +104,9 @@ export class BlobEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.resetVisualState();
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
-    this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
@@ -221,21 +223,30 @@ export class BlobEntity {
 
   private applyElite(elite: boolean): void {
     this.elite = elite;
-    const scale = 2 * (elite ? ELITE_SCALE_MULTIPLIER : 1);
+    const scale = BLOB_SCALE * (elite ? ELITE_SCALE_MULTIPLIER : 1);
     this.sprite.setScale(scale);
     this.healthBar.setLayout(
       HP_BAR_WIDTH * (elite ? ELITE_SCALE_MULTIPLIER : 1),
       HP_BAR_OFFSET_Y * (elite ? ELITE_SCALE_MULTIPLIER : 1)
     );
+    this.applyStatusTint();
   }
 
   private applyVenomMarked(venomMarked: boolean): void {
-	this.venomMarked = venomMarked;
-	if (venomMarked) {
-	  this.sprite.setTint(VENOM_TINT);
-	  return;
-	}
-	this.sprite.clearTint();
+    this.venomMarked = venomMarked;
+    this.applyStatusTint();
+  }
+
+  private applyStatusTint(): void {
+    if (this.venomMarked) {
+      this.sprite.setTint(VENOM_TINT);
+      return;
+    }
+    if (this.elite) {
+      this.sprite.setTint(ELITE_TINT);
+      return;
+    }
+    this.sprite.clearTint();
   }
 
   private resetVisualState(): void {

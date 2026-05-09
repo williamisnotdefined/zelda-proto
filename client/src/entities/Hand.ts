@@ -8,7 +8,8 @@ const SNAP_DISTANCE = 180;
 const HAND_SCALE = 1.24;
 const HP_BAR_WIDTH = 28;
 const HP_BAR_OFFSET_Y = 20;
-const ELITE_SCALE_MULTIPLIER = 2;
+const ELITE_SCALE_MULTIPLIER = 1.3;
+const ELITE_TINT = 0xff6b6b;
 const VENOM_TINT = 0x6dff8c;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
@@ -108,9 +109,9 @@ export class HandEntity {
     this.hp = hp;
     this.maxHp = maxHp;
     this.serverState = state;
+    this.resetVisualState();
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
-    this.resetVisualState();
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
@@ -214,8 +215,16 @@ export class HandEntity {
 
   private applyVenomMarked(venomMarked: boolean): void {
     this.venomMarked = venomMarked;
-    if (venomMarked) {
+    this.applyStatusTint();
+  }
+
+  private applyStatusTint(): void {
+    if (this.venomMarked) {
       this.sprite.setTint(VENOM_TINT);
+      return;
+    }
+    if (this.elite) {
+      this.sprite.setTint(ELITE_TINT);
       return;
     }
     this.sprite.clearTint();
@@ -250,6 +259,7 @@ export class HandEntity {
       HP_BAR_WIDTH * (elite ? ELITE_SCALE_MULTIPLIER : 1),
       HP_BAR_OFFSET_Y * (elite ? ELITE_SCALE_MULTIPLIER : 1)
     );
+    this.applyStatusTint();
   }
 
   destroy(): void {

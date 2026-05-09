@@ -1,4 +1,3 @@
-- 1234/qwer
 - molotov
 - confusion (enemies start to attack other enemies)
 - shuriken attack / protection
