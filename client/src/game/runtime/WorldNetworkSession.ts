@@ -49,9 +49,6 @@ export class WorldNetworkSession {
         case SERVER_MESSAGE_TYPES.LEADERBOARD:
           this.ui.setLeaderboard(message.players);
           break;
-        case SERVER_MESSAGE_TYPES.CHAT:
-          this.ui.addChatMessage(message);
-          break;
         case SERVER_MESSAGE_TYPES.RESUME_REJECTED:
           if (message.reason === SESSION_RESUME_REJECT_REASONS.SESSION_IN_USE) {
             this.ui.setConnectionError(SESSION_IN_USE_ERROR);

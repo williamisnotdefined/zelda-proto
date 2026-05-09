@@ -1,5 +1,4 @@
 import {
-  MAX_CHAT_LENGTH,
   MAX_NICKNAME_LENGTH,
   MAX_SESSION_TOKEN_LENGTH,
   MIN_NICKNAME_LENGTH,
@@ -10,7 +9,6 @@ import {
   INSTANCE_IDS,
   PROTOCOL_VERSION,
   SNAPSHOT_RESYNC_REASONS,
-  type ClientChatMessage,
   type ClientMessage,
   type InputMessage,
   type InstanceId,
@@ -24,7 +22,6 @@ const NICKNAME_PATTERN = /^[A-Za-z0-9 ]+$/;
 const SESSION_TOKEN_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export type NicknameValidationReason = 'too_short' | 'too_long' | 'invalid_characters';
-export type ChatTextValidationReason = 'empty' | 'too_long' | 'invalid_characters';
 export type SessionTokenValidationReason = 'too_short' | 'too_long' | 'invalid_characters';
 export type ClientMessageParseFailureReason = 'invalid_message' | 'protocol_mismatch';
 
@@ -95,28 +92,6 @@ export function parseNickname(value: string): ParseResult<string, NicknameValida
   return { ok: true, value: normalized };
 }
 
-export function normalizeChatText(value: string): string {
-  return value.trim();
-}
-
-export function parseChatText(value: string): ParseResult<string, ChatTextValidationReason> {
-  const normalized = normalizeChatText(value);
-
-  if (normalized.length === 0) {
-    return { ok: false, reason: 'empty' };
-  }
-
-  if (normalized.length > MAX_CHAT_LENGTH) {
-    return { ok: false, reason: 'too_long' };
-  }
-
-  if (hasControlCharacters(normalized)) {
-    return { ok: false, reason: 'invalid_characters' };
-  }
-
-  return { ok: true, value: normalized };
-}
-
 export function createJoinMessage(nickname: string): JoinMessage {
   return {
     protocolVersion: PROTOCOL_VERSION,
@@ -150,14 +125,6 @@ export function createResumeSessionMessage(sessionToken: string): ResumeSessionM
     protocolVersion: PROTOCOL_VERSION,
     type: CLIENT_MESSAGE_TYPES.RESUME_SESSION,
     sessionToken,
-  };
-}
-
-export function createChatMessage(text: string): ClientChatMessage {
-  return {
-    protocolVersion: PROTOCOL_VERSION,
-    type: CLIENT_MESSAGE_TYPES.CHAT,
-    text,
   };
 }
 
@@ -233,19 +200,6 @@ export function parseClientMessage(
     }
 
     return { ok: true, value: createResumeSessionMessage(sessionToken.value) };
-  }
-
-  if (raw.type === CLIENT_MESSAGE_TYPES.CHAT) {
-    if (typeof raw.text !== 'string') {
-      return { ok: false, reason: 'invalid_message' };
-    }
-
-    const text = parseChatText(raw.text);
-    if (!text.ok) {
-      return { ok: false, reason: 'invalid_message' };
-    }
-
-    return { ok: true, value: createChatMessage(text.value) };
   }
 
   if (raw.type === CLIENT_MESSAGE_TYPES.INPUT) {

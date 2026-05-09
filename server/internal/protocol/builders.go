@@ -16,14 +16,6 @@ func NewResumeSessionMessage(sessionToken string) ResumeSessionMessage {
 	}
 }
 
-func NewChatMessage(text string) ChatMessage {
-	return ChatMessage{
-		ProtocolVersion: ProtocolVersion,
-		Type:            ClientMessageTypeChat,
-		Text:            text,
-	}
-}
-
 func NewInputMessage(seq int64, input ClientInputState) InputMessage {
 	return InputMessage{
 		ProtocolVersion: ProtocolVersion,

@@ -48,37 +48,6 @@ func ParseNickname(value string) StringParseResult[NicknameValidationReason] {
 	}
 }
 
-func NormalizeChatText(value string) string {
-	return strings.TrimSpace(value)
-}
-
-func ParseChatText(value string) StringParseResult[ChatTextValidationReason] {
-	normalized := NormalizeChatText(value)
-
-	if len(normalized) == 0 {
-		return StringParseResult[ChatTextValidationReason]{
-			Reason: ChatTextValidationReasonEmpty,
-		}
-	}
-
-	if utf16Length(normalized) > MaxChatLength {
-		return StringParseResult[ChatTextValidationReason]{
-			Reason: ChatTextValidationReasonTooLong,
-		}
-	}
-
-	if hasControlCharacters(normalized) {
-		return StringParseResult[ChatTextValidationReason]{
-			Reason: ChatTextValidationReasonInvalidCharacters,
-		}
-	}
-
-	return StringParseResult[ChatTextValidationReason]{
-		OK:    true,
-		Value: normalized,
-	}
-}
-
 func NormalizeSessionToken(value string) string {
 	return strings.TrimSpace(value)
 }
@@ -157,18 +126,6 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		}
 
 		return ClientMessageParseResult{OK: true, Value: NewResumeSessionMessage(sessionToken.Value)}
-	case ClientMessageTypeChat:
-		textValue, ok := getString(record, "text")
-		if !ok {
-			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
-		}
-
-		text := ParseChatText(textValue)
-		if !text.OK {
-			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
-		}
-
-		return ClientMessageParseResult{OK: true, Value: NewChatMessage(text.Value)}
 	case ClientMessageTypeInput:
 		seq, ok := getSafeInteger(record, "seq")
 		if !ok || seq < 0 {

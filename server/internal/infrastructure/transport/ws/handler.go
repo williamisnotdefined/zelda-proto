@@ -27,7 +27,6 @@ const (
 	MaxConnections      = 200
 	MaxConnectionsPerIP = 12
 	InputRateLimit      = 65
-	ChatRateLimit       = 5
 	MaxRateViolations   = 15
 	MaxInvalidMessages  = 8
 )
@@ -131,7 +130,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 	rateWindowStart := h.now()
 	inputCount := 0
-	chatCount := 0
 	rateViolations := 0
 	invalidMessages := 0
 
@@ -140,7 +138,6 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 			return
 		}
 		inputCount = 0
-		chatCount = 0
 		rateViolations = 0
 		invalidMessages = 0
 		rateWindowStart = now
@@ -207,17 +204,6 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 				continue
 			}
 			if err := h.dispatcher.HandleInput(c.id, msg); err != nil && !registerInvalidMessage() {
-				return
-			}
-		case protocol.ChatMessage:
-			chatCount += 1
-			if chatCount > ChatRateLimit {
-				if !registerRateViolation() {
-					return
-				}
-				continue
-			}
-			if err := h.dispatcher.HandleChat(c.id, msg); err != nil && !registerInvalidMessage() {
 				return
 			}
 		case protocol.SnapshotResyncMessage:

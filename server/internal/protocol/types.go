@@ -40,16 +40,6 @@ func (ResumeSessionMessage) MessageType() ClientMessageType {
 	return ClientMessageTypeResumeSession
 }
 
-type ChatMessage struct {
-	ProtocolVersion int64             `json:"protocolVersion" msgpack:"protocolVersion"`
-	Type            ClientMessageType `json:"type" msgpack:"type"`
-	Text            string            `json:"text" msgpack:"text"`
-}
-
-func (ChatMessage) MessageType() ClientMessageType {
-	return ClientMessageTypeChat
-}
-
 type InputMessage struct {
 	ProtocolVersion int64             `json:"protocolVersion" msgpack:"protocolVersion"`
 	Type            ClientMessageType `json:"type" msgpack:"type"`

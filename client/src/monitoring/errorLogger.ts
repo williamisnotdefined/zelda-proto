@@ -4,7 +4,7 @@ import { phaserGame } from '../game/instance';
 declare const __APP_VERSION__: string;
 declare const __APP_RELEASE__: string;
 
-type ErrorCategory = 'browser' | 'promise' | 'react' | 'network' | 'game' | 'pwa';
+type ErrorCategory = 'browser' | 'promise' | 'react' | 'network' | 'game';
 type ErrorLevel = 'error' | 'warn';
 
 interface QueuedClientErrorEvent {
@@ -304,18 +304,6 @@ function getActiveScenes(): string[] {
 }
 
 function getDisplayMode(): string {
-  if (window.matchMedia('(display-mode: standalone)').matches) {
-    return 'standalone';
-  }
-
-  if (window.matchMedia('(display-mode: fullscreen)').matches) {
-    return 'fullscreen';
-  }
-
-  if ('standalone' in navigator && (navigator as Navigator & { standalone?: boolean }).standalone) {
-    return 'standalone-ios';
-  }
-
   return 'browser';
 }
 

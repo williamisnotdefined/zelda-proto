@@ -5,7 +5,6 @@ export const WORLD_VIEW_RADIUS = 2000;
 
 export const MIN_NICKNAME_LENGTH = 2;
 export const MAX_NICKNAME_LENGTH = 16;
-export const MAX_CHAT_LENGTH = 100;
 export const MIN_SESSION_TOKEN_LENGTH = 8;
 export const MAX_SESSION_TOKEN_LENGTH = 128;
 

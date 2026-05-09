@@ -16,20 +16,6 @@
       "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgukdHlwZaRqb2luqG5pY2tuYW1lqSAgWmVsZGEgIA=="
     },
     {
-      "name": "chat_trimmed",
-      "raw": {
-        "protocolVersion": 11,
-        "type": "chat",
-        "text": "  hello hyrule  "
-      },
-      "canonical": {
-        "protocolVersion": 11,
-        "type": "chat",
-        "text": "hello hyrule"
-      },
-      "msgpackBase64": "3gADr3Byb3RvY29sVmVyc2lvbgukdHlwZaRjaGF0pHRleHSwICBoZWxsbyBoeXJ1bGUgIA=="
-    },
-    {
       "name": "resume_session_trimmed",
       "raw": {
         "protocolVersion": 11,

@@ -7,7 +7,6 @@ const (
 
 	MinNicknameLength     = 2
 	MaxNicknameLength     = 16
-	MaxChatLength         = 100
 	MinSessionTokenLength = 8
 	MaxSessionTokenLength = 128
 
@@ -20,7 +19,6 @@ const (
 	ClientMessageTypeInput          ClientMessageType = "input"
 	ClientMessageTypeJoin           ClientMessageType = "join"
 	ClientMessageTypeResumeSession  ClientMessageType = "resume_session"
-	ClientMessageTypeChat           ClientMessageType = "chat"
 	ClientMessageTypeSnapshotResync ClientMessageType = "snapshot_resync"
 )
 
@@ -48,14 +46,6 @@ const (
 	NicknameValidationReasonTooShort          NicknameValidationReason = "too_short"
 	NicknameValidationReasonTooLong           NicknameValidationReason = "too_long"
 	NicknameValidationReasonInvalidCharacters NicknameValidationReason = "invalid_characters"
-)
-
-type ChatTextValidationReason string
-
-const (
-	ChatTextValidationReasonEmpty             ChatTextValidationReason = "empty"
-	ChatTextValidationReasonTooLong           ChatTextValidationReason = "too_long"
-	ChatTextValidationReasonInvalidCharacters ChatTextValidationReason = "invalid_characters"
 )
 
 type SessionTokenValidationReason string

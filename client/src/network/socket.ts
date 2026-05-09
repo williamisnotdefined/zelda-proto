@@ -1,9 +1,7 @@
 import type { ClientMessage, ServerMessage } from '@/shared';
 import {
-  createChatMessage,
   createJoinMessage,
   createResumeSessionMessage,
-  parseChatText,
   parseNickname,
 } from '@/shared/protocol';
 import { ConnectionState, NetworkManager } from './NetworkManager';
@@ -93,15 +91,6 @@ export function sendJoin(nickname: string): void {
   if (getConnectionState() === 'CONNECTED') {
     send(createJoinMessage(parsed.value));
   }
-}
-
-export function sendChat(text: string): void {
-  const parsed = parseChatText(text);
-  if (!parsed.ok) {
-    return;
-  }
-
-  send(createChatMessage(parsed.value));
 }
 
 export function onceOpen(cb: () => void): void {

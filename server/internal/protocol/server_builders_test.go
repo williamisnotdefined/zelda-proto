@@ -76,16 +76,6 @@ func TestBuildSnapshotDeltaIncludesUpsertRemove(t *testing.T) {
 	}
 }
 
-func TestBuildChatBroadcastTimestamp(t *testing.T) {
-	t.Parallel()
-
-	msg := BuildChatBroadcast("p1", "Link", "hello", 12345)
-	v, _ := msg.Lookup("timestamp")
-	if v.(int64) != 12345 {
-		t.Fatalf("expected timestamp 12345")
-	}
-}
-
 func TestBuildLeaderboardOrder(t *testing.T) {
 	t.Parallel()
 

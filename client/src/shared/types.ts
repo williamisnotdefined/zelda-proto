@@ -95,7 +95,6 @@ export const SERVER_MESSAGE_TYPES = {
   SNAPSHOT_DELTA: 'snapshot_delta',
   WELCOME: 'welcome',
   RESUME_REJECTED: 'resume_rejected',
-  CHAT: 'chat',
   LEADERBOARD: 'leaderboard',
 } as const;
 
@@ -103,7 +102,6 @@ export const CLIENT_MESSAGE_TYPES = {
   INPUT: 'input',
   JOIN: 'join',
   RESUME_SESSION: 'resume_session',
-  CHAT: 'chat',
   SNAPSHOT_RESYNC: 'snapshot_resync',
 } as const;
 
@@ -308,14 +306,6 @@ export interface ResumeRejectedMessage extends ProtocolEnvelope {
   reason: SessionResumeRejectReason;
 }
 
-export interface ServerChatMessage extends ProtocolEnvelope {
-  type: typeof SERVER_MESSAGE_TYPES.CHAT;
-  id: string;
-  nickname: string;
-  text: string;
-  timestamp: number;
-}
-
 export interface LeaderboardMessage extends ProtocolEnvelope {
   type: typeof SERVER_MESSAGE_TYPES.LEADERBOARD;
   players: PlayerLeaderboardEntry[];
@@ -359,8 +349,7 @@ export type ServerMessage =
   | SnapshotDeltaMessage
   | LeaderboardMessage
   | WelcomeMessage
-  | ResumeRejectedMessage
-  | ServerChatMessage;
+  | ResumeRejectedMessage;
 
 export interface InputMessage {
   protocolVersion: ProtocolVersion;
@@ -393,12 +382,6 @@ export interface ResumeSessionMessage {
   sessionToken: string;
 }
 
-export interface ClientChatMessage {
-  protocolVersion: ProtocolVersion;
-  type: typeof CLIENT_MESSAGE_TYPES.CHAT;
-  text: string;
-}
-
 export interface SnapshotResyncRequestMessage {
   protocolVersion: ProtocolVersion;
   type: typeof CLIENT_MESSAGE_TYPES.SNAPSHOT_RESYNC;
@@ -411,5 +394,4 @@ export type ClientMessage =
   | InputMessage
   | JoinMessage
   | ResumeSessionMessage
-  | ClientChatMessage
   | SnapshotResyncRequestMessage;

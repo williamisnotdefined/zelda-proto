@@ -12,7 +12,6 @@ import (
 	appworld "github.com/williamisnotdefined/zelda-proto/server/internal/application/world"
 	bossdom "github.com/williamisnotdefined/zelda-proto/server/internal/domain/boss"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/hazard"
-	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/portal"
 	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/protocol"
 )
@@ -96,22 +95,6 @@ func TestInputBeforeJoinFails(t *testing.T) {
 	}
 }
 
-func TestChatBroadcastsToAll(t *testing.T) {
-	t.Parallel()
-
-	d, _, conn := newDispatcher(t)
-	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := d.HandleChat("c1", protocol.ChatMessage{Text: "hello"}); err != nil {
-		t.Fatal(err)
-	}
-	// welcome + chat = 2
-	if len(conn.snapshot()) < 2 {
-		t.Fatalf("expected ≥2 messages, got %d", len(conn.snapshot()))
-	}
-}
-
 func TestBroadcastSendsSnapshot(t *testing.T) {
 	t.Parallel()
 
@@ -175,46 +158,6 @@ func TestDisconnectSuspendsPlayer(t *testing.T) {
 	}
 	if string(p.State) != "idle" {
 		t.Fatalf("expected suspended player to be idle, got %q", p.State)
-	}
-}
-
-func TestChatBroadcastsOnlyWithinInstance(t *testing.T) {
-	t.Parallel()
-
-	d, mgr, conn1 := newDispatcher(t)
-	conn2 := &fakeConn{id: "c2"}
-	d.Register(conn2)
-	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := d.HandleJoin("c2", protocol.JoinMessage{Nickname: "Zelda"}); err != nil {
-		t.Fatal(err)
-	}
-	player2ID := d.connections["c2"].playerID
-	w := mgr.World(domworld.InstancePhase1)
-	p2 := w.Players()[player2ID]
-	p2.SafeZoneTimer = 0
-	p2.X, p2.Y = 500, 500
-	w.SpawnPortal(&portal.Portal{
-		ID: "pt", X: 500, Y: 500, Kind: portal.Phase1ToPhase2,
-		ToInstance: domworld.InstancePhase2,
-		TargetX:    100, TargetY: 100,
-	})
-	d.Sim(20 * time.Millisecond)
-	if loc, _ := mgr.LocationOf(player2ID); loc != domworld.InstancePhase2 {
-		t.Fatalf("expected second player transferred to phase2, got %s", loc)
-	}
-
-	before1 := len(conn1.snapshot())
-	before2 := len(conn2.snapshot())
-	if err := d.HandleChat("c1", protocol.ChatMessage{Text: "hello"}); err != nil {
-		t.Fatal(err)
-	}
-	if got := len(conn1.snapshot()); got != before1+1 {
-		t.Fatalf("expected sender instance to receive chat, got frames %d -> %d", before1, got)
-	}
-	if got := len(conn2.snapshot()); got != before2 {
-		t.Fatalf("expected other instance to miss chat, got frames %d -> %d", before2, got)
 	}
 }
 

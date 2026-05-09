@@ -229,24 +229,6 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 	})
 	return nil
 }
-
-// HandleChat forwards a chat broadcast to every connected player in the same
-// authoritative instance as the sender.
-func (d *Dispatcher) HandleChat(connID string, msg protocol.ChatMessage) error {
-	state, ok := d.lookup(connID)
-	if !ok || !state.joined {
-		return ErrNotJoined
-	}
-	loc, _ := d.manager.LocationOf(state.playerID)
-	pl := d.manager.World(loc).Players()[state.playerID]
-	if pl == nil {
-		return ErrNotJoined
-	}
-	envelope := protocol.BuildChatBroadcast(state.playerID, pl.Nickname, msg.Text, d.now().UnixMilli())
-	d.broadcastToInstance(loc, envelope)
-	return nil
-}
-
 // Sim drives a simulation tick (loop.Tickable).
 func (d *Dispatcher) Sim(dt time.Duration) {
 	d.manager.Tick(dt)

@@ -1,4 +1,4 @@
-import type { ServerChatMessage, PlayerLeaderboardEntry } from '@/shared';
+import type { PlayerLeaderboardEntry } from '@/shared';
 import type { ConnectionState } from '../../../network/NetworkManager';
 import type { BossData, PlayerData } from '../../../ui/store';
 
@@ -20,5 +20,4 @@ export interface GameUiSink {
   setLandmineCooldownEndsAt(time: number | null): void;
   setBoss(boss: BossData | null): void;
   setLeaderboard(players: PlayerLeaderboardEntry[]): void;
-  addChatMessage(message: ServerChatMessage): void;
 }

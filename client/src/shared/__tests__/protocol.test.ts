@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CHAT_LENGTH, MAX_NICKNAME_LENGTH, MAX_SESSION_TOKEN_LENGTH } from '../constants';
+import { MAX_NICKNAME_LENGTH, MAX_SESSION_TOKEN_LENGTH } from '../constants';
 import {
-  createChatMessage,
   createInputMessage,
   createJoinMessage,
   createResumeSessionMessage,
   createSnapshotResyncMessage,
-  parseChatText,
   parseClientMessage,
   parseNickname,
   parseSessionToken,
@@ -33,24 +31,6 @@ describe('parseNickname', () => {
   });
 });
 
-describe('parseChatText', () => {
-  it('trims and accepts chat text', () => {
-    expect(parseChatText('  hello world  ')).toEqual({ ok: true, value: 'hello world' });
-  });
-
-  it('rejects empty, long, and control-character chat text', () => {
-    expect(parseChatText('   ')).toEqual({ ok: false, reason: 'empty' });
-    expect(parseChatText('a'.repeat(MAX_CHAT_LENGTH + 1))).toEqual({
-      ok: false,
-      reason: 'too_long',
-    });
-    expect(parseChatText('hello\nworld')).toEqual({
-      ok: false,
-      reason: 'invalid_characters',
-    });
-  });
-});
-
 describe('parseSessionToken', () => {
   it('trims and accepts canonical session tokens', () => {
     expect(parseSessionToken('  token_123-abc  ')).toEqual({ ok: true, value: 'token_123-abc' });
@@ -72,12 +52,6 @@ describe('message builders', () => {
       protocolVersion: PROTOCOL_VERSION,
       type: CLIENT_MESSAGE_TYPES.JOIN,
       nickname: 'Link',
-    });
-
-    expect(createChatMessage('hello')).toEqual({
-      protocolVersion: PROTOCOL_VERSION,
-      type: CLIENT_MESSAGE_TYPES.CHAT,
-      text: 'hello',
     });
 
     expect(createResumeSessionMessage('resume_token_123')).toEqual({
@@ -137,7 +111,7 @@ describe('message builders', () => {
 });
 
 describe('parseClientMessage', () => {
-  it('canonicalizes valid join and chat payloads', () => {
+  it('canonicalizes valid join and snapshot resync payloads', () => {
     expect(
       parseClientMessage({
         protocolVersion: PROTOCOL_VERSION,
@@ -145,14 +119,6 @@ describe('parseClientMessage', () => {
         nickname: '  Zelda  ',
       })
     ).toEqual({ ok: true, value: createJoinMessage('Zelda') });
-
-    expect(
-      parseClientMessage({
-        protocolVersion: PROTOCOL_VERSION,
-        type: CLIENT_MESSAGE_TYPES.CHAT,
-        text: '  hi  ',
-      })
-    ).toEqual({ ok: true, value: createChatMessage('hi') });
 
     expect(
       parseClientMessage({

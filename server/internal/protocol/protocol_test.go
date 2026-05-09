@@ -36,34 +36,6 @@ func TestParseNickname(t *testing.T) {
 	})
 }
 
-func TestParseChatText(t *testing.T) {
-	t.Run("trims and accepts chat text", func(t *testing.T) {
-		result := protocol.ParseChatText("  hello world  ")
-		expected := protocol.StringParseResult[protocol.ChatTextValidationReason]{
-			OK:    true,
-			Value: "hello world",
-		}
-		if result != expected {
-			t.Fatalf("expected %#v, got %#v", expected, result)
-		}
-	})
-
-	t.Run("rejects empty long and control-character chat text", func(t *testing.T) {
-		if result := protocol.ParseChatText("   "); result != (protocol.StringParseResult[protocol.ChatTextValidationReason]{Reason: protocol.ChatTextValidationReasonEmpty}) {
-			t.Fatalf("unexpected result: %#v", result)
-		}
-
-		tooLong := strings.Repeat("a", protocol.MaxChatLength+1)
-		if result := protocol.ParseChatText(tooLong); result != (protocol.StringParseResult[protocol.ChatTextValidationReason]{Reason: protocol.ChatTextValidationReasonTooLong}) {
-			t.Fatalf("unexpected result: %#v", result)
-		}
-
-		if result := protocol.ParseChatText("hello\nworld"); result != (protocol.StringParseResult[protocol.ChatTextValidationReason]{Reason: protocol.ChatTextValidationReasonInvalidCharacters}) {
-			t.Fatalf("unexpected result: %#v", result)
-		}
-	})
-}
-
 func TestParseSessionToken(t *testing.T) {
 	t.Run("trims and accepts canonical session tokens", func(t *testing.T) {
 		result := protocol.ParseSessionToken("  token_123-abc  ")
@@ -100,15 +72,6 @@ func TestMessageBuilders(t *testing.T) {
 		Nickname:        "Link",
 	}) {
 		t.Fatalf("unexpected join message: %#v", join)
-	}
-
-	chat := protocol.NewChatMessage("hello")
-	if !reflect.DeepEqual(chat, protocol.ChatMessage{
-		ProtocolVersion: protocol.ProtocolVersion,
-		Type:            protocol.ClientMessageTypeChat,
-		Text:            "hello",
-	}) {
-		t.Fatalf("unexpected chat message: %#v", chat)
 	}
 
 	resume := protocol.NewResumeSessionMessage("resume_token_123")
@@ -181,13 +144,6 @@ func TestParseClientMessage(t *testing.T) {
 			"nickname":        "  Zelda  ",
 		})
 		assertParseResult(t, join, protocol.NewJoinMessage("Zelda"), "")
-
-		chat := protocol.ParseClientMessage(map[string]any{
-			"protocolVersion": int64(protocol.ProtocolVersion),
-			"type":            "chat",
-			"text":            "  hi  ",
-		})
-		assertParseResult(t, chat, protocol.NewChatMessage("hi"), "")
 
 		resume := protocol.ParseClientMessage(map[string]any{
 			"protocolVersion": int64(protocol.ProtocolVersion),
@@ -291,20 +247,13 @@ func TestParseClientMessage(t *testing.T) {
 }
 
 func TestValidateClientMessage(t *testing.T) {
-	t.Run("canonicalizes valid join and chat payloads", func(t *testing.T) {
+	t.Run("canonicalizes valid join payloads", func(t *testing.T) {
 		join := protocol.ValidateClientMessage(map[string]any{
 			"protocolVersion": int64(protocol.ProtocolVersion),
 			"type":            "join",
 			"nickname":        "  Zelda  ",
 		}, false)
 		assertValidationResult(t, join, protocol.NewJoinMessage("Zelda"), "")
-
-		chat := protocol.ValidateClientMessage(map[string]any{
-			"protocolVersion": int64(protocol.ProtocolVersion),
-			"type":            "chat",
-			"text":            "  hello  ",
-		}, true)
-		assertValidationResult(t, chat, protocol.NewChatMessage("hello"), "")
 	})
 
 	t.Run("rejects invalid payloads and protocol mismatches", func(t *testing.T) {

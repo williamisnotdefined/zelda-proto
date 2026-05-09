@@ -40,7 +40,7 @@ Default local URLs:
 
 - `server/`: authoritative Go runtime, simulation, AI, networking, HTTP and WebSocket transport
 - `client/src/game/`: Phaser runtime, gameplay scene, entity rendering
-- `client/src/ui/`: React HUD and mobile controls
+- `client/src/ui/`: React HUD and overlays
 - `client/src/game-core/`: prediction, interpolation, snapshot handling
 - `client/src/shared/`: protocol types, registry definitions, shared constants
 - `e2e/`: Playwright smoke tests

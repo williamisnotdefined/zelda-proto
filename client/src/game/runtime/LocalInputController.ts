@@ -19,7 +19,6 @@ import { PlayerEntity } from '../../entities/Player';
 import type { GameConnection } from '../../network/gameConnection';
 import type { InputState, PendingInput } from '../controllers/PredictionController';
 import { PredictionController } from '../controllers/PredictionController';
-import { useTouchInputStore } from '../input/touchInputStore';
 
 const INPUT_SEND_INTERVAL_MS = 33;
 const MAX_PENDING_INPUTS = 128;
@@ -170,7 +169,6 @@ export class LocalInputController {
     }
 
     const localDead = localEntity.serverState === 'dead';
-    const touchInput = useTouchInputStore.getState();
     const nowMs = Date.now();
 
     if (localDead && this.waveCooldownEndsAtMs !== 0) {
@@ -213,30 +211,30 @@ export class LocalInputController {
       this.resetDirectionalTapState();
     }
 
-    const rawAttackDown = this.attackKey.isDown || touchInput.attackPressed;
-    const rawFireballDown = this.fireballKey.isDown || touchInput.fireballPressed;
+    const rawAttackDown = this.attackKey.isDown;
+    const rawFireballDown = this.fireballKey.isDown;
     const manualFireball = rawFireballDown && !this.prevFireballDown;
     this.prevFireballDown = rawFireballDown;
-    const rawGrenadeDown = this.grenadeKey.isDown || touchInput.grenadePressed;
+    const rawGrenadeDown = this.grenadeKey.isDown;
     const manualGrenade = rawGrenadeDown && !this.prevGrenadeDown;
     this.prevGrenadeDown = rawGrenadeDown;
-    const rawNumbDown = this.numbKey.isDown || touchInput.numbPressed;
+    const rawNumbDown = this.numbKey.isDown;
     const manualNumb = rawNumbDown && !this.prevNumbDown;
     this.prevNumbDown = rawNumbDown;
-    const rawPullDown = this.pullKey.isDown || touchInput.pullPressed;
+    const rawPullDown = this.pullKey.isDown;
     const manualPull = rawPullDown && !this.prevPullDown;
     this.prevPullDown = rawPullDown;
-    const rawVenomDown = this.venomKey.isDown || touchInput.venomPressed;
+    const rawVenomDown = this.venomKey.isDown;
     const manualVenom = rawVenomDown && !this.prevVenomDown;
     this.prevVenomDown = rawVenomDown;
-    const rawLandmineDown = this.landmineKey.isDown || touchInput.landminePressed;
+    const rawLandmineDown = this.landmineKey.isDown;
     const manualLandmine = rawLandmineDown && !this.prevLandmineDown;
     this.prevLandmineDown = rawLandmineDown;
-    const rawUpDown = this.cursors.up.isDown || touchInput.move.up;
-    const rawDownDown = this.cursors.down.isDown || touchInput.move.down;
-    const rawLeftDown = this.cursors.left.isDown || touchInput.move.left;
-    const rawRightDown = this.cursors.right.isDown || touchInput.move.right;
-    const rawWaveDown = this.waveKey.isDown || touchInput.wavePressed;
+    const rawUpDown = this.cursors.up.isDown;
+    const rawDownDown = this.cursors.down.isDown;
+    const rawLeftDown = this.cursors.left.isDown;
+    const rawRightDown = this.cursors.right.isDown;
+    const rawWaveDown = this.waveKey.isDown;
     const dashDirection = this.consumeDashDirectionTap(
       nowMs,
       {

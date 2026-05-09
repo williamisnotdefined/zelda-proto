@@ -1,4 +1,4 @@
-import type { ServerChatMessage, PlayerLeaderboardEntry } from '@/shared';
+import type { PlayerLeaderboardEntry } from '@/shared';
 import type { ConnectionState } from '../../../network/NetworkManager';
 import type { BossData, PlayerData } from '../../../ui/store';
 import { useGameStore } from '../../../ui/store';
@@ -75,10 +75,6 @@ class ZustandGameUiSink implements GameUiSink {
     const store = useGameStore.getState();
     store.setAllPlayers(players);
     store.setPlayerCount(players.length);
-  }
-
-  addChatMessage(message: ServerChatMessage): void {
-    useGameStore.getState().addChatMessage(message);
   }
 }
 

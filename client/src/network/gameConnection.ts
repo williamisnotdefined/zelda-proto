@@ -11,7 +11,6 @@ import {
   onMessage,
   restoreConnectionIfNeeded,
   send,
-  sendChat,
   sendJoin,
   onceOpen,
 } from './socket';
@@ -29,7 +28,6 @@ export interface GameConnection {
   onceOpen(callback: () => void): void;
   send(message: ClientMessage): boolean;
   sendJoin(nickname: string): void;
-  sendChat(text: string): void;
   getNetworkStats(): NetworkPerformanceStats;
   hasDesiredNickname(): boolean;
   onEvent(handler: (event: GameConnectionEvent) => void): () => void;
@@ -62,10 +60,6 @@ class SocketGameConnection implements GameConnection {
 
   sendJoin(nickname: string): void {
     sendJoin(nickname);
-  }
-
-  sendChat(text: string): void {
-    sendChat(text);
   }
 
   getNetworkStats(): NetworkPerformanceStats {

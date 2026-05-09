@@ -181,19 +181,6 @@ func BuildSnapshotDelta(in SnapshotDeltaInput) codec.Object {
 		{Key: "waveIndicators", Value: toAny(in.WaveIndicators)},
 	}
 }
-
-// BuildChatBroadcast constructs a server-side chat broadcast.
-func BuildChatBroadcast(playerID, nickname, text string, ts int64) codec.Object {
-	return codec.Object{
-		{Key: "protocolVersion", Value: ProtocolVersion},
-		{Key: "type", Value: ServerMessageTypeChat},
-		{Key: "id", Value: playerID},
-		{Key: "nickname", Value: nickname},
-		{Key: "text", Value: text},
-		{Key: "timestamp", Value: ts},
-	}
-}
-
 // BuildLeaderboard constructs a leaderboard envelope. The client reads
 // `players`, with each entry exposing id/nickname/playerKills/monsterKills/deaths.
 func BuildLeaderboard(entries []LeaderboardEntry) codec.Object {

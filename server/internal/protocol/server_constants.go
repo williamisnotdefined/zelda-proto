@@ -7,7 +7,6 @@ const (
 	ServerMessageTypeWelcome         = "welcome"
 	ServerMessageTypeSnapshot        = "snapshot"
 	ServerMessageTypeSnapshotDelta   = "snapshot_delta"
-	ServerMessageTypeChat            = "chat"
 	ServerMessageTypeLeaderboard     = "leaderboard"
 	ServerMessageTypeResumeRejected  = "resume_rejected"
 	ServerMessageTypeError           = "error"

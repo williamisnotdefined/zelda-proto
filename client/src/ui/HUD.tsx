@@ -10,16 +10,9 @@ import {
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
 import { weaponDefinitions } from '@/shared/definitions';
-import { Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
-import { useTouchInputStore } from '../game/input/touchInputStore';
+import { Volume2, VolumeX } from 'lucide-react';
 import { phaserGame } from '../game/instance';
 import { gameConnection } from '../network/gameConnection';
-import {
-  confirmPwaUpdate,
-  dismissPwaUpdatePrompt,
-  subscribePwaUpdatePrompt,
-} from '../pwa/updatePrompt';
-import { Chat } from './Chat';
 import { Leaderboard } from './Leaderboard';
 import { NicknameModal } from './NicknameModal';
 import { useGameStore } from './store';
@@ -39,20 +32,12 @@ export function HUD() {
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
-  const touchEnabled = useTouchInputStore((s) => s.enabled);
   const [musicMuted, setMusicMuted] = useState(false);
-  const [fullscreenSupported, setFullscreenSupported] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [pwaUpdateAvailable, setPwaUpdateAvailable] = useState(false);
   const [cooldownNowMs, setCooldownNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const muted = phaserGame?.sound.mute ?? false;
     setMusicMuted(muted);
-  }, []);
-
-  useEffect(() => {
-    return subscribePwaUpdatePrompt(setPwaUpdateAvailable);
   }, []);
 
   useEffect(() => {
@@ -100,37 +85,6 @@ export function HUD() {
     waveCooldownEndsAt,
   ]);
 
-  useEffect(() => {
-    const element = document.documentElement as HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void> | void;
-    };
-    const doc = document as Document & {
-      webkitFullscreenElement?: Element | null;
-      webkitExitFullscreen?: () => Promise<void> | void;
-    };
-
-    const canRequest =
-      typeof element.requestFullscreen === 'function' ||
-      typeof element.webkitRequestFullscreen === 'function';
-    const canExit =
-      typeof document.exitFullscreen === 'function' ||
-      typeof doc.webkitExitFullscreen === 'function';
-    setFullscreenSupported(canRequest && canExit);
-
-    const syncFullscreen = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement || doc.webkitFullscreenElement));
-    };
-
-    syncFullscreen();
-    document.addEventListener('fullscreenchange', syncFullscreen);
-    document.addEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', syncFullscreen);
-      document.removeEventListener('webkitfullscreenchange', syncFullscreen as EventListener);
-    };
-  }, []);
-
   const handleRetry = () => {
     setConnectionError(null);
     gameConnection.connect();
@@ -141,43 +95,6 @@ export function HUD() {
     if (!soundManager) return;
     soundManager.mute = !soundManager.mute;
     setMusicMuted(soundManager.mute);
-  };
-
-  const toggleFullscreen = async () => {
-    const root = document.documentElement as HTMLElement & {
-      webkitRequestFullscreen?: () => Promise<void> | void;
-    };
-    const doc = document as Document & {
-      webkitFullscreenElement?: Element | null;
-      webkitExitFullscreen?: () => Promise<void> | void;
-    };
-
-    try {
-      if (document.fullscreenElement || doc.webkitFullscreenElement) {
-        if (typeof document.exitFullscreen === 'function') {
-          await document.exitFullscreen();
-        } else {
-          await doc.webkitExitFullscreen?.();
-        }
-        return;
-      }
-
-      if (typeof root.requestFullscreen === 'function') {
-        await root.requestFullscreen();
-      } else {
-        await root.webkitRequestFullscreen?.();
-      }
-    } catch {
-      // User gesture restrictions can reject fullscreen attempts.
-    }
-  };
-
-  const handleUpdateNow = async () => {
-    await confirmPwaUpdate();
-  };
-
-  const handleUpdateLater = () => {
-    dismissPwaUpdatePrompt();
   };
 
   const waveCooldownRemainingMs = Math.max(0, (waveCooldownEndsAt ?? 0) - cooldownNowMs);
@@ -266,33 +183,6 @@ export function HUD() {
             <Volume2 size={16} strokeWidth={2} />
           )}
         </button>
-
-        {touchEnabled && fullscreenSupported && (
-          <button
-            onClick={toggleFullscreen}
-            aria-label={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
-            title={isFullscreen ? 'Sair da tela cheia' : 'Entrar em tela cheia'}
-            style={{
-              pointerEvents: 'auto',
-              width: 30,
-              height: 30,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              background: 'rgba(0, 0, 0, 0.55)',
-              border: '1px solid #666',
-              color: '#fff',
-              borderRadius: 3,
-            }}
-          >
-            {isFullscreen ? (
-              <Minimize2 size={16} strokeWidth={2} />
-            ) : (
-              <Maximize2 size={16} strokeWidth={2} />
-            )}
-          </button>
-        )}
 
         <div style={{ fontSize: '11px', opacity: 0.7, textAlign: 'right' }}>
           {connected ? (
@@ -768,81 +658,18 @@ export function HUD() {
       )}
 
       {/* Controls hint */}
-      {!touchEnabled && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            right: 8,
-            fontSize: '10px',
-            opacity: 0.4,
-          }}
-        >
-          Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
-          wave | T: numb | Y: pull | U: venom | Space: attack | Tab: players
-        </div>
-      )}
-
-      {pwaUpdateAvailable && (
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: touchEnabled ? 'calc(env(safe-area-inset-bottom, 0px) + 272px)' : 16,
-            transform: 'translateX(-50%)',
-            pointerEvents: 'auto',
-            background: 'rgba(10, 10, 10, 0.92)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: 8,
-            padding: '10px 12px',
-            minWidth: 260,
-            maxWidth: 'min(420px, calc(100vw - 24px))',
-            boxShadow: '0 8px 26px rgba(0, 0, 0, 0.35)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10,
-            zIndex: 60,
-          }}
-        >
-          <div style={{ fontSize: '12px', lineHeight: 1.2, opacity: 0.95 }}>
-            Nova versao do jogo disponivel.
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={handleUpdateLater}
-              style={{
-                padding: '5px 8px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid #666',
-                color: '#fff',
-                borderRadius: 4,
-              }}
-            >
-              Depois
-            </button>
-            <button
-              onClick={handleUpdateNow}
-              style={{
-                padding: '5px 8px',
-                fontSize: '11px',
-                cursor: 'pointer',
-                background: 'rgba(74, 163, 255, 0.25)',
-                border: '1px solid rgba(95, 179, 255, 0.9)',
-                color: '#fff',
-                borderRadius: 4,
-              }}
-            >
-              Atualizar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Chat */}
-      {!touchEnabled && <Chat />}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 8,
+          right: 8,
+          fontSize: '10px',
+          opacity: 0.4,
+        }}
+      >
+        Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
+        wave | T: numb | Y: pull | U: venom | Space: attack | Tab: players
+      </div>
 
       {/* Leaderboard */}
       <Leaderboard />

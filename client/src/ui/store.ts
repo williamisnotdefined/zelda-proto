@@ -6,7 +6,6 @@ import type {
   EnemyState,
   PlayerLeaderboardEntry,
   PlayerState,
-  ServerChatMessage,
   WeaponKind,
 } from '@/shared';
 import { create } from 'zustand';
@@ -72,7 +71,6 @@ export interface GameStore {
   showNicknameModal: boolean;
   connectionError: string | null;
   lastConnectionAttempt: number | null;
-  chatMessages: ServerChatMessage[];
   allPlayers: PlayerLeaderboardEntry[];
   setLocalPlayerId: (id: string) => void;
   setLocalPlayer: (p: PlayerData | null) => void;
@@ -93,7 +91,6 @@ export interface GameStore {
   openNicknameModal: () => void;
   setConnectionError: (error: string | null) => void;
   setLastConnectionAttempt: (time: number) => void;
-  addChatMessage: (msg: ServerChatMessage) => void;
   setAllPlayers: (players: PlayerLeaderboardEntry[]) => void;
 }
 
@@ -116,7 +113,6 @@ export const useGameStore = create<GameStore>((set) => ({
   showNicknameModal: initialConnectionContext.nickname === null,
   connectionError: null,
   lastConnectionAttempt: null,
-  chatMessages: [],
   allPlayers: [],
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
   setLocalPlayer: (p) => set({ localPlayer: p }),
@@ -137,9 +133,5 @@ export const useGameStore = create<GameStore>((set) => ({
   openNicknameModal: () => set({ showNicknameModal: true }),
   setConnectionError: (error) => set({ connectionError: error }),
   setLastConnectionAttempt: (time) => set({ lastConnectionAttempt: time }),
-  addChatMessage: (msg) =>
-    set((state) => ({
-      chatMessages: [...state.chatMessages.slice(-49), msg],
-    })),
   setAllPlayers: (players) => set({ allPlayers: players }),
 }));

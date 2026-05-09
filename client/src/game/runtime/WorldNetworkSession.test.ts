@@ -25,7 +25,6 @@ class FakeConnection implements GameConnection {
     return true;
   }
   sendJoin(): void {}
-  sendChat(): void {}
   getNetworkStats() {
     return {
       incomingBytesPerSecond: 0,
@@ -54,7 +53,6 @@ function createUiSink(): GameUiSink & {
   setLocalPlayerId: ReturnType<typeof vi.fn>;
   setConnectionError: ReturnType<typeof vi.fn>;
   setLeaderboard: ReturnType<typeof vi.fn>;
-  addChatMessage: ReturnType<typeof vi.fn>;
   openNicknameModal: ReturnType<typeof vi.fn>;
   syncConnectionState: ReturnType<typeof vi.fn>;
   setLastConnectionAttempt: ReturnType<typeof vi.fn>;
@@ -85,7 +83,6 @@ function createUiSink(): GameUiSink & {
     setLandmineCooldownEndsAt: vi.fn(),
     setBoss: vi.fn(),
     setLeaderboard: vi.fn(),
-    addChatMessage: vi.fn(),
   };
 }
 
@@ -137,20 +134,6 @@ function createLeaderboard(): GameConnectionEvent {
   };
 }
 
-function createChat(): GameConnectionEvent {
-  return {
-    type: 'message',
-    message: {
-      protocolVersion: PROTOCOL_VERSION,
-      type: SERVER_MESSAGE_TYPES.CHAT,
-      id: 'player-1',
-      nickname: 'Link',
-      text: 'hello',
-      timestamp: 123,
-    },
-  };
-}
-
 describe('WorldNetworkSession', () => {
   it('syncs connection state and restores the connection on start', () => {
     const connection = new FakeConnection();
@@ -188,7 +171,7 @@ describe('WorldNetworkSession', () => {
     expect(onSnapshot).toHaveBeenCalledWith(createSnapshot());
   });
 
-  it('projects leaderboard and chat updates into the UI sink', () => {
+  it('projects leaderboard updates into the UI sink', () => {
     const connection = new FakeConnection();
     const ui = createUiSink();
     const session = new WorldNetworkSession(connection, ui, {
@@ -198,21 +181,13 @@ describe('WorldNetworkSession', () => {
 
     session.start();
     const leaderboardEvent = createLeaderboard();
-    const chatEvent = createChat();
     connection.emit(leaderboardEvent);
-    connection.emit(chatEvent);
 
-    if (
-      leaderboardEvent.type !== 'message' ||
-      leaderboardEvent.message.type !== SERVER_MESSAGE_TYPES.LEADERBOARD ||
-      chatEvent.type !== 'message' ||
-      chatEvent.message.type !== SERVER_MESSAGE_TYPES.CHAT
-    ) {
+    if (leaderboardEvent.type !== 'message' || leaderboardEvent.message.type !== SERVER_MESSAGE_TYPES.LEADERBOARD) {
       throw new Error('expected message events');
     }
 
     expect(ui.setLeaderboard).toHaveBeenCalledWith(leaderboardEvent.message.players);
-    expect(ui.addChatMessage).toHaveBeenCalledWith(chatEvent.message);
   });
 
   it('opens the nickname flow only when resume rejection cannot auto-rejoin', () => {
