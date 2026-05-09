@@ -33,7 +33,7 @@ const (
 	DashPushDistance        float64 = 300
 	DashHalfWidth           float64 = 36
 	AttackCooldown                  = 500 * time.Millisecond
-	WaveCooldown                    = 5 * time.Second
+	WaveCooldown                    = 4 * time.Second
 	NumbCooldown                    = WaveCooldown
 	PullCooldown                    = WaveCooldown
 	VenomCooldown                   = WaveCooldown
