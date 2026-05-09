@@ -191,7 +191,7 @@ describe('normalizeServerMessage', () => {
       createSnapshot({
         players: [createPlayer(), createPlayer({ id: 'player-2', nickname: 'Zelda' })],
         enemies: [createEnemy(), createEnemy({ id: 'enemy-2', x: 600, y: 700 })],
-        drops: [{ id: 'drop-1', x: 1, y: 2, kind: 'heart_small' }],
+        drops: [{ id: 'drop-1', x: 1, y: 2, kind: 'food_small' }],
         portals: [{ id: 'portal-1', x: 3, y: 4, kind: 'phase1_to_phase2' }],
         hazards: [{ id: 'hazard-1', x: 5, y: 6, kind: 'fire_field', ttlMs: 500 }],
         iceZones: [{ x: 10, y: 20, width: 30, height: 40 }],
@@ -209,7 +209,7 @@ describe('normalizeServerMessage', () => {
         enemyTransforms: [{ id: 'enemy-1', x: 420, y: 520 }],
         enemyStates: [{ id: 'enemy-1', hp: 4, maxHp: 5, state: 'chasing' }],
         removedEnemyIds: ['enemy-2'],
-        drops: [{ id: 'drop-2', x: 7, y: 8, kind: 'heart_large' }],
+        drops: [{ id: 'drop-2', x: 7, y: 8, kind: 'food_large' }],
         removedDropIds: ['drop-1'],
         portals: [{ id: 'portal-2', x: 9, y: 10, kind: 'phase2_to_phase1' }],
         removedPortalIds: ['portal-1'],

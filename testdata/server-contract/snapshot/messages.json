@@ -83,7 +83,7 @@
           "id": "drop-1",
           "x": 120,
           "y": 220,
-          "kind": "heart_small"
+          "kind": "food_small"
         }
       ],
       "portals": [
@@ -219,7 +219,7 @@
           "id": "drop-2",
           "x": 122,
           "y": 224,
-          "kind": "heart_large"
+          "kind": "food_large"
         }
       ],
       "portals": [
@@ -365,7 +365,7 @@
           "id": "drop-1",
           "x": 120,
           "y": 220,
-          "kind": "heart_small"
+          "kind": "food_small"
         }
       ],
       "portals": [
@@ -502,7 +502,7 @@
           "id": "drop-1",
           "x": 120,
           "y": 220,
-          "kind": "heart_small"
+          "kind": "food_small"
         }
       ],
       "portals": [
@@ -656,7 +656,7 @@
           "id": "drop-2",
           "x": 122,
           "y": 224,
-          "kind": "heart_large"
+          "kind": "food_large"
         }
       ],
       "portals": [
@@ -807,7 +807,7 @@
           "id": "drop-2",
           "x": 122,
           "y": 224,
-          "kind": "heart_large"
+          "kind": "food_large"
         }
       ],
       "portals": [

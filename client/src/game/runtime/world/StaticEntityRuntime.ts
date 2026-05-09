@@ -27,7 +27,7 @@ export class StaticEntityRuntime {
     this.syncPositionEntities(
       drops,
       this.dropEntities,
-      (drop) => new DropEntity(this.scene, drop.x, drop.y, drop.kind)
+      (drop) => new DropEntity(this.scene, drop.id, drop.x, drop.y, drop.kind)
     );
   }
 

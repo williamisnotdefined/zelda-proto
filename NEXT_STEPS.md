@@ -1,4 +1,3 @@
-- food drops instead of hearts
 - 1234/qwer
 - molotov
 - confusion (enemies start to attack other enemies)

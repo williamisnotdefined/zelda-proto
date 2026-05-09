@@ -45,9 +45,9 @@ export const BOSS_KINDS = {
 export type BossKind = (typeof BOSS_KINDS)[keyof typeof BOSS_KINDS];
 
 export const DROP_KINDS = {
-  HEART_SMALL: 'heart_small',
-  HEART_LARGE: 'heart_large',
-  HEART_PACMAN: 'heart_pacman',
+  FOOD_SMALL: 'food_small',
+  FOOD_LARGE: 'food_large',
+  FOOD_PACMAN: 'food_pacman',
 } as const;
 
 export type DropKind = (typeof DROP_KINDS)[keyof typeof DROP_KINDS];

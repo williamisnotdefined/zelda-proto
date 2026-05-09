@@ -193,8 +193,7 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 16,
     });
 
-    this.load.image('heart', 'assets/sprites/heart/heart_16x16.png');
-    this.load.image('heart_large', 'assets/sprites/heart/heart_32x32.png');
+    this.load.image('food', 'assets/sprites/heart/food.png');
     this.load.image('toasty', 'assets/sprites/eastereggs/toasty.png');
   }
 

@@ -114,16 +114,16 @@ export const bossDefinitions: Record<BossKind, BossDefinition> = {
 };
 
 export const dropDefinitions: Record<DropKind, DropDefinition> = {
-  [DROP_KINDS.HEART_SMALL]: {
-    kind: DROP_KINDS.HEART_SMALL,
+  [DROP_KINDS.FOOD_SMALL]: {
+    kind: DROP_KINDS.FOOD_SMALL,
     healAmount: 5,
   },
-  [DROP_KINDS.HEART_LARGE]: {
-    kind: DROP_KINDS.HEART_LARGE,
+  [DROP_KINDS.FOOD_LARGE]: {
+    kind: DROP_KINDS.FOOD_LARGE,
     healAmount: 10,
   },
-  [DROP_KINDS.HEART_PACMAN]: {
-    kind: DROP_KINDS.HEART_PACMAN,
+  [DROP_KINDS.FOOD_PACMAN]: {
+    kind: DROP_KINDS.FOOD_PACMAN,
     healAmount: 20,
   },
 };
