@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,12 +17,14 @@ import (
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/monitoring"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/policy"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/observability"
 )
 
 // Limits.
 const (
 	MaxClientErrorBody    = 256 * 1024
 	ClientErrorPathPrefix = "/api/logs/client-errors"
+	DebugMetricsPath      = "/api/debug/metrics"
 )
 
 // Config holds dependencies for the HTTP layer.
@@ -32,6 +35,8 @@ type Config struct {
 	ErrorStore       *monitoring.ClientErrorLogStore
 	ErrorRateLimiter *policy.FixedWindowLimiter
 	IPExtractor      *policy.IPExtractor
+	Metrics          *observability.RuntimeMetrics
+	DebugMetrics     bool
 	Now              func() time.Time
 }
 
@@ -50,6 +55,12 @@ func NewMux(cfg Config) http.Handler {
 	mux.HandleFunc(ClientErrorPathPrefix, func(w http.ResponseWriter, r *http.Request) {
 		handleClientError(w, r, cfg)
 	})
+	if cfg.DebugMetrics {
+		mux.HandleFunc(DebugMetricsPath, func(w http.ResponseWriter, r *http.Request) {
+			handleDebugMetrics(w, r, cfg)
+		})
+		registerDebugPprof(mux)
+	}
 	if cfg.StaticRoot != "" {
 		mux.Handle("/", spaHandler{root: cfg.StaticRoot})
 	}
@@ -70,7 +81,7 @@ func handleClientError(w http.ResponseWriter, r *http.Request, cfg Config) {
 	if cfg.IPExtractor != nil {
 		ip = cfg.IPExtractor.Extract(r)
 	}
-	if cfg.ErrorRateLimiter != nil && !cfg.ErrorRateLimiter.Allow(ClientErrorRateCategory) {
+	if cfg.ErrorRateLimiter != nil && !cfg.ErrorRateLimiter.AllowKey(ClientErrorRateCategory, ip) {
 		http.Error(w, "rate limited", http.StatusTooManyRequests)
 		return
 	}
@@ -93,6 +104,29 @@ func handleClientError(w http.ResponseWriter, r *http.Request, cfg Config) {
 		_, _ = cfg.ErrorStore.AppendEnvelope(context.Background(), envelope, meta)
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func handleDebugMetrics(w http.ResponseWriter, r *http.Request, cfg Config) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(cfg.Metrics.Snapshot())
+}
+
+func registerDebugPprof(mux *http.ServeMux) {
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+	mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
 }
 
 type spaHandler struct{ root string }

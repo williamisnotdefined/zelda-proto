@@ -58,3 +58,28 @@ func TestMarshalStructUsesTaggedFieldOrder(t *testing.T) {
 		t.Fatalf("expected %#v, got %#v", expected, decoded)
 	}
 }
+
+func TestMarshalFastPathSlicesRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := codec.Marshal(codec.Object{
+		{Key: "objects", Value: []codec.Object{{{Key: "id", Value: "a"}}}},
+		{Key: "strings", Value: []string{"x", "y"}},
+	})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	decoded, err := codec.Decode(encoded)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	obj := decoded.(codec.Object)
+	objects, _ := obj.Lookup("objects")
+	strings, _ := obj.Lookup("strings")
+	if got := objects.([]any)[0].(codec.Object)[0].Value; got != "a" {
+		t.Fatalf("expected nested object id=a, got %v", got)
+	}
+	if got := strings.([]any)[1]; got != "y" {
+		t.Fatalf("expected string y, got %v", got)
+	}
+}

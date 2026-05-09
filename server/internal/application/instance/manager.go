@@ -16,8 +16,10 @@ import (
 
 // Manager owns the four worlds (phase1..phase4) and player→instance routing.
 type Manager struct {
+	tickMu         sync.Mutex
 	mu             sync.Mutex
 	worlds         map[domworld.InstanceID]*appworld.World
+	orderedWorlds  []*appworld.World
 	playerLocation map[string]domworld.InstanceID
 	startPhase     domworld.InstanceID
 }
@@ -49,7 +51,7 @@ func New(cfg Config) *Manager {
 	}
 	for _, id := range domworld.AllInstances() {
 		def := defs[id]
-		m.worlds[id] = appworld.New(appworld.Config{
+		w := appworld.New(appworld.Config{
 			InstanceID: id,
 			SpawnX:     def.SpawnX,
 			SpawnY:     def.SpawnY,
@@ -57,11 +59,13 @@ func New(cfg Config) *Manager {
 			NowFunc:    cfg.NowFunc,
 			Definition: &def,
 		})
-		m.worlds[id].SeedStarterEnemies()
+		m.worlds[id] = w
+		m.orderedWorlds = append(m.orderedWorlds, w)
+		w.SeedStarterEnemies()
 		// Phase 3 entry bosses are seeded independently of starter enemies.
 		// Worlds without Phase3EntryBosses defined are a no-op.
-		m.worlds[id].SeedPhase3Bosses()
-		m.worlds[id].SeedPhase4Boss()
+		w.SeedPhase3Bosses()
+		w.SeedPhase4Boss()
 	}
 	return m
 }
@@ -129,11 +133,15 @@ func (m *Manager) LocationOf(id string) (domworld.InstanceID, bool) {
 
 // Tick advances every world by dt and resolves portal transfers.
 func (m *Manager) Tick(dt time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, w := range m.worlds {
+	m.tickMu.Lock()
+	defer m.tickMu.Unlock()
+
+	for _, w := range m.orderedWorlds {
 		w.Tick(dt)
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.resolveTransfers()
 }
 

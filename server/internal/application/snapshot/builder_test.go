@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"sync"
 	"testing"
 
 	appworld "github.com/williamisnotdefined/zelda-proto/server/internal/application/world"
@@ -20,7 +21,7 @@ func TestBuildCullsByRadius(t *testing.T) {
 		Enemies: []enemy.Snapshot{{ID: "e1", X: 100, Y: 100}, {ID: "e2", X: 9000, Y: 9000}},
 	}
 	b := NewBuilder()
-	snap := b.Build(view, p, domworld.InstancePhase1)
+	snap := b.Build(view, p.Snapshot(), domworld.InstancePhase1)
 	if len(snap.Players) != 0 {
 		t.Fatalf("far player must be culled (also self excluded), got %v", snap.Players)
 	}
@@ -35,7 +36,7 @@ func TestDiffFirstCallIsFullUpsert(t *testing.T) {
 	p := player.New("p1", "Link", 0, 0)
 	view := appworld.SnapshotView{Enemies: []enemy.Snapshot{{ID: "e1", X: 0, Y: 0}}}
 	b := NewBuilder()
-	snap := b.Build(view, p, domworld.InstancePhase1)
+	snap := b.Build(view, p.Snapshot(), domworld.InstancePhase1)
 	delta := b.Diff("p1", snap)
 	if len(delta.EnemiesUpsert) != 1 {
 		t.Fatalf("expected enemy upsert, got %v", delta.EnemiesUpsert)
@@ -48,9 +49,9 @@ func TestDiffDetectsRemoval(t *testing.T) {
 	p := player.New("p1", "Link", 0, 0)
 	b := NewBuilder()
 	v1 := appworld.SnapshotView{Enemies: []enemy.Snapshot{{ID: "e1"}, {ID: "e2"}}}
-	b.Diff("p1", b.Build(v1, p, domworld.InstancePhase1))
+	b.Diff("p1", b.Build(v1, p.Snapshot(), domworld.InstancePhase1))
 	v2 := appworld.SnapshotView{Enemies: []enemy.Snapshot{{ID: "e1"}}}
-	delta := b.Diff("p1", b.Build(v2, p, domworld.InstancePhase1))
+	delta := b.Diff("p1", b.Build(v2, p.Snapshot(), domworld.InstancePhase1))
 	if len(delta.EnemiesRemove) != 1 || delta.EnemiesRemove[0] != "e2" {
 		t.Fatalf("expected e2 removed, got %v", delta.EnemiesRemove)
 	}
@@ -61,11 +62,66 @@ func TestForgetClearsPreviousSnapshot(t *testing.T) {
 
 	p := player.New("p1", "Link", 0, 0)
 	b := NewBuilder()
-	b.Diff("p1", b.Build(appworld.SnapshotView{}, p, domworld.InstancePhase1))
+	b.Diff("p1", b.Build(appworld.SnapshotView{}, p.Snapshot(), domworld.InstancePhase1))
 	b.Forget("p1")
-	if _, ok := b.previous["p1"]; ok {
+	if b.HasPrevious("p1") {
 		t.Fatal("expected forget to clear cache")
 	}
+}
+
+func TestPreviewDoesNotAdvanceUntilCommit(t *testing.T) {
+	t.Parallel()
+
+	p := player.New("p1", "Link", 0, 0)
+	b := NewBuilder()
+	snap := b.Build(appworld.SnapshotView{Enemies: []enemy.Snapshot{{ID: "e1"}}}, p.Snapshot(), domworld.InstancePhase1)
+	pending := b.Preview("p1", snap)
+	if !pending.Delta.Full {
+		t.Fatal("expected first preview to be full")
+	}
+	if b.HasPrevious("p1") {
+		t.Fatal("preview must not advance cached snapshot")
+	}
+	if !b.Commit(pending) || !b.HasPrevious("p1") {
+		t.Fatal("commit should advance cached snapshot")
+	}
+}
+
+func TestCommitSkipsStalePreviewAfterForget(t *testing.T) {
+	t.Parallel()
+
+	p := player.New("p1", "Link", 0, 0)
+	b := NewBuilder()
+	pending := b.Preview("p1", b.Build(appworld.SnapshotView{}, p.Snapshot(), domworld.InstancePhase1))
+	b.Forget("p1")
+	if b.Commit(pending) {
+		t.Fatal("stale preview must not commit after Forget")
+	}
+	if b.HasPrevious("p1") {
+		t.Fatal("expected cache to remain empty")
+	}
+}
+
+func TestBuilderConcurrentForgetAndPreview(t *testing.T) {
+	t.Parallel()
+
+	p := player.New("p1", "Link", 0, 0)
+	b := NewBuilder()
+	snap := b.Build(appworld.SnapshotView{Enemies: []enemy.Snapshot{{ID: "e1"}}}, p.Snapshot(), domworld.InstancePhase1)
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			pending := b.Preview("p1", snap)
+			b.Commit(pending)
+		}()
+		go func() {
+			defer wg.Done()
+			b.Forget("p1")
+		}()
+	}
+	wg.Wait()
 }
 
 func TestLeaderboardOrder(t *testing.T) {
@@ -105,7 +161,7 @@ func TestDropsAndPortalsHazardsCulling(t *testing.T) {
 		Drops: []drop.Snapshot{{ID: "d1", X: 0, Y: 0}, {ID: "d2", X: 9000, Y: 9000}},
 	}
 	b := NewBuilder()
-	snap := b.Build(view, p, domworld.InstancePhase1)
+	snap := b.Build(view, p.Snapshot(), domworld.InstancePhase1)
 	if len(snap.Drops) != 1 {
 		t.Fatalf("expected 1 near drop")
 	}

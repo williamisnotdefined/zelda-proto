@@ -42,9 +42,20 @@ func NewFixedWindowLimiter(windowDuration time.Duration, limits map[string]int, 
 // Allow records one event in the given category and returns whether the
 // caller is still under its quota. Unknown categories are always allowed.
 func (l *FixedWindowLimiter) Allow(category string) bool {
+	return l.AllowKey(category, "")
+}
+
+// AllowKey records one event for category scoped to key and returns whether the
+// caller is still under quota. Empty key preserves the legacy global category
+// behavior used by connection-local limiters.
+func (l *FixedWindowLimiter) AllowKey(category string, key string) bool {
 	limit, exists := l.limits[category]
 	if !exists {
 		return true
+	}
+	counterKey := category
+	if key != "" {
+		counterKey = category + "\x00" + key
 	}
 
 	l.mu.Lock()
@@ -54,12 +65,12 @@ func (l *FixedWindowLimiter) Allow(category string) bool {
 	if l.windowStart.IsZero() || now.Sub(l.windowStart) > l.windowDuration {
 		l.windowStart = now
 		for key := range l.counters {
-			l.counters[key] = 0
+			delete(l.counters, key)
 		}
 	}
 
-	l.counters[category] += 1
-	return l.counters[category] <= limit
+	l.counters[counterKey] += 1
+	return l.counters[counterKey] <= limit
 }
 
 // IPConnectionTracker bounds concurrent connections per remote IP and globally.
@@ -67,9 +78,9 @@ type IPConnectionTracker struct {
 	maxGlobal int
 	maxPerIP  int
 
-	mu      sync.Mutex
-	total   int
-	perIP   map[string]int
+	mu    sync.Mutex
+	total int
+	perIP map[string]int
 }
 
 // NewIPConnectionTracker returns a tracker enforcing the given limits.

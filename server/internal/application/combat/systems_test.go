@@ -136,25 +136,6 @@ func TestPvPSystemRespectsSafezoneOnAttackerAndTarget(t *testing.T) {
 	}
 }
 
-func TestPlayerMeleeKillsCountForMonsterStats(t *testing.T) {
-	t.Parallel()
-	attacker := newPlayerOutsideSafezone("att", 0, 0)
-	attacker.State = player.StateAttacking
-	attacker.Direction = domworld.DirectionRight
-	weakConfig := enemy.BlobConfig
-	weakConfig.MaxHP = 1
-	e := enemy.New("e1", 20, 0, "0,0", weakConfig, drop.KindHeartSmall)
-	players := map[string]*player.Player{"att": attacker}
-	enemies := map[string]*enemy.Enemy{"e1": e}
-	PlayerMeleeSystem{}.Resolve(players, enemies, nil, nil, nil)
-	if e.State != enemy.StateDead {
-		t.Fatalf("expected enemy dead, got %s HP=%d", e.State, e.HP)
-	}
-	if attacker.MonsterKills != 1 {
-		t.Fatalf("expected MonsterKills=1, got %d", attacker.MonsterKills)
-	}
-}
-
 func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	t.Parallel()
 
@@ -707,15 +688,4 @@ func TestPlayerGrenadeSystemCarriesDirectionAndSafezonePvPFlag(t *testing.T) {
 	if spawn := spawnBySource[unprotectedCaster.ID]; spawn.direction != domworld.DirectionLeft || !spawn.hitsPlayers {
 		t.Fatalf("unexpected unprotected caster spawn: %+v", spawn)
 	}
-}
-
-// nil maps for boss collections must be tolerated (helps test ergonomics).
-func TestPlayerMeleeNilBossMapsAreSafe(t *testing.T) {
-	t.Parallel()
-	players := map[string]*player.Player{}
-	enemies := map[string]*enemy.Enemy{}
-	var dragons map[string]*boss.DragonLord
-	var gelehks map[string]*boss.Gelehk
-	var vanessas map[string]*boss.VanessaTheRuthless
-	PlayerMeleeSystem{}.Resolve(players, enemies, dragons, gelehks, vanessas)
 }

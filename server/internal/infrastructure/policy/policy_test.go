@@ -100,20 +100,30 @@ func TestIPExtractorRespectsRemoteAddressByDefault(t *testing.T) {
 	}
 }
 
-func TestIPExtractorTrustsForwardedHeader(t *testing.T) {
+func TestIPExtractorTrustsForwardedHeaderFromConfiguredProxy(t *testing.T) {
 	t.Parallel()
 
-	extractor := NewIPExtractor(config.Config{TrustProxy: true})
+	extractor := NewIPExtractor(config.Config{TrustProxy: true, TrustedProxyCIDRs: []string{"10.0.0.0/24"}})
 	req := makeRequest(t, map[string]string{"X-Forwarded-For": "1.2.3.4, 10.0.0.5"}, "10.0.0.1:1234")
 	if got := extractor.Extract(req); got != "1.2.3.4" {
 		t.Fatalf("expected forwarded ip, got %q", got)
 	}
 }
 
+func TestIPExtractorIgnoresForwardedHeaderFromUntrustedProxy(t *testing.T) {
+	t.Parallel()
+
+	extractor := NewIPExtractor(config.Config{TrustProxy: true, TrustedProxyCIDRs: []string{"10.0.0.0/24"}})
+	req := makeRequest(t, map[string]string{"X-Forwarded-For": "1.2.3.4"}, "10.0.1.1:1234")
+	if got := extractor.Extract(req); got != "10.0.1.1" {
+		t.Fatalf("expected remote ip, got %q", got)
+	}
+}
+
 func TestIPExtractorFallsBackToRemoteAddrWhenForwardedEmpty(t *testing.T) {
 	t.Parallel()
 
-	extractor := NewIPExtractor(config.Config{TrustProxy: true})
+	extractor := NewIPExtractor(config.Config{TrustProxy: true, TrustedProxyCIDRs: []string{"10.0.0.0/24"}})
 	req := makeRequest(t, nil, "10.0.0.1:1234")
 	if got := extractor.Extract(req); got != "10.0.0.1" {
 		t.Fatalf("expected remote ip, got %q", got)
@@ -179,6 +189,21 @@ func TestFixedWindowLimiterDefaultsToTimeNowClock(t *testing.T) {
 	limiter := NewFixedWindowLimiter(time.Hour, map[string]int{"input": 1}, nil)
 	if !limiter.Allow("input") {
 		t.Fatal("expected first allow to succeed under default clock")
+	}
+}
+
+func TestFixedWindowLimiterScopesByKey(t *testing.T) {
+	t.Parallel()
+
+	limiter := NewFixedWindowLimiter(time.Second, map[string]int{"input": 1}, func() time.Time { return time.Unix(0, 0) })
+	if !limiter.AllowKey("input", "1.1.1.1") {
+		t.Fatal("expected first key call to be allowed")
+	}
+	if limiter.AllowKey("input", "1.1.1.1") {
+		t.Fatal("expected second same-key call to be limited")
+	}
+	if !limiter.AllowKey("input", "2.2.2.2") {
+		t.Fatal("expected different key to have separate quota")
 	}
 }
 

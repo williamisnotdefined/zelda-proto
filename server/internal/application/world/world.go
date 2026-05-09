@@ -7,11 +7,11 @@ package world
 import (
 	"math"
 	"math/rand"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/application/bossregion"
-	appcombat "github.com/williamisnotdefined/zelda-proto/server/internal/application/combat"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/application/registries"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/application/safezone"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/application/spatial"
@@ -163,22 +163,6 @@ func New(cfg Config) *World {
 		w.seedInitialPortals()
 	}
 	return w
-}
-
-func (w *World) seedInitialPortals() {
-	if w.def == nil || w.cfg.IDs == nil {
-		return
-	}
-	for i, ip := range w.def.InitialPortals {
-		id := w.cfg.IDs.NewID("portal")
-		w.portals[id] = &portal.Portal{
-			ID: id, X: ip.X, Y: ip.Y, Kind: ip.Kind,
-			ToInstance: ip.ToInstance, TargetX: ip.TargetX, TargetY: ip.TargetY,
-			ActiveAt: time.Time{}, // immediately active
-		}
-		w.portalIndex.Upsert(id, ip.X, ip.Y)
-		_ = i
-	}
 }
 
 // SeedStarterEnemies seeds the configured starter population around the spawn
@@ -484,128 +468,6 @@ func (w *World) SpawnVanessa(b *boss.VanessaTheRuthless) {
 	w.bossIndex.Upsert(b.ID, b.X, b.Y)
 }
 
-// SpawnPortal adds a portal.
-func (w *World) SpawnPortal(p *portal.Portal) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.portals[p.ID] = p
-	w.portalIndex.Upsert(p.ID, p.X, p.Y)
-}
-
-// handleBossDeathPortals creates a forward portal at the corpse of any
-// allowed-kind dead boss (mirrors PortalSystem.handleBossDeathPortals).
-func (w *World) handleBossDeathPortals() {
-	if w.def == nil || w.def.BossDeathPortal == nil {
-		return
-	}
-	cfg := w.def.BossDeathPortal
-	allowed := map[boss.Kind]struct{}{}
-	for _, k := range cfg.SourceBossKinds {
-		allowed[k] = struct{}{}
-	}
-
-	// Forget handled bosses that no longer exist or are alive again.
-	for id := range w.handledBossDeath {
-		dState := boss.StateDead
-		exists := false
-		if d, ok := w.dragons[id]; ok {
-			dState, exists = d.State, true
-		} else if g, ok := w.gelehks[id]; ok {
-			dState, exists = g.State, true
-		} else if v, ok := w.vanessas[id]; ok {
-			dState, exists = v.State, true
-		}
-		if !exists || dState != boss.StateDead {
-			delete(w.handledBossDeath, id)
-		}
-	}
-
-	// Drop stale boss-death portals whose source is no longer dead.
-	for pid, pt := range w.portals {
-		if pt.Kind != cfg.Kind || pt.SourceBossID == "" {
-			continue
-		}
-		alive := false
-		kind := boss.Kind("")
-		if d, ok := w.dragons[pt.SourceBossID]; ok {
-			alive = d.State != boss.StateDead
-			kind = d.Kind()
-		} else if g, ok := w.gelehks[pt.SourceBossID]; ok {
-			alive = g.State != boss.StateDead
-			kind = boss.KindGelehk
-		} else if v, ok := w.vanessas[pt.SourceBossID]; ok {
-			alive = v.State != boss.StateDead
-			kind = v.Kind()
-		} else {
-			delete(w.portals, pid)
-			w.portalIndex.Remove(pid)
-			continue
-		}
-		if alive {
-			delete(w.portals, pid)
-			w.portalIndex.Remove(pid)
-			continue
-		}
-		if len(allowed) > 0 {
-			if _, ok := allowed[kind]; !ok {
-				delete(w.portals, pid)
-				w.portalIndex.Remove(pid)
-			}
-		}
-	}
-
-	spawnFor := func(id string, x, y float64, kind boss.Kind) {
-		if _, handled := w.handledBossDeath[id]; handled {
-			return
-		}
-		if len(allowed) > 0 {
-			if _, ok := allowed[kind]; !ok {
-				return
-			}
-		}
-		w.handledBossDeath[id] = struct{}{}
-		pid := w.cfg.IDs.NewID("portal")
-		activeAt := w.now.Add(time.Duration(cfg.ActivationDelayMS) * time.Millisecond)
-		exp := w.now.Add(time.Duration(cfg.DurationMS) * time.Millisecond)
-		pt := &portal.Portal{
-			ID: pid, X: x, Y: y, Kind: cfg.Kind,
-			SourceBossID: id,
-			ToInstance:   cfg.ToInstance,
-			TargetX:      cfg.TargetX, TargetY: cfg.TargetY,
-			ActiveAt: activeAt, ExpiresAt: &exp,
-		}
-		w.portals[pid] = pt
-		w.portalIndex.Upsert(pid, x, y)
-	}
-	for id, d := range w.dragons {
-		if d.State != boss.StateDead {
-			continue
-		}
-		spawnFor(id, d.X, d.Y, d.Kind())
-	}
-	for id, g := range w.gelehks {
-		if g.State != boss.StateDead {
-			continue
-		}
-		spawnFor(id, g.X, g.Y, boss.KindGelehk)
-	}
-	for id, v := range w.vanessas {
-		if v.State != boss.StateDead {
-			continue
-		}
-		spawnFor(id, v.X, v.Y, v.Kind())
-	}
-}
-
-// ConsumeTransferRequests drains and returns any queued portal transfers.
-func (w *World) ConsumeTransferRequests() []portal.TransferRequest {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	out := w.transferRequests
-	w.transferRequests = nil
-	return out
-}
-
 // Tick advances the simulation by dt. Order mirrors the main runtime: players,
 // respawns, AI, body resolution, dash/combat, then static systems like drops,
 // portals, and hazards.
@@ -629,8 +491,9 @@ func (w *World) Tick(dt time.Duration) {
 		)
 	}
 	w.advanceMolotovBurns(dt)
-	w.tickEnemies(dt, safeZoneActive)
-	w.tickBosses(dt)
+	playerViews := w.playerViews()
+	w.tickEnemies(dt, safeZoneActive, playerViews)
+	w.tickBosses(dt, playerViews)
 	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
 		w.expelHostilesFromSafeZone()
 	}
@@ -814,8 +677,7 @@ func (w *World) capturePlayerWaveTargets(cx, cy float64, freezeFor time.Duration
 	return targets
 }
 
-func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
-	views := w.playerViews()
+func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemyView) {
 	find := w.findNearestPlayerFunc()
 	for id, e := range w.enemies {
 		if e.TryRespawn(dt) {
@@ -836,7 +698,7 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
 	}
 }
 
-func (w *World) tickBosses(dt time.Duration) {
+func (w *World) tickBosses(dt time.Duration, views []enemyView) {
 	// Player-relative region spawning (Phase 1 Gelehk, Phase 2 DragonLord).
 	if w.bossRegionSystem != nil && w.bossRegionSystem.Enabled() {
 		w.bossRegionSystem.Update(
@@ -878,7 +740,6 @@ func (w *World) tickBosses(dt time.Duration) {
 		)
 	}
 
-	views := w.playerViews()
 	bossViews := make([]boss.PlayerView, 0, len(views))
 	for _, v := range views {
 		bossViews = append(bossViews, boss.PlayerView{ID: v.ID, X: v.X, Y: v.Y, Alive: v.Alive, Protected: v.Protected})
@@ -1003,739 +864,6 @@ func advanceFreeze(locks map[string]time.Duration, id string, dt time.Duration) 
 	return true
 }
 
-func filterFrozenMap[T any](items map[string]T, frozen map[string]time.Duration) map[string]T {
-	if len(frozen) == 0 {
-		return items
-	}
-	out := make(map[string]T, len(items))
-	for id, item := range items {
-		if _, locked := frozen[id]; locked {
-			continue
-		}
-		out[id] = item
-	}
-	return out
-}
-
-func (w *World) advancePullOverlapBodies(dt time.Duration) {
-	for key, remaining := range w.pullOverlapBodies {
-		remaining -= dt
-		if remaining <= 0 {
-			delete(w.pullOverlapBodies, key)
-			continue
-		}
-		w.pullOverlapBodies[key] = remaining
-	}
-}
-
-func (w *World) advanceVenomDebuffs(dt time.Duration) {
-	for key, debuff := range w.venomDebuffs {
-		debuff.Remaining -= dt
-		if debuff.Remaining <= 0 {
-			delete(w.venomDebuffs, key)
-			continue
-		}
-		w.venomDebuffs[key] = debuff
-	}
-}
-
-func (w *World) armVenomDebuff(kind, id, sourcePlayerID string, duration time.Duration) {
-	if duration <= 0 || sourcePlayerID == "" {
-		return
-	}
-	key := dynamicBodyKey(kind, id)
-	current, ok := w.venomDebuffs[key]
-	if ok && current.SourcePlayerID == sourcePlayerID && current.Remaining >= duration {
-		return
-	}
-	w.venomDebuffs[key] = venomDebuff{SourcePlayerID: sourcePlayerID, Remaining: duration}
-}
-
-func (w *World) venomDamage(sourcePlayerID, kind, id string, baseDamage int) (int, *player.Player) {
-	if sourcePlayerID == "" || baseDamage <= 0 {
-		return baseDamage, nil
-	}
-	debuff, ok := w.venomDebuffs[dynamicBodyKey(kind, id)]
-	if !ok || debuff.SourcePlayerID != sourcePlayerID || debuff.Remaining <= 0 {
-		return baseDamage, nil
-	}
-	return baseDamage * 2, w.players[sourcePlayerID]
-}
-
-func healVenomSource(source *player.Player, dealt int) {
-	if source == nil || dealt <= 0 {
-		return
-	}
-	source.Heal(int(math.Ceil(float64(dealt) * player.VenomLifeStealRatio)))
-}
-
-func healMolotovBurnSource(source *player.Player, dealt int) {
-	if source == nil || dealt <= 0 {
-		return
-	}
-	source.Heal(int(math.Ceil(float64(dealt) * player.MolotovBurnLifeStealRatio)))
-}
-
-func (w *World) armMolotovBurn(kind, id, sourcePlayerID string) {
-	if id == "" {
-		return
-	}
-	key := dynamicBodyKey(kind, id)
-	w.molotovBurns[key] = molotovBurn{
-		Kind:           kind,
-		ID:             id,
-		SourcePlayerID: sourcePlayerID,
-		TicksRemaining: player.MolotovBurnTicks,
-		TickTimer:      player.MolotovBurnTickInterval,
-	}
-}
-
-func (w *World) advanceMolotovBurns(dt time.Duration) {
-	for key, burn := range w.molotovBurns {
-		burn.TickTimer -= dt
-		for burn.TicksRemaining > 0 && burn.TickTimer <= 0 {
-			dealt, killed := w.applyMolotovBurnDamage(burn)
-			healMolotovBurnSource(w.players[burn.SourcePlayerID], dealt)
-			burn.TicksRemaining--
-			burn.TickTimer += player.MolotovBurnTickInterval
-			if killed {
-				if dealt > 0 {
-					w.awardHazardMonsterKill(burn.SourcePlayerID, 0)
-				}
-				delete(w.molotovBurns, key)
-				break
-			}
-		}
-		if _, ok := w.molotovBurns[key]; !ok {
-			continue
-		}
-		if burn.TicksRemaining <= 0 {
-			delete(w.molotovBurns, key)
-			continue
-		}
-		w.molotovBurns[key] = burn
-	}
-}
-
-func (w *World) applyMolotovBurnDamage(burn molotovBurn) (int, bool) {
-	switch burn.Kind {
-	case "enemy":
-		e := w.enemies[burn.ID]
-		if e == nil || e.State == enemy.StateDead {
-			return 0, true
-		}
-		beforeHP := e.HP
-		e.TakeDamage(player.MolotovBurnTickDamage)
-		dealt := beforeHP - e.HP
-		if e.State == enemy.StateDead {
-			delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
-			return dealt, true
-		}
-		return dealt, false
-	case "boss":
-		if d := w.dragons[burn.ID]; d != nil {
-			return w.applyMolotovBurnDamageToDragon(d)
-		}
-		if g := w.gelehks[burn.ID]; g != nil {
-			return w.applyMolotovBurnDamageToGelehk(g)
-		}
-		if v := w.vanessas[burn.ID]; v != nil {
-			return w.applyMolotovBurnDamageToVanessa(v)
-		}
-	}
-	return 0, true
-}
-
-func (w *World) applyMolotovBurnDamageToDragon(d *boss.DragonLord) (int, bool) {
-	if d.State == boss.StateDead {
-		return 0, true
-	}
-	beforeHP := d.HP
-	d.TakeDamage(player.MolotovBurnTickDamage)
-	dealt := beforeHP - d.HP
-	if d.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
-		return dealt, true
-	}
-	return dealt, false
-}
-
-func (w *World) applyMolotovBurnDamageToGelehk(g *boss.Gelehk) (int, bool) {
-	if g.State == boss.StateDead {
-		return 0, true
-	}
-	beforeHP := g.HP
-	g.TakeDamage(player.MolotovBurnTickDamage)
-	dealt := beforeHP - g.HP
-	if g.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
-		return dealt, true
-	}
-	return dealt, false
-}
-
-func (w *World) applyMolotovBurnDamageToVanessa(v *boss.VanessaTheRuthless) (int, bool) {
-	if v.State == boss.StateDead {
-		return 0, true
-	}
-	beforeHP := v.HP
-	v.TakeDamage(player.MolotovBurnTickDamage)
-	dealt := beforeHP - v.HP
-	if v.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
-		return dealt, true
-	}
-	return dealt, false
-}
-
-func (w *World) applyPlayerDamageToEnemy(sourcePlayerID string, e *enemy.Enemy, baseDamage int) int {
-	damage, venomSource := w.venomDamage(sourcePlayerID, "enemy", e.ID, baseDamage)
-	beforeHP := e.HP
-	e.TakeDamage(damage)
-	dealt := beforeHP - e.HP
-	if e.State == enemy.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
-		delete(w.molotovBurns, dynamicBodyKey("enemy", e.ID))
-	}
-	healVenomSource(venomSource, dealt)
-	return dealt
-}
-
-func (w *World) applyPlayerDamageToDragon(sourcePlayerID string, d *boss.DragonLord, baseDamage int) int {
-	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", d.ID, baseDamage)
-	beforeHP := d.HP
-	d.TakeDamage(damage)
-	dealt := beforeHP - d.HP
-	if d.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
-		delete(w.molotovBurns, dynamicBodyKey("boss", d.ID))
-	}
-	healVenomSource(venomSource, dealt)
-	return dealt
-}
-
-func (w *World) applyPlayerDamageToGelehk(sourcePlayerID string, g *boss.Gelehk, baseDamage int) int {
-	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", g.ID, baseDamage)
-	beforeHP := g.HP
-	g.TakeDamage(damage)
-	dealt := beforeHP - g.HP
-	if g.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
-		delete(w.molotovBurns, dynamicBodyKey("boss", g.ID))
-	}
-	healVenomSource(venomSource, dealt)
-	return dealt
-}
-
-func (w *World) applyPlayerDamageToVanessa(sourcePlayerID string, v *boss.VanessaTheRuthless, baseDamage int) int {
-	damage, venomSource := w.venomDamage(sourcePlayerID, "boss", v.ID, baseDamage)
-	beforeHP := v.HP
-	v.TakeDamage(damage)
-	dealt := beforeHP - v.HP
-	if v.State == boss.StateDead {
-		delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
-		delete(w.molotovBurns, dynamicBodyKey("boss", v.ID))
-	}
-	healVenomSource(venomSource, dealt)
-	return dealt
-}
-
-func (w *World) resolvePlayerShurikens() {
-	for _, caster := range w.players {
-		ticks, castID := caster.ConsumeShurikenTicks()
-		if ticks <= 0 || caster.State == player.StateDead {
-			continue
-		}
-		for i := 0; i < ticks; i++ {
-			w.resolvePlayerShurikenTick(caster, castID)
-		}
-		caster.FinishExpiredShurikenCast(castID)
-	}
-}
-
-func (w *World) resolvePlayerShurikenTick(caster *player.Player, castID uint64) {
-	totalDamage := 0
-	for _, e := range w.enemies {
-		if e.State == enemy.StateDead || !withinShurikenRadius(caster.X, caster.Y, e.X, e.Y, e.CollisionRadius()) {
-			continue
-		}
-		beforeHP := e.HP
-		e.TakeDamage(player.ShurikenDamage)
-		dealt := beforeHP - e.HP
-		totalDamage += dealt
-		if e.State == enemy.StateDead {
-			delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
-			delete(w.molotovBurns, dynamicBodyKey("enemy", e.ID))
-			caster.MonsterKills++
-			caster.RecordMonsterKillInCast(castID)
-		}
-	}
-	for _, d := range w.dragons {
-		if d.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, d.X, d.Y, d.ContactRadius()) {
-			continue
-		}
-		beforeHP := d.HP
-		d.TakeDamage(player.ShurikenDamage)
-		dealt := beforeHP - d.HP
-		totalDamage += dealt
-		if d.State == boss.StateDead {
-			delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
-			delete(w.molotovBurns, dynamicBodyKey("boss", d.ID))
-			caster.MonsterKills++
-			caster.RecordMonsterKillInCast(castID)
-		}
-	}
-	for _, g := range w.gelehks {
-		if g.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, g.X, g.Y, g.ContactRadius()) {
-			continue
-		}
-		beforeHP := g.HP
-		g.TakeDamage(player.ShurikenDamage)
-		dealt := beforeHP - g.HP
-		totalDamage += dealt
-		if g.State == boss.StateDead {
-			delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
-			delete(w.molotovBurns, dynamicBodyKey("boss", g.ID))
-			caster.MonsterKills++
-			caster.RecordMonsterKillInCast(castID)
-		}
-	}
-	for _, v := range w.vanessas {
-		if v.State == boss.StateDead || !withinShurikenRadius(caster.X, caster.Y, v.X, v.Y, v.ContactRadius()) {
-			continue
-		}
-		beforeHP := v.HP
-		v.TakeDamage(player.ShurikenDamage)
-		dealt := beforeHP - v.HP
-		totalDamage += dealt
-		if v.State == boss.StateDead {
-			delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
-			delete(w.molotovBurns, dynamicBodyKey("boss", v.ID))
-			caster.MonsterKills++
-			caster.RecordMonsterKillInCast(castID)
-		}
-	}
-
-	casterProtected := w.isProtected(caster)
-	for _, target := range w.players {
-		if target.ID == caster.ID || target.State == player.StateDead || casterProtected || w.isProtected(target) {
-			continue
-		}
-		if !withinShurikenRadius(caster.X, caster.Y, target.X, target.Y, player.Width/2) {
-			continue
-		}
-		beforeHP := target.HP
-		target.TakeDamage(player.ShurikenDamage)
-		dealt := beforeHP - target.HP
-		totalDamage += dealt
-		if target.State == player.StateDead {
-			caster.PlayerKills++
-		}
-	}
-	caster.HealFromShuriken(totalDamage)
-}
-
-func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
-	if duration <= 0 {
-		return
-	}
-	key := dynamicBodyKey(kind, id)
-	if duration > w.pullOverlapBodies[key] {
-		w.pullOverlapBodies[key] = duration
-	}
-}
-
-func withinShurikenRadius(cx, cy, x, y, bodyRadius float64) bool {
-	reach := player.ShurikenRadius + bodyRadius
-	return physics.DistanceSquared(cx, cy, x, y) <= reach*reach
-}
-
-func (w *World) tickHazards(dt time.Duration) {
-	// playerHalfDiag pads the hazard hit radius so players whose body overlaps
-	// a hazard tile still take damage.
-	const playerHalfDiag = 34.0
-	// Per-tick dedup so overlapping purple clusters only land once per actor.
-	purpleHitThisTick := make(map[string]struct{})
-	for id, h := range w.hazards {
-		expired := h.Tick(dt)
-		if h.Kind == hazard.KindGrenade || h.Kind == hazard.KindMolotov {
-			if expired {
-				delete(w.hazards, id)
-				w.hazardIndex.Remove(id)
-				w.detonatePlayerExplosive(h, playerHalfDiag)
-				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
-				continue
-			}
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-			continue
-		}
-		if h.Kind == hazard.KindLandmine {
-			if expired {
-				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
-				delete(w.hazards, id)
-				w.hazardIndex.Remove(id)
-				continue
-			}
-			if w.landmineTriggered(h, playerHalfDiag) {
-				delete(w.hazards, id)
-				w.hazardIndex.Remove(id)
-				w.detonatePlayerExplosive(h, playerHalfDiag)
-				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
-				continue
-			}
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-			continue
-		}
-		if h.Kind == hazard.KindLandmineExplosion || h.Kind == hazard.KindMolotovExplosion {
-			if expired {
-				delete(w.hazards, id)
-				w.hazardIndex.Remove(id)
-				continue
-			}
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-			continue
-		}
-		if expired {
-			delete(w.hazards, id)
-			w.hazardIndex.Remove(id)
-			continue
-		}
-		if h.Speed > 0 {
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-		}
-		effect := hazard.EffectFor(h.Kind)
-
-		for _, p := range w.players {
-			if p.State == player.StateDead {
-				continue
-			}
-			if w.isProtected(p) {
-				continue
-			}
-			actorKey := playerActorKey(p.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + playerHalfDiag
-			hitR2 := hitR * hitR
-			if physics.DistanceSquared(p.X, p.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			if effect == hazard.EffectPurpleBurning {
-				if _, dup := purpleHitThisTick[actorKey]; dup {
-					continue
-				}
-				purpleHitThisTick[actorKey] = struct{}{}
-			}
-			wasAlive := p.State != player.StateDead
-			p.TakeDamage(h.Damage)
-			if wasAlive && p.State == player.StateDead {
-				w.awardHazardPlayerKill(h.SourcePlayerID)
-			}
-			if h.BurningTicks > 0 {
-				switch effect {
-				case hazard.EffectPurpleBurning:
-					p.ApplyPurpleBurning(h.BurningTicks)
-				case hazard.EffectBlueBurning:
-					p.ApplyBlueBurning(h.BurningTicks)
-				default:
-					p.ApplyBurning(h.BurningTicks)
-				}
-			}
-		}
-
-		if !h.HitsAllActors {
-			continue
-		}
-
-		for _, e := range w.enemies {
-			if e.State == enemy.StateDead {
-				continue
-			}
-			actorKey := enemyActorKey(e.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + e.CollisionRadius()
-			hitR2 := hitR * hitR
-			if physics.DistanceSquared(e.X, e.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			wasAlive := e.State != enemy.StateDead
-			w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
-			if wasAlive && e.State == enemy.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-			}
-		}
-
-		for _, d := range w.dragons {
-			if d.State == boss.StateDead {
-				continue
-			}
-			actorKey := bossActorKey(d.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + d.ContactRadius()
-			hitR2 := hitR * hitR
-			if physics.DistanceSquared(d.X, d.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			wasAlive := d.State != boss.StateDead
-			w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
-			if wasAlive && d.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-			}
-		}
-
-		for _, g := range w.gelehks {
-			if g.State == boss.StateDead {
-				continue
-			}
-			actorKey := bossActorKey(g.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + g.ContactRadius()
-			hitR2 := hitR * hitR
-			if physics.DistanceSquared(g.X, g.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			wasAlive := g.State != boss.StateDead
-			w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
-			if wasAlive && g.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-			}
-		}
-
-		for _, v := range w.vanessas {
-			if v.State == boss.StateDead {
-				continue
-			}
-			actorKey := bossActorKey(v.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + v.ContactRadius()
-			hitR2 := hitR * hitR
-			if physics.DistanceSquared(v.X, v.Y, h.X, h.Y) > hitR2 {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			wasAlive := v.State != boss.StateDead
-			w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
-			if wasAlive && v.State == boss.StateDead {
-				w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-			}
-		}
-	}
-	// Drain fire-line spawn schedule.
-	for i := len(w.pendingFireLines) - 1; i >= 0; i-- {
-		line := &w.pendingFireLines[i]
-		for line.nextSeg <= hazard.FireFieldSegments && !w.now.Before(line.nextSpawn) {
-			x := line.x + float64(line.dirX*hazard.FireFieldSpacing*line.nextSeg)
-			y := line.y + float64(line.dirY*hazard.FireFieldSpacing*line.nextSeg)
-			id := w.cfg.IDs.NewID(string(line.kind))
-			h := hazard.NewTinted(id, x, y, line.kind, line.tint)
-			w.hazards[id] = h
-			w.hazardIndex.Upsert(id, x, y)
-			line.nextSeg++
-			line.nextSpawn = line.nextSpawn.Add(hazard.FireFieldInterval)
-		}
-		if line.nextSeg > hazard.FireFieldSegments {
-			w.pendingFireLines = append(w.pendingFireLines[:i], w.pendingFireLines[i+1:]...)
-		}
-	}
-}
-func (w *World) queueFireLine(x, y, dirX, dirY float64, kind hazard.Kind, tint uint32) {
-	dx := int(sign(dirX))
-	dy := int(sign(dirY))
-	if dx == 0 && dy == 0 {
-		return
-	}
-	w.pendingFireLines = append(w.pendingFireLines, pendingFireLine{
-		x: x, y: y, dirX: dx, dirY: dy, kind: kind, tint: tint,
-		nextSeg: 1, nextSpawn: w.now,
-	})
-}
-
-func (w *World) spawnDashTrail(
-	sourcePlayerID string,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	sourceKey := playerActorKey(sourcePlayerID)
-	for distance := float64(hazard.FireFieldSpacing); distance < player.DashDistance; distance += float64(hazard.FireFieldSpacing) {
-		x := startX + dirX*distance
-		y := startY + dirY*distance
-		id := w.cfg.IDs.NewID(string(hazard.KindBlueFlame))
-		h := hazard.New(id, x, y, hazard.KindBlueFlame)
-		h.SourcePlayerID = sourcePlayerID
-		h.HitsAllActors = true
-		h.IgnoreActor(sourceKey)
-		w.hazards[id] = h
-		w.hazardIndex.Upsert(id, x, y)
-	}
-}
-
-func (w *World) spawnKnightBladeWave(e *enemy.Enemy, direction domworld.Direction) {
-	if w.cfg.IDs == nil || e == nil || direction == "" {
-		return
-	}
-	id := w.cfg.IDs.NewID(string(hazard.KindKnightBladeWave))
-	h := hazard.NewKnightBladeWave(id, e.X, e.Y, direction, e.Elite)
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
-func (w *World) spawnPlayerGrenade(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	id := w.cfg.IDs.NewID(string(hazard.KindGrenade))
-	h := hazard.NewGrenade(id, startX, startY, direction)
-	h.SourcePlayerID = sourcePlayerID
-	h.SourceCastID = sourceCastID
-	h.Damage = player.GrenadeDamage
-	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
-	h.RemainingDistance = player.GrenadeDistance
-	h.HitsPlayers = hitsPlayers
-	h.IgnoreActor(playerActorKey(sourcePlayerID))
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
-func (w *World) spawnPlayerMolotov(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	id := w.cfg.IDs.NewID(string(hazard.KindMolotov))
-	h := hazard.NewMolotov(id, startX, startY, direction)
-	h.SourcePlayerID = sourcePlayerID
-	h.SourceCastID = sourceCastID
-	h.Damage = player.MolotovDamage
-	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
-	h.RemainingDistance = player.GrenadeDistance
-	h.HitsPlayers = hitsPlayers
-	h.IgnoreActor(playerActorKey(sourcePlayerID))
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
-func (w *World) spawnPlayerLandmine(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	spawnX := startX - dirX*player.LandmineSpawnOffset
-	spawnY := startY - dirY*player.LandmineSpawnOffset
-	id := w.cfg.IDs.NewID(string(hazard.KindLandmine))
-	h := hazard.NewLandmine(id, spawnX, spawnY)
-	h.SourcePlayerID = sourcePlayerID
-	h.SourceCastID = sourceCastID
-	h.Damage = player.LandmineDamage
-	h.HitsPlayers = hitsPlayers
-	h.IgnoreActor(playerActorKey(sourcePlayerID))
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
-func (w *World) spawnPlayerExplosion(sourcePlayerID string, x, y float64, kind hazard.Kind) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	id := w.cfg.IDs.NewID(string(kind))
-	h := hazard.NewLandmineExplosion(id, x, y)
-	if kind == hazard.KindMolotovExplosion {
-		h = hazard.NewMolotovExplosion(id, x, y)
-	}
-	h.SourcePlayerID = sourcePlayerID
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, x, y)
-}
-
-func (w *World) spawnLandmineExplosion(sourcePlayerID string, x, y float64) {
-	w.spawnPlayerExplosion(sourcePlayerID, x, y, hazard.KindLandmineExplosion)
-}
-
-func (w *World) spawnFireBurst(x, y float64, kind hazard.Kind, tints []uint32) {
-	colorIndex := 0
-	for oy := -hazard.PurpleBlastRadius; oy <= hazard.PurpleBlastRadius; oy += hazard.PurpleTileStep {
-		for ox := -hazard.PurpleBlastRadius; ox <= hazard.PurpleBlastRadius; ox += hazard.PurpleTileStep {
-			if ox*ox+oy*oy > hazard.PurpleBlastRadius*hazard.PurpleBlastRadius {
-				continue
-			}
-			id := w.cfg.IDs.NewID("fire_burst")
-			tint := uint32(0)
-			if len(tints) > 0 {
-				tint = tints[colorIndex%len(tints)]
-				colorIndex++
-			}
-			h := hazard.NewTinted(id, x+float64(ox), y+float64(oy), kind, tint)
-			w.hazards[id] = h
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-		}
-	}
-}
-
-func (w *World) spawnPurpleField(x, y float64) {
-	for oy := -hazard.PurpleBlastRadius; oy <= hazard.PurpleBlastRadius; oy += hazard.PurpleTileStep {
-		for ox := -hazard.PurpleBlastRadius; ox <= hazard.PurpleBlastRadius; ox += hazard.PurpleTileStep {
-			if ox*ox+oy*oy > hazard.PurpleBlastRadius*hazard.PurpleBlastRadius {
-				continue
-			}
-			id := w.cfg.IDs.NewID("purple")
-			h := hazard.New(id, x+float64(ox), y+float64(oy), hazard.KindPurpleField)
-			w.hazards[id] = h
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-		}
-	}
-}
-
 func (w *World) tickDrops() {
 	for id, d := range w.drops {
 		if d.SpawnedAt.IsZero() {
@@ -1748,19 +876,19 @@ func (w *World) tickDrops() {
 		w.dropIndex.Remove(id)
 	}
 	// Pickup
-	for id, d := range w.drops {
-		for _, p := range w.players {
-			if p.State == player.StateDead {
-				continue
-			}
-			if physics.DistanceSquared(p.X, p.Y, d.X, d.Y) > drop.PickupRadius*drop.PickupRadius {
-				continue
+	for _, p := range w.players {
+		if p.State == player.StateDead {
+			continue
+		}
+		w.dropIndex.ForEachInRadius(p.X, p.Y, drop.PickupRadius, func(id spatial.EntityID) {
+			d := w.drops[id]
+			if d == nil {
+				return
 			}
 			p.Heal(d.Kind.HealAmount())
 			delete(w.drops, id)
 			w.dropIndex.Remove(id)
-			break
-		}
+		})
 	}
 	// Drop chance on enemy death
 	for _, e := range w.enemies {
@@ -1775,151 +903,6 @@ func (w *World) tickDrops() {
 			w.dropIndex.Upsert(id, d.X, d.Y)
 		}
 	}
-}
-
-func (w *World) tickPortals() {
-	// Boss-death portal spawning (mirrors PortalSystem.handleBossDeathPortals).
-	w.handleBossDeathPortals()
-
-	nextOverlaps := make(map[string]map[string]struct{}, len(w.portalOverlapsByPlayer))
-	transferredPlayerIDs := make(map[string]struct{})
-
-	for id, pt := range w.portals {
-		if pt.ExpiresAt != nil && !w.now.Before(*pt.ExpiresAt) {
-			delete(w.portals, id)
-			w.portalIndex.Remove(id)
-			continue
-		}
-		if !pt.Active(w.now) {
-			continue
-		}
-		for _, p := range w.players {
-			if p.State == player.StateDead {
-				continue
-			}
-			if physics.DistanceSquared(p.X, p.Y, pt.X, pt.Y) > portal.PortalRadius*portal.PortalRadius {
-				continue
-			}
-			overlaps := nextOverlaps[p.ID]
-			if overlaps == nil {
-				overlaps = make(map[string]struct{})
-				nextOverlaps[p.ID] = overlaps
-			}
-			overlaps[id] = struct{}{}
-			if prev := w.portalOverlapsByPlayer[p.ID]; prev != nil {
-				if _, alreadyOverlapping := prev[id]; alreadyOverlapping {
-					continue
-				}
-			}
-			if p.PhaseTransferCooldown > 0 {
-				continue
-			}
-			if _, alreadyTransferred := transferredPlayerIDs[p.ID]; alreadyTransferred {
-				continue
-			}
-			p.MarkPhaseTransferCooldown(portal.TransferCooldown)
-			w.transferRequests = append(w.transferRequests, portal.TransferRequest{
-				PlayerID:   p.ID,
-				ToInstance: pt.ToInstance,
-				TargetX:    pt.TargetX,
-				TargetY:    pt.TargetY,
-			})
-			transferredPlayerIDs[p.ID] = struct{}{}
-		}
-	}
-	w.portalOverlapsByPlayer = nextOverlaps
-}
-
-func (w *World) resolveCombat() {
-	// Run focused sub-systems in a fixed order:
-	// PlayerWave → PlayerNumb → PlayerPull → PlayerLandmine → PlayerGrenade →
-	// PlayerMolotov → PlayerDash → PlayerShuriken → ContactDamage. Each system is
-	// stateless and reads/mutates only the slices it needs.
-	if (appcombat.PlayerWaveSystem{}).Resolve(
-		w.players,
-		w.enemies,
-		w.dragons,
-		w.gelehks,
-		w.vanessas,
-		w.safeZone(),
-	) {
-		w.resolveBodyCollisionsLocked()
-	}
-	if (appcombat.PlayerNumbSystem{}).Resolve(
-		w.players,
-		w.enemies,
-		w.dragons,
-		w.gelehks,
-		w.vanessas,
-		w.safeZone(),
-	) {
-		w.resolveBodyCollisionsLocked()
-	}
-	if (appcombat.PlayerPullSystem{}).Resolve(
-		w.players,
-		w.enemies,
-		w.dragons,
-		w.gelehks,
-		w.vanessas,
-		w.safeZone(),
-		func(kind, id string, duration time.Duration) {
-			w.armPullOverlap(kind, id, duration)
-		},
-	) {
-		w.resolveBodyCollisionsLocked()
-	}
-	(appcombat.PlayerVenomSystem{}).Resolve(
-		w.players,
-		w.enemies,
-		w.dragons,
-		w.gelehks,
-		w.vanessas,
-		func(kind, id, sourcePlayerID string, duration time.Duration) {
-			w.armVenomDebuff(kind, id, sourcePlayerID, duration)
-		},
-	)
-	(appcombat.PlayerLandmineSystem{}).Resolve(
-		w.players,
-		w.safeZone(),
-		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerLandmine(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
-		},
-	)
-	(appcombat.PlayerGrenadeSystem{}).Resolve(
-		w.players,
-		w.safeZone(),
-		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerGrenade(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
-		},
-	)
-	(appcombat.PlayerMolotovSystem{}).Resolve(
-		w.players,
-		w.safeZone(),
-		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerMolotov(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
-		},
-	)
-	if (appcombat.PlayerDashSystem{}).Resolve(
-		w.players,
-		w.enemies,
-		w.dragons,
-		w.gelehks,
-		w.vanessas,
-		func(sourcePlayerID string, startX, startY float64, direction domworld.Direction) {
-			w.spawnDashTrail(sourcePlayerID, startX, startY, direction)
-		},
-	) {
-		w.syncDynamicIndexesLocked()
-	}
-	w.resolvePlayerShurikens()
-	appcombat.ContactDamageSystem{}.Resolve(
-		w.players,
-		filterFrozenMap(w.enemies, w.waveFrozenEnemies),
-		filterFrozenMap(w.dragons, w.waveFrozenDragons),
-		filterFrozenMap(w.gelehks, w.waveFrozenGelehks),
-		filterFrozenMap(w.vanessas, w.waveFrozenVanessas),
-		w.safeZone(),
-	)
 }
 
 // playerViews builds a snapshot slice of players for AI consumption.
@@ -2001,7 +984,16 @@ func (w *World) Snapshot() SnapshotView {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	view := SnapshotView{Tick: w.tick, Instance: w.cfg.InstanceID}
+	view := SnapshotView{
+		Tick:     w.tick,
+		Instance: w.cfg.InstanceID,
+		Players:  make([]player.Snapshot, 0, len(w.players)),
+		Enemies:  make([]enemy.Snapshot, 0, len(w.enemies)),
+		Bosses:   make([]BossSnapshot, 0, len(w.dragons)+len(w.gelehks)+len(w.vanessas)),
+		Drops:    make([]drop.Snapshot, 0, len(w.drops)),
+		Portals:  make([]portal.Snapshot, 0, len(w.portals)),
+		Hazards:  make([]hazard.Snapshot, 0, len(w.hazards)),
+	}
 	for _, p := range w.players {
 		view.Players = append(view.Players, p.Snapshot())
 		if wave := p.WaveIndicator(); wave != nil {
@@ -2056,7 +1048,29 @@ func (w *World) Snapshot() SnapshotView {
 		ttl := int64(math.Max(0, math.Round(float64(h.TTL.Milliseconds()))))
 		view.Hazards = append(view.Hazards, hazard.Snapshot{ID: h.ID, X: physics.QuantizePosition(h.X), Y: physics.QuantizePosition(h.Y), Kind: h.Kind, TTLMs: ttl, Tint: h.Tint, Direction: h.Direction})
 	}
+	sortSnapshotView(&view)
 	return view
+}
+
+func sortSnapshotView(view *SnapshotView) {
+	if len(view.Players) > 1 {
+		sort.Slice(view.Players, func(i, j int) bool { return view.Players[i].ID < view.Players[j].ID })
+	}
+	if len(view.Enemies) > 1 {
+		sort.Slice(view.Enemies, func(i, j int) bool { return view.Enemies[i].ID < view.Enemies[j].ID })
+	}
+	if len(view.Bosses) > 1 {
+		sort.Slice(view.Bosses, func(i, j int) bool { return view.Bosses[i].ID < view.Bosses[j].ID })
+	}
+	if len(view.Drops) > 1 {
+		sort.Slice(view.Drops, func(i, j int) bool { return view.Drops[i].ID < view.Drops[j].ID })
+	}
+	if len(view.Portals) > 1 {
+		sort.Slice(view.Portals, func(i, j int) bool { return view.Portals[i].ID < view.Portals[j].ID })
+	}
+	if len(view.Hazards) > 1 {
+		sort.Slice(view.Hazards, func(i, j int) bool { return view.Hazards[i].ID < view.Hazards[j].ID })
+	}
 }
 
 // playerViewsLocked is identical to playerViews but does not acquire the
@@ -2097,185 +1111,17 @@ func (w *World) Players() map[string]*player.Player {
 	return out
 }
 
-func (w *World) awardHazardMonsterKill(sourcePlayerID string, sourceCastID uint64) {
-	if sourcePlayerID == "" {
-		return
-	}
-	if source, ok := w.players[sourcePlayerID]; ok {
-		source.MonsterKills++
-		source.RecordMonsterKillInCast(sourceCastID)
-	}
-}
+// PlayerSnapshots returns immutable projections for every player.
+func (w *World) PlayerSnapshots() []player.Snapshot {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
-func (w *World) finishHazardCast(sourcePlayerID string, sourceCastID uint64) {
-	if sourcePlayerID == "" || sourceCastID == 0 {
-		return
-	}
-	if source, ok := w.players[sourcePlayerID]; ok {
-		source.FinishCast(sourceCastID)
-	}
-}
-
-func (w *World) awardHazardPlayerKill(sourcePlayerID string) {
-	if sourcePlayerID == "" {
-		return
-	}
-	if source, ok := w.players[sourcePlayerID]; ok {
-		source.PlayerKills++
-	}
-}
-
-func (w *World) landmineTriggered(h *hazard.Hazard, playerHalfDiag float64) bool {
+	out := make([]player.Snapshot, 0, len(w.players))
 	for _, p := range w.players {
-		if p.State == player.StateDead {
-			continue
-		}
-		actorKey := playerActorKey(p.ID)
-		if _, ignored := h.IgnoredActorKeys[actorKey]; ignored {
-			continue
-		}
-		if hazardTouchesActor(h.X, h.Y, h.HitRadius, p.X, p.Y, playerHalfDiag) {
-			return true
-		}
+		out = append(out, p.Snapshot())
 	}
-	for _, e := range w.enemies {
-		if e.State == enemy.StateDead {
-			continue
-		}
-		if hazardTouchesActor(h.X, h.Y, h.HitRadius, e.X, e.Y, e.CollisionRadius()) {
-			return true
-		}
-	}
-	for _, d := range w.dragons {
-		if d.State == boss.StateDead {
-			continue
-		}
-		if hazardTouchesActor(h.X, h.Y, h.HitRadius, d.X, d.Y, d.ContactRadius()) {
-			return true
-		}
-	}
-	for _, g := range w.gelehks {
-		if g.State == boss.StateDead {
-			continue
-		}
-		if hazardTouchesActor(h.X, h.Y, h.HitRadius, g.X, g.Y, g.ContactRadius()) {
-			return true
-		}
-	}
-	for _, v := range w.vanessas {
-		if v.State == boss.StateDead {
-			continue
-		}
-		if hazardTouchesActor(h.X, h.Y, h.HitRadius, v.X, v.Y, v.ContactRadius()) {
-			return true
-		}
-	}
-	return false
+	return out
 }
-
-func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64) {
-	explosionKind := hazard.KindLandmineExplosion
-	if h.Kind == hazard.KindMolotov {
-		explosionKind = hazard.KindMolotovExplosion
-	}
-	w.spawnPlayerExplosion(h.SourcePlayerID, h.X, h.Y, explosionKind)
-	isMolotov := h.Kind == hazard.KindMolotov
-
-	for _, p := range w.players {
-		if p.State == player.StateDead || p.ID == h.SourcePlayerID {
-			continue
-		}
-		if !h.HitsPlayers || w.isProtected(p) {
-			continue
-		}
-		if !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, p.X, p.Y, playerHalfDiag) {
-			continue
-		}
-		wasAlive := p.State != player.StateDead
-		p.TakeDamage(h.Damage)
-		if wasAlive && p.State == player.StateDead {
-			w.awardHazardPlayerKill(h.SourcePlayerID)
-		}
-	}
-	for _, e := range w.enemies {
-		if e.State == enemy.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, e.X, e.Y, e.CollisionRadius()) {
-			continue
-		}
-		wasAlive := e.State != enemy.StateDead
-		w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
-		if isMolotov && e.State != enemy.StateDead {
-			w.armMolotovBurn("enemy", e.ID, h.SourcePlayerID)
-		}
-		if wasAlive && e.State == enemy.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-	for _, d := range w.dragons {
-		if d.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, d.X, d.Y, d.ContactRadius()) {
-			continue
-		}
-		wasAlive := d.State != boss.StateDead
-		w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
-		if isMolotov && d.State != boss.StateDead {
-			w.armMolotovBurn("boss", d.ID, h.SourcePlayerID)
-		}
-		if wasAlive && d.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-	for _, g := range w.gelehks {
-		if g.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, g.X, g.Y, g.ContactRadius()) {
-			continue
-		}
-		wasAlive := g.State != boss.StateDead
-		w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
-		if isMolotov && g.State != boss.StateDead {
-			w.armMolotovBurn("boss", g.ID, h.SourcePlayerID)
-		}
-		if wasAlive && g.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-	for _, v := range w.vanessas {
-		if v.State == boss.StateDead || !hazardTouchesActor(h.X, h.Y, hazard.LandmineExplosionRadius, v.X, v.Y, v.ContactRadius()) {
-			continue
-		}
-		wasAlive := v.State != boss.StateDead
-		w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
-		if isMolotov && v.State != boss.StateDead {
-			w.armMolotovBurn("boss", v.ID, h.SourcePlayerID)
-		}
-		if wasAlive && v.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-}
-
-func dashDirectionVector(direction domworld.Direction) (float64, float64) {
-	switch direction {
-	case domworld.DirectionUp:
-		return 0, -1
-	case domworld.DirectionDown:
-		return 0, 1
-	case domworld.DirectionLeft:
-		return -1, 0
-	case domworld.DirectionRight:
-		return 1, 0
-	default:
-		return 0, 0
-	}
-}
-
-func hazardTouchesActor(x, y, hitRadius, actorX, actorY, actorRadius float64) bool {
-	reach := hitRadius + actorRadius
-	return physics.DistanceSquared(x, y, actorX, actorY) <= reach*reach
-}
-
-func playerActorKey(id string) string { return "player:" + id }
-
-func enemyActorKey(id string) string { return "enemy:" + id }
-
-func bossActorKey(id string) string { return "boss:" + id }
 
 func sign(v float64) float64 {
 	if v > 0 {

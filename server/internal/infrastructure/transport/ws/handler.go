@@ -13,6 +13,7 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/codec"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/policy"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/interfaces/wsapi"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/observability"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/protocol"
 	"nhooyr.io/websocket"
 )
@@ -27,9 +28,62 @@ const (
 	MaxConnections      = 200
 	MaxConnectionsPerIP = 12
 	InputRateLimit      = 65
+	SnapshotResyncLimit = 5
 	MaxRateViolations   = 15
 	MaxInvalidMessages  = 8
+	OutboxSize          = 64
 )
+
+// Limits contains the per-process/per-connection safety budgets used by the
+// WebSocket transport.
+type Limits struct {
+	MaxConnections      int
+	MaxConnectionsPerIP int
+	InputRateLimit      int
+	SnapshotResyncLimit int
+	MaxRateViolations   int
+	MaxInvalidMessages  int
+	OutboxSize          int
+}
+
+// DefaultLimits returns the historical transport budgets.
+func DefaultLimits() Limits {
+	return Limits{
+		MaxConnections:      MaxConnections,
+		MaxConnectionsPerIP: MaxConnectionsPerIP,
+		InputRateLimit:      InputRateLimit,
+		SnapshotResyncLimit: SnapshotResyncLimit,
+		MaxRateViolations:   MaxRateViolations,
+		MaxInvalidMessages:  MaxInvalidMessages,
+		OutboxSize:          OutboxSize,
+	}
+}
+
+func normalizeLimits(limits Limits) Limits {
+	defaults := DefaultLimits()
+	if limits.MaxConnections <= 0 {
+		limits.MaxConnections = defaults.MaxConnections
+	}
+	if limits.MaxConnectionsPerIP <= 0 {
+		limits.MaxConnectionsPerIP = defaults.MaxConnectionsPerIP
+	}
+	if limits.InputRateLimit <= 0 {
+		limits.InputRateLimit = defaults.InputRateLimit
+	}
+	if limits.SnapshotResyncLimit <= 0 {
+		limits.SnapshotResyncLimit = defaults.SnapshotResyncLimit
+	}
+	if limits.MaxRateViolations <= 0 {
+		limits.MaxRateViolations = defaults.MaxRateViolations
+	}
+	if limits.MaxInvalidMessages <= 0 {
+		limits.MaxInvalidMessages = defaults.MaxInvalidMessages
+	}
+	if limits.OutboxSize <= 0 {
+		limits.OutboxSize = defaults.OutboxSize
+	}
+	return limits
+}
 
 // ConnectionIDFactory mints unique connection ids.
 type ConnectionIDFactory interface {
@@ -53,22 +107,36 @@ type Handler struct {
 	origins     OriginValidator
 	ips         IPExtractor
 	connections *policy.IPConnectionTracker
+	limits      Limits
+	metrics     *observability.RuntimeMetrics
 	now         func() time.Time
 }
 
 // NewHandler constructs the handler.
 func NewHandler(dispatcher *wsapi.Dispatcher, ids ConnectionIDFactory, origins OriginValidator, ips IPExtractor, now func() time.Time) *Handler {
+	return NewHandlerWithLimits(dispatcher, ids, origins, ips, DefaultLimits(), now)
+}
+
+// NewHandlerWithLimits constructs the handler with explicit safety budgets.
+func NewHandlerWithLimits(dispatcher *wsapi.Dispatcher, ids ConnectionIDFactory, origins OriginValidator, ips IPExtractor, limits Limits, now func() time.Time) *Handler {
 	if now == nil {
 		now = time.Now
 	}
+	limits = normalizeLimits(limits)
 	return &Handler{
 		dispatcher:  dispatcher,
 		ids:         ids,
 		origins:     origins,
 		ips:         ips,
-		connections: policy.NewIPConnectionTracker(MaxConnections, MaxConnectionsPerIP),
+		connections: policy.NewIPConnectionTracker(limits.MaxConnections, limits.MaxConnectionsPerIP),
+		limits:      limits,
 		now:         now,
 	}
+}
+
+// SetMetrics attaches optional process-local runtime counters.
+func (h *Handler) SetMetrics(metrics *observability.RuntimeMetrics) {
+	h.metrics = metrics
 }
 
 // ServeHTTP upgrades the request and runs the per-connection loop.
@@ -83,7 +151,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ip = h.ips.Extract(r)
 	}
 	if h.connections != nil && !h.connections.Acquire(ip) {
-		if h.connections.Count(ip) >= MaxConnectionsPerIP {
+		if h.connections.Count(ip) >= h.limits.MaxConnectionsPerIP {
 			http.Error(w, "too many connections from IP", http.StatusForbidden)
 			return
 		}
@@ -105,10 +173,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	if h.metrics != nil {
+		h.metrics.ConnectionOpened()
+		defer h.metrics.ConnectionClosed()
+	}
 	conn.SetReadLimit(ReadLimit)
 
 	id := h.ids.NewConnectionID()
-	c := &Connection{conn: conn, id: id, outbox: make(chan []byte, 64), closeCh: make(chan struct{})}
+	c := &Connection{conn: conn, id: id, outbox: make(chan []byte, h.limits.OutboxSize), closeCh: make(chan struct{})}
 	h.dispatcher.Register(c)
 
 	ctx, cancel := context.WithCancel(r.Context())
@@ -130,6 +202,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 	rateWindowStart := h.now()
 	inputCount := 0
+	resyncCount := 0
 	rateViolations := 0
 	invalidMessages := 0
 
@@ -138,13 +211,14 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 			return
 		}
 		inputCount = 0
+		resyncCount = 0
 		rateViolations = 0
 		invalidMessages = 0
 		rateWindowStart = now
 	}
 	registerInvalidMessage := func() bool {
 		invalidMessages += 1
-		if invalidMessages > MaxInvalidMessages {
+		if invalidMessages > h.limits.MaxInvalidMessages {
 			c.closeWithStatus(websocket.StatusPolicyViolation, "Too many invalid messages")
 			return false
 		}
@@ -152,7 +226,7 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 	}
 	registerRateViolation := func() bool {
 		rateViolations += 1
-		if rateViolations > MaxRateViolations {
+		if rateViolations > h.limits.MaxRateViolations {
 			c.closeWithStatus(websocket.StatusPolicyViolation, "Rate limit exceeded")
 			return false
 		}
@@ -166,6 +240,9 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 		}
 		resetWindow(h.now())
 		if typ != websocket.MessageBinary {
+			if !registerInvalidMessage() {
+				return
+			}
 			continue
 		}
 		decoded, err := codec.Decode(data)
@@ -197,7 +274,7 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 			}
 		case protocol.InputMessage:
 			inputCount += 1
-			if inputCount > InputRateLimit {
+			if inputCount > h.limits.InputRateLimit {
 				if !registerRateViolation() {
 					return
 				}
@@ -207,6 +284,13 @@ func (h *Handler) readLoop(ctx context.Context, c *Connection) {
 				return
 			}
 		case protocol.SnapshotResyncMessage:
+			resyncCount += 1
+			if resyncCount > h.limits.SnapshotResyncLimit {
+				if !registerRateViolation() {
+					return
+				}
+				continue
+			}
 			if err := h.dispatcher.HandleSnapshotResync(c.id, msg); err != nil && !registerInvalidMessage() {
 				return
 			}
@@ -245,8 +329,15 @@ func (c *Connection) Send(payload []byte) error {
 	case c.outbox <- payload:
 		return nil
 	default:
+		c.closeWithStatus(websocket.StatusPolicyViolation, "Slow consumer")
 		return errors.New("ws: outbox full")
 	}
+}
+
+// CloseSlowConsumer lets the dispatcher enforce the same policy when a send
+// fails before the transport-specific outbox path can recover.
+func (c *Connection) CloseSlowConsumer() {
+	c.closeWithStatus(websocket.StatusPolicyViolation, "Slow consumer")
 }
 
 // ConnectionID returns the unique id assigned by the handler.
@@ -297,6 +388,8 @@ func (c *Connection) close() {
 func (c *Connection) closeWithStatus(code websocket.StatusCode, reason string) {
 	if c.closed.CompareAndSwap(false, true) {
 		close(c.closeCh)
-		_ = c.conn.Close(code, reason)
+		if c.conn != nil {
+			_ = c.conn.Close(code, reason)
+		}
 	}
 }

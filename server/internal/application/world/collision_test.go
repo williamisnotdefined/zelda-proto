@@ -58,6 +58,24 @@ func TestOverlappingEnemiesAreSeparated(t *testing.T) {
 	}
 }
 
+func TestCandidateBodyPairsUsesSpatialCulling(t *testing.T) {
+	t.Parallel()
+
+	ax, ay := 0.0, 0.0
+	bx, by := 40.0, 0.0
+	cx, cy := 5000.0, 5000.0
+	bodies := []dynamicBody{
+		{kind: "enemy", id: "a", x: &ax, y: &ay, radius: 24, mass: normalBodyMass},
+		{kind: "enemy", id: "b", x: &bx, y: &by, radius: 24, mass: normalBodyMass},
+		{kind: "enemy", id: "c", x: &cx, y: &cy, radius: 24, mass: normalBodyMass},
+	}
+
+	pairs := candidateBodyPairs(bodies)
+	if len(pairs) != 1 || pairs[0] != (bodyPair{i: 0, j: 1}) {
+		t.Fatalf("expected only nearby pair (0,1), got %+v", pairs)
+	}
+}
+
 func TestPlayersAreSeparatedOnJoin(t *testing.T) {
 	t.Parallel()
 

@@ -29,6 +29,7 @@ import (
 	httpsrv "github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/transport/http"
 	wsxport "github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/transport/ws"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/interfaces/wsapi"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/observability"
 )
 
 const shutdownTimeout = 5 * time.Second
@@ -40,6 +41,7 @@ type App struct {
 	manager    *appinst.Manager
 	sessions   *appsess.Manager
 	dispatcher *wsapi.Dispatcher
+	metrics    *observability.RuntimeMetrics
 	loop       *apploop.Loop
 	httpMux    http.Handler
 }
@@ -90,7 +92,9 @@ func New(cfg config.Config, logger *log.Logger) *App {
 		StartPhase:            startPhase,
 		StressEnemiesPerChunk: cfg.DevStressEnemiesPerChunk,
 	})
+	metrics := &observability.RuntimeMetrics{}
 	dispatcher := wsapi.NewDispatcher(manager, sessions, ids, time.Now)
+	dispatcher.SetMetrics(metrics)
 	sessions.SetExpiryHandler(func(playerID string) {
 		dispatcher.HandleSessionExpired(playerID)
 	})
@@ -100,7 +104,16 @@ func New(cfg config.Config, logger *log.Logger) *App {
 	errorStore := monitoring.NewClientErrorLogStore("logs")
 	errorRateLimiter := policy.NewFixedWindowLimiter(time.Minute, map[string]int{httpsrv.ClientErrorRateCategory: 120}, time.Now)
 
-	wsHandler := wsxport.NewHandler(dispatcher, ids, originValidator, ipExtractor, time.Now)
+	wsHandler := wsxport.NewHandlerWithLimits(dispatcher, ids, originValidator, ipExtractor, wsxport.Limits{
+		MaxConnections:      cfg.WSMaxConnections,
+		MaxConnectionsPerIP: cfg.WSMaxConnectionsPerIP,
+		InputRateLimit:      cfg.WSInputRateLimit,
+		SnapshotResyncLimit: cfg.WSSnapshotResyncLimit,
+		MaxRateViolations:   cfg.WSMaxRateViolations,
+		MaxInvalidMessages:  cfg.WSMaxInvalidMessages,
+		OutboxSize:          cfg.WSOutboxSize,
+	}, time.Now)
+	wsHandler.SetMetrics(metrics)
 
 	app := &App{
 		config:     cfg,
@@ -108,6 +121,7 @@ func New(cfg config.Config, logger *log.Logger) *App {
 		manager:    manager,
 		sessions:   sessions,
 		dispatcher: dispatcher,
+		metrics:    metrics,
 		loop:       apploop.New(apploop.DefaultConfig(dispatcher)),
 	}
 
@@ -119,6 +133,8 @@ func New(cfg config.Config, logger *log.Logger) *App {
 		ErrorStore:       errorStore,
 		ErrorRateLimiter: errorRateLimiter,
 		IPExtractor:      ipExtractor,
+		Metrics:          metrics,
+		DebugMetrics:     cfg.DebugGameMetrics,
 		Now:              time.Now,
 	})
 

@@ -110,15 +110,15 @@ func BuildSnapshot(instance InstanceID,
 		{Key: "protocolVersion", Value: ProtocolVersion},
 		{Key: "type", Value: ServerMessageTypeSnapshot},
 		{Key: "instanceId", Value: string(instance)},
-		{Key: "players", Value: toAny(players)},
-		{Key: "enemies", Value: toAny(enemies)},
-		{Key: "bosses", Value: toAny(bosses)},
-		{Key: "iceZones", Value: toAny(iceZones)},
-		{Key: "aoeIndicators", Value: toAny(aoeIndicators)},
-		{Key: "waveIndicators", Value: toAny(waveIndicators)},
-		{Key: "drops", Value: toAny(drops)},
-		{Key: "portals", Value: toAny(portals)},
-		{Key: "hazards", Value: toAny(hazards)},
+		{Key: "players", Value: objectsOrEmpty(players)},
+		{Key: "enemies", Value: objectsOrEmpty(enemies)},
+		{Key: "bosses", Value: objectsOrEmpty(bosses)},
+		{Key: "iceZones", Value: objectsOrEmpty(iceZones)},
+		{Key: "aoeIndicators", Value: objectsOrEmpty(aoeIndicators)},
+		{Key: "waveIndicators", Value: objectsOrEmpty(waveIndicators)},
+		{Key: "drops", Value: objectsOrEmpty(drops)},
+		{Key: "portals", Value: objectsOrEmpty(portals)},
+		{Key: "hazards", Value: objectsOrEmpty(hazards)},
 	}
 }
 
@@ -161,30 +161,30 @@ func BuildSnapshotDelta(in SnapshotDeltaInput) codec.Object {
 		{Key: "tick", Value: int64(in.Tick)},
 		{Key: "full", Value: in.Full},
 		{Key: "instanceId", Value: string(in.Instance)},
-		{Key: "players", Value: toAny(in.Players)},
-		{Key: "removedPlayerIds", Value: toAnyStrings(in.RemovedPlayerIDs)},
-		{Key: "enemies", Value: toAny(in.Enemies)},
-		{Key: "enemyTransforms", Value: toAny(in.EnemyTransforms)},
-		{Key: "enemyStates", Value: toAny(in.EnemyStates)},
-		{Key: "bosses", Value: toAny(in.Bosses)},
-		{Key: "drops", Value: toAny(in.Drops)},
-		{Key: "portals", Value: toAny(in.Portals)},
-		{Key: "hazards", Value: toAny(in.Hazards)},
-		{Key: "removedEnemyIds", Value: toAnyStrings(in.RemovedEnemyIDs)},
-		{Key: "removedBossIds", Value: toAnyStrings(in.RemovedBossIDs)},
-		{Key: "removedDropIds", Value: toAnyStrings(in.RemovedDropIDs)},
-		{Key: "removedPortalIds", Value: toAnyStrings(in.RemovedPortalIDs)},
-		{Key: "removedHazardIds", Value: toAnyStrings(in.RemovedHazardIDs)},
-		{Key: "iceZones", Value: toAny(in.IceZones)},
-		{Key: "aoeIndicators", Value: toAny(in.AoeIndicators)},
-		{Key: "waveIndicators", Value: toAny(in.WaveIndicators)},
+		{Key: "players", Value: objectsOrEmpty(in.Players)},
+		{Key: "removedPlayerIds", Value: stringsOrEmpty(in.RemovedPlayerIDs)},
+		{Key: "enemies", Value: objectsOrEmpty(in.Enemies)},
+		{Key: "enemyTransforms", Value: objectsOrEmpty(in.EnemyTransforms)},
+		{Key: "enemyStates", Value: objectsOrEmpty(in.EnemyStates)},
+		{Key: "bosses", Value: objectsOrEmpty(in.Bosses)},
+		{Key: "drops", Value: objectsOrEmpty(in.Drops)},
+		{Key: "portals", Value: objectsOrEmpty(in.Portals)},
+		{Key: "hazards", Value: objectsOrEmpty(in.Hazards)},
+		{Key: "removedEnemyIds", Value: stringsOrEmpty(in.RemovedEnemyIDs)},
+		{Key: "removedBossIds", Value: stringsOrEmpty(in.RemovedBossIDs)},
+		{Key: "removedDropIds", Value: stringsOrEmpty(in.RemovedDropIDs)},
+		{Key: "removedPortalIds", Value: stringsOrEmpty(in.RemovedPortalIDs)},
+		{Key: "removedHazardIds", Value: stringsOrEmpty(in.RemovedHazardIDs)},
+		{Key: "iceZones", Value: objectsOrEmpty(in.IceZones)},
+		{Key: "aoeIndicators", Value: objectsOrEmpty(in.AoeIndicators)},
+		{Key: "waveIndicators", Value: objectsOrEmpty(in.WaveIndicators)},
 	}
 }
 
 // BuildLeaderboard constructs a leaderboard envelope. The client reads
 // `players`, with each entry exposing id/nickname/playerKills/monsterKills/deaths.
 func BuildLeaderboard(entries []LeaderboardEntry) codec.Object {
-	out := make([]any, 0, len(entries))
+	out := make([]codec.Object, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, codec.Object{
 			{Key: "id", Value: e.PlayerID},
@@ -197,7 +197,7 @@ func BuildLeaderboard(entries []LeaderboardEntry) codec.Object {
 	return codec.Object{
 		{Key: "protocolVersion", Value: ProtocolVersion},
 		{Key: "type", Value: ServerMessageTypeLeaderboard},
-		{Key: "players", Value: out},
+		{Key: "players", Value: objectsOrEmpty(out)},
 	}
 }
 
@@ -211,18 +211,19 @@ func BuildError(code ServerErrorCode, message string) codec.Object {
 	}
 }
 
-func toAny(in []codec.Object) []any {
-	out := make([]any, len(in))
-	for i, v := range in {
-		out[i] = v
+var emptyObjects = []codec.Object{}
+var emptyStrings = []string{}
+
+func objectsOrEmpty(in []codec.Object) []codec.Object {
+	if in == nil {
+		return emptyObjects
 	}
-	return out
+	return in
 }
 
-func toAnyStrings(in []string) []any {
-	out := make([]any, len(in))
-	for i, v := range in {
-		out[i] = v
+func stringsOrEmpty(in []string) []string {
+	if in == nil {
+		return emptyStrings
 	}
-	return out
+	return in
 }

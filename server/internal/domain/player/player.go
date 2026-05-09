@@ -15,7 +15,6 @@ import (
 const (
 	Speed                     float64 = 150
 	MaxHP                             = 100
-	MeleeDamage                       = 10
 	LandmineDamage                    = 10
 	GrenadeDamage                     = 10
 	MolotovDamage                     = GrenadeDamage / 2
@@ -405,60 +404,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	}
 	defer p.advanceWaveLikeCasts(dt)
 
-	if p.WaveCooldown > 0 {
-		p.WaveCooldown -= dt
-		if p.WaveCooldown < 0 {
-			p.WaveCooldown = 0
-		}
-	}
-	if p.NumbCooldown > 0 {
-		p.NumbCooldown -= dt
-		if p.NumbCooldown < 0 {
-			p.NumbCooldown = 0
-		}
-	}
-	if p.PullCooldown > 0 {
-		p.PullCooldown -= dt
-		if p.PullCooldown < 0 {
-			p.PullCooldown = 0
-		}
-	}
-	if p.VenomCooldown > 0 {
-		p.VenomCooldown -= dt
-		if p.VenomCooldown < 0 {
-			p.VenomCooldown = 0
-		}
-	}
-	if p.DashCooldown > 0 {
-		p.DashCooldown -= dt
-		if p.DashCooldown < 0 {
-			p.DashCooldown = 0
-		}
-	}
-	if p.GrenadeCooldown > 0 {
-		p.GrenadeCooldown -= dt
-		if p.GrenadeCooldown < 0 {
-			p.GrenadeCooldown = 0
-		}
-	}
-	if p.MolotovCooldown > 0 {
-		p.MolotovCooldown -= dt
-		if p.MolotovCooldown < 0 {
-			p.MolotovCooldown = 0
-		}
-	}
-	if p.LandmineCooldown > 0 {
-		p.LandmineCooldown -= dt
-		if p.LandmineCooldown < 0 {
-			p.LandmineCooldown = 0
-		}
-	}
-	if p.ShurikenCooldown > 0 {
-		p.ShurikenCooldown -= dt
-		if p.ShurikenCooldown < 0 {
-			p.ShurikenCooldown = 0
-		}
-	}
+	p.advanceCooldowns(dt)
 	p.advanceShuriken(dt)
 
 	input := p.pendingInput
@@ -1092,6 +1038,28 @@ func (p *Player) resetAttackTracking() {
 	}
 	p.AttackMonsterKills = 0
 	p.ToastyTriggered = false
+}
+
+func (p *Player) advanceCooldowns(dt time.Duration) {
+	advanceCooldown(&p.WaveCooldown, dt)
+	advanceCooldown(&p.NumbCooldown, dt)
+	advanceCooldown(&p.PullCooldown, dt)
+	advanceCooldown(&p.VenomCooldown, dt)
+	advanceCooldown(&p.DashCooldown, dt)
+	advanceCooldown(&p.GrenadeCooldown, dt)
+	advanceCooldown(&p.MolotovCooldown, dt)
+	advanceCooldown(&p.LandmineCooldown, dt)
+	advanceCooldown(&p.ShurikenCooldown, dt)
+}
+
+func advanceCooldown(cooldown *time.Duration, dt time.Duration) {
+	if *cooldown <= 0 {
+		return
+	}
+	*cooldown -= dt
+	if *cooldown < 0 {
+		*cooldown = 0
+	}
 }
 
 func (p *Player) advanceWaveLikeCasts(dt time.Duration) {

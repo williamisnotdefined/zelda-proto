@@ -12,6 +12,7 @@
     "start:server": "NODE_ENV=production PORT=3001 TRUST_PROXY=1 WS_ALLOWED_ORIGINS=https://wilho.com.br ./server/bin/server",
     "start": "npm run start:server",
     "test:server": "go -C server test ./...",
+    "bench:server": "go -C server test ./internal/application/world ./internal/interfaces/wsapi ./internal/infrastructure/transport/ws -run '^$' -bench 'Benchmark(World(Tick|Snapshot)Stress|Broadcast(Stress|DeltaSteadyState|DeltaWithMovement)|WebSocketBroadcastStress)' -benchtime=1x -benchmem",
     "test:e2e": "playwright test",
     "test": "npm run test:server && npm run test --workspace=client",
     "lint": "eslint client/src --ext .ts,.tsx",

@@ -3,8 +3,8 @@
 package snapshot
 
 import (
-	"reflect"
 	"sort"
+	"sync"
 	"time"
 
 	appworld "github.com/williamisnotdefined/zelda-proto/server/internal/application/world"
@@ -90,57 +90,84 @@ type LeaderboardEntry struct {
 
 // Builder caches per-player previous snapshots to compute deltas.
 type Builder struct {
+	mu       sync.Mutex
 	previous map[string]*Snapshot
+	epochs   map[string]uint64
+}
+
+type pendingDelta struct {
+	Delta    Delta
+	playerID string
+	snapshot Snapshot
+	epoch    uint64
 }
 
 // NewBuilder returns an empty builder.
 func NewBuilder() *Builder {
-	return &Builder{previous: make(map[string]*Snapshot)}
+	return &Builder{previous: make(map[string]*Snapshot), epochs: make(map[string]uint64)}
 }
 
 // Build returns the culled snapshot for the given player view.
-func (b *Builder) Build(view appworld.SnapshotView, p *player.Player, instance domworld.InstanceID) Snapshot {
+func (b *Builder) Build(view appworld.SnapshotView, self player.Snapshot, instance domworld.InstanceID) Snapshot {
 	snap := Snapshot{
 		Tick:                  view.Tick,
 		Instance:              instance,
-		Self:                  p.Snapshot(),
-		LastProcessedInputSeq: p.LastProcessedInputSeq,
+		Self:                  self,
+		LastProcessedInputSeq: self.LastProcessedInputSeq,
 		IceZones:              view.IceZones,
 		AOEIndicators:         view.AOEIndicators,
 		WaveIndicators:        view.WaveIndicators,
 	}
+	if len(view.Players) > 1 {
+		snap.Players = make([]player.Snapshot, 0, len(view.Players)-1)
+	}
+	if len(view.Enemies) > 0 {
+		snap.Enemies = make([]enemy.Snapshot, 0, len(view.Enemies))
+	}
+	if len(view.Bosses) > 0 {
+		snap.Bosses = make([]appworld.BossSnapshot, 0, len(view.Bosses))
+	}
+	if len(view.Drops) > 0 {
+		snap.Drops = make([]drop.Snapshot, 0, len(view.Drops))
+	}
+	if len(view.Portals) > 0 {
+		snap.Portals = make([]portal.Snapshot, 0, len(view.Portals))
+	}
+	if len(view.Hazards) > 0 {
+		snap.Hazards = make([]hazard.Snapshot, 0, len(view.Hazards))
+	}
 	radius := domworld.ViewRadius
 	for _, other := range view.Players {
-		if other.ID == p.ID {
+		if other.ID == self.ID {
 			continue
 		}
-		if !inRadius(p.X, p.Y, float64(other.X), float64(other.Y), radius) {
+		if !inRadius(float64(self.X), float64(self.Y), float64(other.X), float64(other.Y), radius) {
 			continue
 		}
 		snap.Players = append(snap.Players, other)
 	}
 	for _, e := range view.Enemies {
-		if inRadius(p.X, p.Y, float64(e.X), float64(e.Y), radius) {
+		if inRadius(float64(self.X), float64(self.Y), float64(e.X), float64(e.Y), radius) {
 			snap.Enemies = append(snap.Enemies, e)
 		}
 	}
 	for _, bs := range view.Bosses {
-		if inRadius(p.X, p.Y, bs.X, bs.Y, radius) {
+		if inRadius(float64(self.X), float64(self.Y), bs.X, bs.Y, radius) {
 			snap.Bosses = append(snap.Bosses, bs)
 		}
 	}
 	for _, d := range view.Drops {
-		if inRadius(p.X, p.Y, d.X, d.Y, radius) {
+		if inRadius(float64(self.X), float64(self.Y), d.X, d.Y, radius) {
 			snap.Drops = append(snap.Drops, d)
 		}
 	}
 	for _, pt := range view.Portals {
-		if inRadius(p.X, p.Y, pt.X, pt.Y, radius) {
+		if inRadius(float64(self.X), float64(self.Y), pt.X, pt.Y, radius) {
 			snap.Portals = append(snap.Portals, pt)
 		}
 	}
 	for _, h := range view.Hazards {
-		if inRadius(p.X, p.Y, h.X, h.Y, radius) {
+		if inRadius(float64(self.X), float64(self.Y), h.X, h.Y, radius) {
 			snap.Hazards = append(snap.Hazards, h)
 		}
 	}
@@ -152,6 +179,42 @@ func (b *Builder) Build(view appworld.SnapshotView, p *player.Player, instance d
 // entities upserted; subsequent calls produce incremental enemyTransforms /
 // enemyStates / removed*Ids.
 func (b *Builder) Diff(playerID string, current Snapshot) Delta {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	delta := b.diffLocked(playerID, current)
+	b.commitLocked(playerID, current)
+	return delta
+}
+
+// Preview computes a delta without advancing the stored base snapshot. Call
+// Commit only after the delta is successfully accepted by the transport.
+func (b *Builder) Preview(playerID string, current Snapshot) pendingDelta {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return pendingDelta{
+		Delta:    b.diffLocked(playerID, current),
+		playerID: playerID,
+		snapshot: current,
+		epoch:    b.epochs[playerID],
+	}
+}
+
+// Commit advances the stored base snapshot for a previously previewed delta.
+// If Forget ran in between, the preview is stale and must not be committed.
+func (b *Builder) Commit(pending pendingDelta) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.epochs[pending.playerID] != pending.epoch {
+		return false
+	}
+	b.previous[pending.playerID] = &pending.snapshot
+	return true
+}
+
+func (b *Builder) diffLocked(playerID string, current Snapshot) Delta {
 	prev := b.previous[playerID]
 	delta := Delta{
 		Tick:                  current.Tick,
@@ -178,17 +241,43 @@ func (b *Builder) Diff(playerID string, current Snapshot) Delta {
 		delta.PortalsUpsert, delta.PortalsRemove = diffPortals(prev.Portals, current.Portals)
 		delta.HazardsUpsert, delta.HazardsRemove = diffHazards(prev.Hazards, current.Hazards)
 	}
-	cp := current
-	b.previous[playerID] = &cp
 	return delta
 }
 
 // Forget drops the cached previous snapshot for a player on disconnect.
-func (b *Builder) Forget(playerID string) { delete(b.previous, playerID) }
+func (b *Builder) Forget(playerID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	delete(b.previous, playerID)
+	b.epochs[playerID] += 1
+}
+
+// HasPrevious reports whether a player currently has a cached base snapshot.
+func (b *Builder) HasPrevious(playerID string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	_, ok := b.previous[playerID]
+	return ok
+}
+
+func (b *Builder) commitLocked(playerID string, current Snapshot) {
+	b.previous[playerID] = &current
+}
 
 // Leaderboard returns the top-N players ranked by monster kills (desc),
 // breaking ties by player kills then nickname.
 func Leaderboard(players []*player.Player, top int) []LeaderboardEntry {
+	snapshots := make([]player.Snapshot, 0, len(players))
+	for _, p := range players {
+		snapshots = append(snapshots, p.Snapshot())
+	}
+	return LeaderboardFromSnapshots(snapshots, top)
+}
+
+// LeaderboardFromSnapshots ranks immutable player projections.
+func LeaderboardFromSnapshots(players []player.Snapshot, top int) []LeaderboardEntry {
 	if top <= 0 {
 		top = LeaderboardTopN
 	}
@@ -226,41 +315,29 @@ func inRadius(x, y, ox, oy, radius float64) bool {
 }
 
 func diffPlayers(prev, curr []player.Snapshot) (upsert []player.Snapshot, remove []string) {
-	prevByID := make(map[string]player.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || !reflect.DeepEqual(old, s) {
-			upsert = append(upsert, s)
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, next := prev[i], curr[j]
+		switch {
+		case old.ID == next.ID:
+			if !playerSnapshotsEqual(old, next) {
+				upsert = append(upsert, next)
+			}
+			i++
+			j++
+		case old.ID < next.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
+			upsert = append(upsert, next)
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
 	}
-	return
-}
-
-func diffEnemies(prev, curr []enemy.Snapshot) (upsert []enemy.Snapshot, remove []string) {
-	prevByID := make(map[string]enemy.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || old != s {
-			upsert = append(upsert, s)
-		}
-	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
 }
@@ -274,111 +351,167 @@ func diffEnemiesDetailed(prev, curr []enemy.Snapshot) (
 	states []EnemyState,
 	remove []string,
 ) {
-	prevByID := make(map[string]enemy.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		old, ok := prevByID[s.ID]
-		if !ok || old.Kind != s.Kind || old.Elite != s.Elite || old.Variant != s.Variant {
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, s := prev[i], curr[j]
+		switch {
+		case old.ID == s.ID:
+			if old.Kind != s.Kind || old.Elite != s.Elite || old.Variant != s.Variant {
+				upsert = append(upsert, s)
+				i++
+				j++
+				continue
+			}
+			transformChanged := old.X != s.X || old.Y != s.Y
+			stateChanged := old.HP != s.HP || old.MaxHP != s.MaxHP || old.State != s.State || old.BurningTicksRemaining != s.BurningTicksRemaining
+			if transformChanged {
+				transforms = append(transforms, EnemyTransform{ID: s.ID, X: s.X, Y: s.Y})
+			}
+			if stateChanged {
+				states = append(states, EnemyState{ID: s.ID, HP: s.HP, MaxHP: s.MaxHP, State: s.State, BurningTicksRemaining: s.BurningTicksRemaining})
+			}
+			i++
+			j++
+		case old.ID < s.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
 			upsert = append(upsert, s)
-			continue
-		}
-		transformChanged := old.X != s.X || old.Y != s.Y
-		stateChanged := old.HP != s.HP || old.MaxHP != s.MaxHP || old.State != s.State || old.BurningTicksRemaining != s.BurningTicksRemaining
-		if transformChanged {
-			transforms = append(transforms, EnemyTransform{ID: s.ID, X: s.X, Y: s.Y})
-		}
-		if stateChanged {
-			states = append(states, EnemyState{ID: s.ID, HP: s.HP, MaxHP: s.MaxHP, State: s.State, BurningTicksRemaining: s.BurningTicksRemaining})
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
+	}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
 }
 
 func diffBosses(prev, curr []appworld.BossSnapshot) (upsert []appworld.BossSnapshot, remove []string) {
-	prevByID := make(map[string]appworld.BossSnapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || old != s {
-			upsert = append(upsert, s)
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, next := prev[i], curr[j]
+		switch {
+		case old.ID == next.ID:
+			if old != next {
+				upsert = append(upsert, next)
+			}
+			i++
+			j++
+		case old.ID < next.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
+			upsert = append(upsert, next)
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
+	}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
 }
 
 func diffDrops(prev, curr []drop.Snapshot) (upsert []drop.Snapshot, remove []string) {
-	prevByID := make(map[string]drop.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || old != s {
-			upsert = append(upsert, s)
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, next := prev[i], curr[j]
+		switch {
+		case old.ID == next.ID:
+			if old != next {
+				upsert = append(upsert, next)
+			}
+			i++
+			j++
+		case old.ID < next.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
+			upsert = append(upsert, next)
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
+	}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
 }
 
 func diffPortals(prev, curr []portal.Snapshot) (upsert []portal.Snapshot, remove []string) {
-	prevByID := make(map[string]portal.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || old != s {
-			upsert = append(upsert, s)
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, next := prev[i], curr[j]
+		switch {
+		case old.ID == next.ID:
+			if old != next {
+				upsert = append(upsert, next)
+			}
+			i++
+			j++
+		case old.ID < next.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
+			upsert = append(upsert, next)
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
+	}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
 }
 
 func diffHazards(prev, curr []hazard.Snapshot) (upsert []hazard.Snapshot, remove []string) {
-	prevByID := make(map[string]hazard.Snapshot, len(prev))
-	for _, s := range prev {
-		prevByID[s.ID] = s
-	}
-	currByID := make(map[string]struct{}, len(curr))
-	for _, s := range curr {
-		currByID[s.ID] = struct{}{}
-		if old, ok := prevByID[s.ID]; !ok || old != s {
-			upsert = append(upsert, s)
+	i, j := 0, 0
+	for i < len(prev) && j < len(curr) {
+		old, next := prev[i], curr[j]
+		switch {
+		case old.ID == next.ID:
+			if old != next {
+				upsert = append(upsert, next)
+			}
+			i++
+			j++
+		case old.ID < next.ID:
+			remove = append(remove, old.ID)
+			i++
+		default:
+			upsert = append(upsert, next)
+			j++
 		}
 	}
-	for id := range prevByID {
-		if _, ok := currByID[id]; !ok {
-			remove = append(remove, id)
-		}
+	for ; i < len(prev); i++ {
+		remove = append(remove, prev[i].ID)
+	}
+	for ; j < len(curr); j++ {
+		upsert = append(upsert, curr[j])
 	}
 	return
+}
+
+func playerSnapshotsEqual(a, b player.Snapshot) bool {
+	if a.ID != b.ID || a.Nickname != b.Nickname || a.X != b.X || a.Y != b.Y || a.HP != b.HP || a.MaxHP != b.MaxHP ||
+		a.State != b.State || a.Direction != b.Direction || a.PlayerKills != b.PlayerKills || a.MonsterKills != b.MonsterKills ||
+		a.Deaths != b.Deaths || a.ToastyCount != b.ToastyCount || a.LastProcessedInputSeq != b.LastProcessedInputSeq ||
+		a.ShurikenActive != b.ShurikenActive || len(a.StatusEffects) != len(b.StatusEffects) {
+		return false
+	}
+	for kind, status := range a.StatusEffects {
+		if b.StatusEffects[kind] != status {
+			return false
+		}
+	}
+	return true
 }

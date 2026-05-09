@@ -208,6 +208,26 @@ func TestDropsDespawnAfterConfiguredLifetime(t *testing.T) {
 	}
 }
 
+func TestPlayerPicksUpNearbyDrop(t *testing.T) {
+	t.Parallel()
+
+	now := time.Unix(1_700_000_000, 0)
+	w := newWorldAt(t, &now)
+	x, y := 1000.0, 1000.0
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.HP = 50
+	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: x, Y: y, Kind: drop.KindHeartSmall, SpawnedAt: now}
+	w.dropIndex.Upsert("drop_1", x, y)
+
+	w.Tick(20 * time.Millisecond)
+	if len(w.drops) != 0 || w.dropIndex.Len() != 0 {
+		t.Fatalf("expected drop to be picked up, drops=%d index=%d", len(w.drops), w.dropIndex.Len())
+	}
+	if p.HP <= 50 {
+		t.Fatalf("expected player to heal from drop, hp=%d", p.HP)
+	}
+}
+
 func TestPlayerDashMovesCasterOnlyAndSpawnsBlueTrail(t *testing.T) {
 	t.Parallel()
 

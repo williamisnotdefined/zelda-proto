@@ -6,6 +6,7 @@ package wsapi
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	appinst "github.com/williamisnotdefined/zelda-proto/server/internal/application/instance"
@@ -21,6 +22,7 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/player"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/portal"
 	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/observability"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/protocol"
 )
 
@@ -29,6 +31,10 @@ import (
 type Conn interface {
 	Send(payload []byte) error
 	ConnectionID() string
+}
+
+type slowConsumerCloser interface {
+	CloseSlowConsumer()
 }
 
 // ErrNotJoined indicates an action requires a prior join.
@@ -53,6 +59,7 @@ type Dispatcher struct {
 	playerIDs PlayerIDFactory
 	builder   *appsnap.Builder
 	now       func() time.Time
+	metrics   *observability.RuntimeMetrics
 
 	connections  map[string]*connState
 	snapshotTick uint64
@@ -60,11 +67,20 @@ type Dispatcher struct {
 	lastInstance map[string]domworld.InstanceID
 }
 
+// SetMetrics attaches optional process-local runtime counters.
+func (d *Dispatcher) SetMetrics(metrics *observability.RuntimeMetrics) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.metrics = metrics
+}
+
 type connState struct {
-	conn         Conn
-	playerID     string
-	sessionToken string
-	joined       bool
+	conn              Conn
+	playerID          string
+	sessionToken      string
+	joined            bool
+	fullSnapshotHint  atomic.Int64
+	deltaSnapshotHint atomic.Int64
 }
 
 // NewDispatcher constructs a dispatcher.
@@ -232,14 +248,19 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 
 // Sim drives a simulation tick (loop.Tickable).
 func (d *Dispatcher) Sim(dt time.Duration) {
+	start := time.Now()
 	d.manager.Tick(dt)
 	d.sessions.Tick()
+	d.metricsSnapshot().SimTick(time.Since(start))
 }
 
 // Broadcast pushes a per-player snapshot to every joined connection. It uses
 // snapshot_delta envelopes (full=true on first send / after Forget,
 // incremental afterwards).
 func (d *Dispatcher) Broadcast() {
+	start := time.Now()
+	defer func() { d.metricsSnapshot().Broadcast(time.Since(start)) }()
+
 	d.mu.Lock()
 	conns := make([]*connState, 0, len(d.connections))
 	for _, s := range d.connections {
@@ -252,15 +273,22 @@ func (d *Dispatcher) Broadcast() {
 	periodicFull := forceFullSnapshotEveryTicks > 0 && tick%forceFullSnapshotEveryTicks == 0
 	d.mu.Unlock()
 
+	views := make(map[domworld.InstanceID]appworld.SnapshotView)
+	wires := make(map[domworld.InstanceID]*wireCache)
 	for _, state := range conns {
 		loc, ok := d.manager.LocationOf(state.playerID)
 		if !ok {
 			continue
 		}
-		w := d.manager.World(loc)
-		view := w.Snapshot()
-		pl := w.Players()[state.playerID]
-		if pl == nil {
+		view, ok := views[loc]
+		if !ok {
+			w := d.manager.World(loc)
+			view = w.Snapshot()
+			views[loc] = view
+			wires[loc] = newWireCache(view)
+		}
+		self, ok := findPlayerSnapshot(view.Players, state.playerID)
+		if !ok {
 			continue
 		}
 
@@ -269,23 +297,29 @@ func (d *Dispatcher) Broadcast() {
 		instanceChanged := hadPrev && prevInstance != loc
 		forceClient := d.forceFullFor[state.playerID]
 		if instanceChanged || forceClient {
-			d.builder.Forget(state.playerID)
 			delete(d.forceFullFor, state.playerID)
 		}
 		d.mu.Unlock()
+		if instanceChanged || forceClient {
+			d.builder.Forget(state.playerID)
+		}
 
 		if periodicFull {
 			d.builder.Forget(state.playerID)
 		}
 
-		snap := d.builder.Build(view, pl, loc)
-		delta := d.builder.Diff(state.playerID, snap)
-		delta.Tick = tick
-		envelope := buildSnapshotDeltaEnvelope(delta)
-		if err := d.send(state.conn, envelope); err == nil {
+		snap := d.builder.Build(view, self, loc)
+		pending := d.builder.Preview(state.playerID, snap)
+		pending.Delta.Tick = tick
+		envelope := buildSnapshotDeltaEnvelope(pending.Delta, wires[loc])
+		if err := d.sendSnapshot(state, envelope, pending.Delta.Full); err == nil {
+			d.builder.Commit(pending)
+			d.metricsSnapshot().SnapshotDelta(pending.Delta.Full)
 			d.mu.Lock()
 			d.lastInstance[state.playerID] = loc
 			d.mu.Unlock()
+		} else {
+			d.handleSendFailure(state)
 		}
 	}
 }
@@ -306,6 +340,9 @@ func (d *Dispatcher) HandleSnapshotResync(connID string, _ protocol.SnapshotResy
 // PublishLeaderboard broadcasts a per-instance leaderboard message to each
 // connection.
 func (d *Dispatcher) PublishLeaderboard() {
+	start := time.Now()
+	defer func() { d.metricsSnapshot().Leaderboard(time.Since(start)) }()
+
 	d.mu.Lock()
 	conns := make([]*connState, 0, len(d.connections))
 	for _, s := range d.connections {
@@ -326,11 +363,7 @@ func (d *Dispatcher) PublishLeaderboard() {
 		envelope, ok := boards[key]
 		if !ok {
 			w := d.manager.World(loc)
-			players := []*player.Player{}
-			for _, p := range w.Players() {
-				players = append(players, p)
-			}
-			entries := appsnap.Leaderboard(players, appsnap.LeaderboardTopN)
+			entries := appsnap.LeaderboardFromSnapshots(w.PlayerSnapshots(), appsnap.LeaderboardTopN)
 			wire := make([]protocol.LeaderboardEntry, 0, len(entries))
 			for _, e := range entries {
 				wire = append(wire, protocol.LeaderboardEntry{
@@ -342,7 +375,9 @@ func (d *Dispatcher) PublishLeaderboard() {
 			envelope = protocol.BuildLeaderboard(wire)
 			boards[key] = envelope
 		}
-		_ = d.send(state.conn, envelope)
+		if err := d.send(state.conn, envelope); err != nil {
+			d.handleSendFailure(state)
+		}
 	}
 }
 
@@ -363,7 +398,9 @@ func (d *Dispatcher) broadcast(envelope codec.Object) {
 	}
 	d.mu.Unlock()
 	for _, c := range conns {
-		_ = d.send(c.conn, envelope)
+		if err := d.send(c.conn, envelope); err != nil {
+			d.handleSendFailure(c)
+		}
 	}
 }
 
@@ -381,7 +418,23 @@ func (d *Dispatcher) broadcastToInstance(instance domworld.InstanceID, envelope 
 		if !ok || loc != instance {
 			continue
 		}
-		_ = d.send(c.conn, envelope)
+		if err := d.send(c.conn, envelope); err != nil {
+			d.handleSendFailure(c)
+		}
+	}
+}
+
+func (d *Dispatcher) handleSendFailure(state *connState) {
+	if state == nil || state.playerID == "" {
+		return
+	}
+	d.metricsSnapshot().SlowConsumer()
+	d.builder.Forget(state.playerID)
+	d.mu.Lock()
+	d.forceFullFor[state.playerID] = true
+	d.mu.Unlock()
+	if closer, ok := state.conn.(slowConsumerCloser); ok {
+		closer.CloseSlowConsumer()
 	}
 }
 
@@ -390,7 +443,44 @@ func (d *Dispatcher) send(conn Conn, envelope codec.Object) error {
 	if err != nil {
 		return err
 	}
+	d.metricsSnapshot().Payload(len(data))
 	return conn.Send(data)
+}
+
+func (d *Dispatcher) sendSnapshot(state *connState, envelope codec.Object, full bool) error {
+	if state == nil {
+		return errors.New("wsapi: missing connection state")
+	}
+	hint := int(state.deltaSnapshotHint.Load())
+	if full {
+		hint = int(state.fullSnapshotHint.Load())
+	}
+	data, err := codec.MarshalWithCapacity(envelope, hint)
+	if err != nil {
+		return err
+	}
+	if full {
+		state.fullSnapshotHint.Store(int64(len(data)))
+	} else {
+		state.deltaSnapshotHint.Store(int64(len(data)))
+	}
+	d.metricsSnapshot().Payload(len(data))
+	return state.conn.Send(data)
+}
+
+func (d *Dispatcher) metricsSnapshot() *observability.RuntimeMetrics {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.metrics
+}
+
+func findPlayerSnapshot(players []player.Snapshot, playerID string) (player.Snapshot, bool) {
+	for _, p := range players {
+		if p.ID == playerID {
+			return p, true
+		}
+	}
+	return player.Snapshot{}, false
 }
 
 func playerObj(p player.Snapshot) codec.Object {
@@ -562,11 +652,153 @@ func mapObjects[T any](items []T, fn func(T) codec.Object) []codec.Object {
 	return out
 }
 
-func buildSnapshotDeltaEnvelope(delta appsnap.Delta) codec.Object {
+type wireCache struct {
+	players         map[string]codec.Object
+	enemies         map[string]codec.Object
+	enemyTransforms map[string]codec.Object
+	enemyStates     map[string]codec.Object
+	bosses          map[string]codec.Object
+	drops           map[string]codec.Object
+	portals         map[string]codec.Object
+	hazards         map[string]codec.Object
+}
+
+func newWireCache(view appworld.SnapshotView) *wireCache {
+	return &wireCache{
+		players: make(map[string]codec.Object, len(view.Players)),
+		enemies: make(map[string]codec.Object, len(view.Enemies)),
+		bosses:  make(map[string]codec.Object, len(view.Bosses)),
+		drops:   make(map[string]codec.Object, len(view.Drops)),
+		portals: make(map[string]codec.Object, len(view.Portals)),
+		hazards: make(map[string]codec.Object, len(view.Hazards)),
+	}
+}
+
+func (c *wireCache) player(p player.Snapshot) codec.Object {
+	if c == nil {
+		return playerObj(p)
+	}
+	if c.players == nil {
+		c.players = make(map[string]codec.Object)
+	}
+	if obj, ok := c.players[p.ID]; ok {
+		return obj
+	}
+	obj := playerObj(p)
+	c.players[p.ID] = obj
+	return obj
+}
+
+func (c *wireCache) enemy(e enemy.Snapshot) codec.Object {
+	if c == nil {
+		return enemyObj(e)
+	}
+	if c.enemies == nil {
+		c.enemies = make(map[string]codec.Object)
+	}
+	if obj, ok := c.enemies[e.ID]; ok {
+		return obj
+	}
+	obj := enemyObj(e)
+	c.enemies[e.ID] = obj
+	return obj
+}
+
+func (c *wireCache) enemyTransform(t appsnap.EnemyTransform) codec.Object {
+	if c == nil {
+		return enemyTransformObj(t)
+	}
+	if c.enemyTransforms == nil {
+		c.enemyTransforms = make(map[string]codec.Object)
+	}
+	if obj, ok := c.enemyTransforms[t.ID]; ok {
+		return obj
+	}
+	obj := enemyTransformObj(t)
+	c.enemyTransforms[t.ID] = obj
+	return obj
+}
+
+func (c *wireCache) enemyState(s appsnap.EnemyState) codec.Object {
+	if c == nil {
+		return enemyStateObj(s)
+	}
+	if c.enemyStates == nil {
+		c.enemyStates = make(map[string]codec.Object)
+	}
+	if obj, ok := c.enemyStates[s.ID]; ok {
+		return obj
+	}
+	obj := enemyStateObj(s)
+	c.enemyStates[s.ID] = obj
+	return obj
+}
+
+func (c *wireCache) boss(b appworld.BossSnapshot) codec.Object {
+	if c == nil {
+		return bossObj(b)
+	}
+	if c.bosses == nil {
+		c.bosses = make(map[string]codec.Object)
+	}
+	if obj, ok := c.bosses[b.ID]; ok {
+		return obj
+	}
+	obj := bossObj(b)
+	c.bosses[b.ID] = obj
+	return obj
+}
+
+func (c *wireCache) drop(d drop.Snapshot) codec.Object {
+	if c == nil {
+		return dropObj(d)
+	}
+	if c.drops == nil {
+		c.drops = make(map[string]codec.Object)
+	}
+	if obj, ok := c.drops[d.ID]; ok {
+		return obj
+	}
+	obj := dropObj(d)
+	c.drops[d.ID] = obj
+	return obj
+}
+
+func (c *wireCache) portal(p portal.Snapshot) codec.Object {
+	if c == nil {
+		return portalObj(p)
+	}
+	if c.portals == nil {
+		c.portals = make(map[string]codec.Object)
+	}
+	if obj, ok := c.portals[p.ID]; ok {
+		return obj
+	}
+	obj := portalObj(p)
+	c.portals[p.ID] = obj
+	return obj
+}
+
+func (c *wireCache) hazard(h hazard.Snapshot) codec.Object {
+	if c == nil {
+		return hazardObj(h)
+	}
+	if c.hazards == nil {
+		c.hazards = make(map[string]codec.Object)
+	}
+	if obj, ok := c.hazards[h.ID]; ok {
+		return obj
+	}
+	obj := hazardObj(h)
+	c.hazards[h.ID] = obj
+	return obj
+}
+
+func buildSnapshotDeltaEnvelope(delta appsnap.Delta, cache *wireCache) codec.Object {
 	players := make([]codec.Object, 0, len(delta.PlayersUpsert)+1)
-	players = append(players, playerObj(delta.Self))
+	players = append(players, cache.player(delta.Self))
 	for _, p := range delta.PlayersUpsert {
-		players = append(players, playerObj(p))
+		players = append(players, cache.player(p))
 	}
 	in := protocol.SnapshotDeltaInput{
 		Tick:             delta.Tick,
@@ -574,17 +806,17 @@ func buildSnapshotDeltaEnvelope(delta appsnap.Delta) codec.Object {
 		Instance:         protocol.InstanceID(delta.Instance),
 		Players:          players,
 		RemovedPlayerIDs: delta.PlayersRemove,
-		Enemies:          mapObjects(delta.EnemiesUpsert, enemyObj),
-		EnemyTransforms:  mapObjects(delta.EnemyTransforms, enemyTransformObj),
-		EnemyStates:      mapObjects(delta.EnemyStates, enemyStateObj),
+		Enemies:          mapObjects(delta.EnemiesUpsert, cache.enemy),
+		EnemyTransforms:  mapObjects(delta.EnemyTransforms, cache.enemyTransform),
+		EnemyStates:      mapObjects(delta.EnemyStates, cache.enemyState),
 		RemovedEnemyIDs:  delta.EnemiesRemove,
-		Bosses:           mapObjects(delta.BossesUpsert, bossObj),
+		Bosses:           mapObjects(delta.BossesUpsert, cache.boss),
 		RemovedBossIDs:   delta.BossesRemove,
-		Drops:            mapObjects(delta.DropsUpsert, dropObj),
+		Drops:            mapObjects(delta.DropsUpsert, cache.drop),
 		RemovedDropIDs:   delta.DropsRemove,
-		Portals:          mapObjects(delta.PortalsUpsert, portalObj),
+		Portals:          mapObjects(delta.PortalsUpsert, cache.portal),
 		RemovedPortalIDs: delta.PortalsRemove,
-		Hazards:          mapObjects(delta.HazardsUpsert, hazardObj),
+		Hazards:          mapObjects(delta.HazardsUpsert, cache.hazard),
 		RemovedHazardIDs: delta.HazardsRemove,
 		IceZones:         mapObjects(delta.IceZones, iceZoneObj),
 		AoeIndicators:    mapObjects(delta.AOEIndicators, aoeIndicatorObj),

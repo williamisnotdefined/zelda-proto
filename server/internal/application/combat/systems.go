@@ -1,6 +1,6 @@
 // Package combat hosts the application-layer combat sub-systems that resolve
-// player swings (PvE + PvP) and contact damage from enemies/bosses. The design
-// keeps the same auditable separation of concerns across focused sub-systems.
+// player skills, PvP and contact damage from enemies/bosses. The design keeps
+// the same auditable separation of concerns across focused sub-systems.
 //
 // Each system is stateless and receives the world slices it needs as
 // arguments; the world.World orchestrator owns the maps and calls the
@@ -21,102 +21,6 @@ import (
 
 const contactTouchMargin = 2.0
 const playerWavePushMargin = 12.0
-
-// PlayerMeleeSystem resolves player melee swings against enemies and bosses.
-// Damage is applied directly because the runtime does not use a separate
-// deferred hit-intent stage.
-type PlayerMeleeSystem struct{}
-
-// Resolve runs swing resolution for every attacking player.
-func (PlayerMeleeSystem) Resolve(
-	players map[string]*player.Player,
-	enemies map[string]*enemy.Enemy,
-	dragons map[string]*boss.DragonLord,
-	gelehks map[string]*boss.Gelehk,
-	vanessas map[string]*boss.VanessaTheRuthless,
-) {
-	for _, p := range players {
-		hb, ok := p.AttackHitbox()
-		if !ok {
-			continue
-		}
-		// Enemies
-		for _, e := range enemies {
-			if e.State == enemy.StateDead {
-				continue
-			}
-			if _, hit := p.AttackHitEnemyIDs[e.ID]; hit {
-				continue
-			}
-			eb := physics.EntityAABB(e.X, e.Y, e.Config.Width, e.Config.Height)
-			if !physics.AABBOverlap(hb, eb) {
-				continue
-			}
-			p.AttackHitEnemyIDs[e.ID] = struct{}{}
-			e.TakeDamage(player.MeleeDamage)
-			if e.State == enemy.StateDead {
-				p.MonsterKills++
-				p.RecordMonsterKillInCurrentAttack()
-			}
-		}
-		// DragonLord-family bosses
-		for _, d := range dragons {
-			if d.State == boss.StateDead {
-				continue
-			}
-			if _, hit := p.AttackHitEnemyIDs[d.ID]; hit {
-				continue
-			}
-			db := physics.EntityAABB(d.X, d.Y, 96, 96)
-			if !physics.AABBOverlap(hb, db) {
-				continue
-			}
-			p.AttackHitEnemyIDs[d.ID] = struct{}{}
-			d.TakeDamage(player.MeleeDamage)
-			if d.State == boss.StateDead {
-				p.MonsterKills++
-				p.RecordMonsterKillInCurrentAttack()
-			}
-		}
-		// Gelehk
-		for _, g := range gelehks {
-			if g.State == boss.StateDead {
-				continue
-			}
-			if _, hit := p.AttackHitEnemyIDs[g.ID]; hit {
-				continue
-			}
-			gb := physics.EntityAABB(g.X, g.Y, 72, 72)
-			if !physics.AABBOverlap(hb, gb) {
-				continue
-			}
-			p.AttackHitEnemyIDs[g.ID] = struct{}{}
-			g.TakeDamage(player.MeleeDamage)
-			if g.State == boss.StateDead {
-				p.MonsterKills++
-			}
-		}
-		// Vanessa the Ruthless
-		for _, v := range vanessas {
-			if v.State == boss.StateDead {
-				continue
-			}
-			if _, hit := p.AttackHitEnemyIDs[v.ID]; hit {
-				continue
-			}
-			vb := physics.EntityAABB(v.X, v.Y, 88, 88)
-			if !physics.AABBOverlap(hb, vb) {
-				continue
-			}
-			p.AttackHitEnemyIDs[v.ID] = struct{}{}
-			v.TakeDamage(player.MeleeDamage)
-			if v.State == boss.StateDead {
-				p.MonsterKills++
-				p.RecordMonsterKillInCurrentAttack()
-			}
-		}
-	}
-}
 
 // PvPSystem resolves player-vs-player melee. Both attacker and target safezone
 // protection short-circuit damage application.

@@ -61,6 +61,7 @@ The table below reflects the current `package.json` scripts.
 | `npm run start:server` | Same as `npm start`; sets production env vars used by the current deploy |
 | `npm run test` | Runs Go tests and client Vitest suite |
 | `npm run test:server` | Runs `go test ./...` inside `server/` |
+| `npm run bench:server` | Runs focused Go benchmark baselines for world tick/snapshot and WebSocket broadcast |
 | `npm run test:e2e` | Runs Playwright smoke tests against a locally started server and client |
 | `npm run lint` | Runs ESLint on `client/src` |
 | `npm run lint:fix` | Runs ESLint with `--fix` on `client/src` |
@@ -119,15 +120,54 @@ What currently passes in this repository:
 
 - `NODE_ENV=production`: enables production mode defaults
 - `PORT=<port>`: overrides the default port (`3003` in development, `3001` in production)
-- `TRUST_PROXY=1`: trusts `X-Forwarded-For` when running behind a proxy
+- `TRUST_PROXY=1`: enables proxy-aware client IP extraction
+- `TRUSTED_PROXY_CIDRS=127.0.0.1/32,10.0.0.0/24`: CIDR/IP allowlist for proxies whose `X-Forwarded-For` header is trusted
 - `WS_ALLOWED_ORIGINS=https://example.com,https://app.example.com`: explicit WebSocket origin allowlist
+- `WS_MAX_CONNECTIONS=<n>`: process-wide WebSocket connection cap, default `200`
+- `WS_MAX_CONNECTIONS_PER_IP=<n>`: per-IP WebSocket connection cap, default `12`
+- `WS_INPUT_RATE_LIMIT=<n>`: accepted input messages per second before rate violations, default `65`
+- `WS_SNAPSHOT_RESYNC_LIMIT=<n>`: accepted `snapshot_resync` messages per second before rate violations, default `5`
+- `WS_MAX_RATE_VIOLATIONS=<n>`: rate-limit strikes before closing a WebSocket, default `15`
+- `WS_MAX_INVALID_MESSAGES=<n>`: invalid frames/messages before closing a WebSocket, default `8`
+- `WS_OUTBOX_SIZE=<n>`: buffered outbound messages per WebSocket before slow-consumer close, default `64`
 - `CLIENT_DIST_DIR=/absolute/path/to/dist`: optional override for the static client bundle path in production
 
 ### Development Only
 
 - `DEV_START_PHASE=<phase>`: chooses the player spawn phase. Accepted forms: `phase1`, `phase2`, `phase3`, `phase4`, or `1`, `2`, `3`, `4`
 - `DEV_STRESS_ENEMIES_PER_CHUNK=<1-400>`: overrides chunk enemy density across all phases for stress testing
-- `DEBUG_GAME_METRICS=1`: parsed by the server config, but currently has no observable runtime effect in the codebase
+- `DEBUG_GAME_METRICS=1`: enables `GET /api/debug/metrics` with process-local runtime counters and Go `pprof` under `/debug/pprof/`
+
+### Debug Metrics
+
+When `DEBUG_GAME_METRICS=1` is set, the server exposes:
+
+- `GET /api/debug/metrics`: JSON counters for active/total connections, slow consumers, sim ticks, broadcasts, leaderboard publishes, snapshot full/delta counts and payload bytes
+- `GET /debug/pprof/`: Go pprof index for CPU, heap, goroutine, block, mutex and trace profiles
+
+### Performance Baselines
+
+Run focused server benchmarks locally:
+
+```bash
+npm run bench:server
+```
+
+Run targeted server fuzz checks locally:
+
+```bash
+go -C server test ./internal/codec -run '^$' -fuzz FuzzDecodeRoundTrip -fuzztime=10s
+go -C server test ./internal/protocol -run '^$' -fuzz FuzzParseClientMessageFromMsgpack -fuzztime=10s
+```
+
+The benchmark target covers:
+
+- `BenchmarkWorldTickStress`
+- `BenchmarkWorldSnapshotStress`
+- `BenchmarkBroadcastStress`
+- `BenchmarkBroadcastDeltaSteadyState`
+- `BenchmarkBroadcastDeltaWithMovement`
+- `BenchmarkWebSocketBroadcastStress`
 
 ## Production
 

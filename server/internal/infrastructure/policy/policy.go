@@ -63,32 +63,64 @@ func (v *OriginValidator) Allow(req *http.Request) bool {
 // IPExtractor obtains the originating client IP address, optionally honoring
 // the X-Forwarded-For header when the server runs behind a trusted proxy.
 type IPExtractor struct {
-	trustProxy bool
+	trustProxy        bool
+	trustedProxyCIDRs []*net.IPNet
 }
 
 // NewIPExtractor returns an extractor configured from the runtime config.
 func NewIPExtractor(cfg config.Config) *IPExtractor {
-	return &IPExtractor{trustProxy: cfg.TrustProxy}
+	extractor := &IPExtractor{trustProxy: cfg.TrustProxy}
+	for _, raw := range cfg.TrustedProxyCIDRs {
+		_, network, err := net.ParseCIDR(raw)
+		if err == nil {
+			extractor.trustedProxyCIDRs = append(extractor.trustedProxyCIDRs, network)
+		}
+	}
+	return extractor
 }
 
 // Extract returns the client IP for the request. When the extractor trusts
-// proxies and X-Forwarded-For is present, the leftmost address is returned;
-// otherwise the remote socket address is used.
+// the remote proxy and X-Forwarded-For is present, the leftmost valid address
+// is returned; otherwise the remote socket address is used.
 func (e *IPExtractor) Extract(req *http.Request) string {
-	if e.trustProxy {
+	remote := remoteIP(req)
+	if e.trustProxy && e.remoteTrusted(remote) {
 		if forwarded := firstHeaderValue(req.Header, "X-Forwarded-For"); forwarded != "" {
 			head := forwarded
 			if comma := strings.Index(forwarded, ","); comma >= 0 {
 				head = forwarded[:comma]
 			}
-			if ip := strings.TrimSpace(head); ip != "" {
-				return ip
+			if ip := net.ParseIP(strings.TrimSpace(head)); ip != nil {
+				return ip.String()
 			}
 		}
 	}
 
+	if remote != "" {
+		return remote
+	}
+	return "unknown"
+}
+
+func (e *IPExtractor) remoteTrusted(remote string) bool {
+	if remote == "" || len(e.trustedProxyCIDRs) == 0 {
+		return false
+	}
+	ip := net.ParseIP(remote)
+	if ip == nil {
+		return false
+	}
+	for _, network := range e.trustedProxyCIDRs {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func remoteIP(req *http.Request) string {
 	if req.RemoteAddr == "" {
-		return "unknown"
+		return ""
 	}
 
 	host, _, err := net.SplitHostPort(req.RemoteAddr)

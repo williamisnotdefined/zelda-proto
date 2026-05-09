@@ -112,3 +112,19 @@ func TestEncodeStructWithTags(t *testing.T) {
 		t.Fatalf("name: %v", v)
 	}
 }
+
+func TestDecodeRejectsDeclaredCollectionLengthsBeyondPayload(t *testing.T) {
+	t.Parallel()
+
+	cases := [][]byte{
+		{0xdd, 0xff, 0xff, 0xff, 0xff}, // array32 length without payload
+		{0xdf, 0xff, 0xff, 0xff, 0xff}, // map32 length without payload
+		{0xdc, 0x00, 0x02, 0xc0},       // array16 says 2 items, only 1 byte remains
+		{0xde, 0x00, 0x01, 0xa0},       // map16 says 1 pair, only key remains
+	}
+	for _, data := range cases {
+		if _, err := Decode(data); err == nil {
+			t.Fatalf("expected Decode(%x) to fail", data)
+		}
+	}
+}

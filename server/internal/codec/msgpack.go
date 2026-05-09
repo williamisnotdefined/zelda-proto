@@ -14,8 +14,21 @@ import (
 var errUnsupportedType = errors.New("codec: unsupported value type")
 
 func Marshal(value any) ([]byte, error) {
+	return MarshalWithCapacity(value, 0)
+}
+
+// MarshalWithCapacity encodes value like Marshal, but starts the buffer with a
+// caller-provided capacity hint. This is useful for hot paths with stable
+// payload sizes, such as repeated snapshot deltas per connection.
+func MarshalWithCapacity(value any, capacityHint int) ([]byte, error) {
+	if capacityHint < 0 {
+		capacityHint = 0
+	}
 	buffer := &bytes.Buffer{}
-	if err := encodeValue(buffer, reflect.ValueOf(value)); err != nil {
+	if capacityHint > 0 {
+		buffer.Grow(capacityHint)
+	}
+	if err := encodeAny(buffer, value); err != nil {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
@@ -31,6 +44,101 @@ func Decode(data []byte) (any, error) {
 		return nil, fmt.Errorf("codec: trailing %d bytes", len(decoder.data)-decoder.offset)
 	}
 	return value, nil
+}
+
+func encodeAny(buffer *bytes.Buffer, value any) error {
+	switch typed := value.(type) {
+	case nil:
+		buffer.WriteByte(0xc0)
+		return nil
+	case Object:
+		return encodeObject(buffer, typed)
+	case Field:
+		return fmt.Errorf("codec: cannot encode standalone field %q", typed.Key)
+	case []Object:
+		if typed == nil {
+			buffer.WriteByte(0xc0)
+			return nil
+		}
+		if err := encodeArrayHeader(buffer, len(typed)); err != nil {
+			return err
+		}
+		for _, item := range typed {
+			if err := encodeObject(buffer, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	case []string:
+		if typed == nil {
+			buffer.WriteByte(0xc0)
+			return nil
+		}
+		if err := encodeArrayHeader(buffer, len(typed)); err != nil {
+			return err
+		}
+		for _, item := range typed {
+			if err := encodeString(buffer, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	case []any:
+		if typed == nil {
+			buffer.WriteByte(0xc0)
+			return nil
+		}
+		if err := encodeArrayHeader(buffer, len(typed)); err != nil {
+			return err
+		}
+		for _, item := range typed {
+			if err := encodeAny(buffer, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	case []byte:
+		if typed == nil {
+			buffer.WriteByte(0xc0)
+			return nil
+		}
+		return encodeBytes(buffer, typed)
+	case string:
+		return encodeString(buffer, typed)
+	case bool:
+		if typed {
+			buffer.WriteByte(0xc3)
+		} else {
+			buffer.WriteByte(0xc2)
+		}
+		return nil
+	case int:
+		return encodeInt(buffer, int64(typed))
+	case int8:
+		return encodeInt(buffer, int64(typed))
+	case int16:
+		return encodeInt(buffer, int64(typed))
+	case int32:
+		return encodeInt(buffer, int64(typed))
+	case int64:
+		return encodeInt(buffer, typed)
+	case uint:
+		return encodeUint(buffer, uint64(typed))
+	case uint8:
+		return encodeUint(buffer, uint64(typed))
+	case uint16:
+		return encodeUint(buffer, uint64(typed))
+	case uint32:
+		return encodeUint(buffer, uint64(typed))
+	case uint64:
+		return encodeUint(buffer, typed)
+	case float32:
+		return encodeFloat64(buffer, float64(typed))
+	case float64:
+		return encodeFloat64(buffer, typed)
+	default:
+		return encodeValue(buffer, reflect.ValueOf(value))
+	}
 }
 
 func encodeValue(buffer *bytes.Buffer, value reflect.Value) error {
@@ -69,8 +177,7 @@ func encodeValue(buffer *bytes.Buffer, value reflect.Value) error {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 		return encodeUint(buffer, value.Uint())
 	case reflect.Float32, reflect.Float64:
-		buffer.WriteByte(0xcb)
-		return binary.Write(buffer, binary.BigEndian, value.Convert(reflect.TypeOf(float64(0))).Float())
+		return encodeFloat64(buffer, value.Convert(reflect.TypeOf(float64(0))).Float())
 	case reflect.Slice:
 		if value.IsNil() {
 			buffer.WriteByte(0xc0)
@@ -100,7 +207,7 @@ func encodeObject(buffer *bytes.Buffer, object Object) error {
 		if err := encodeString(buffer, field.Key); err != nil {
 			return err
 		}
-		if err := encodeValue(buffer, reflect.ValueOf(field.Value)); err != nil {
+		if err := encodeAny(buffer, field.Value); err != nil {
 			return err
 		}
 	}
@@ -188,24 +295,28 @@ func encodeMap(buffer *bytes.Buffer, value reflect.Value) error {
 
 func encodeArray(buffer *bytes.Buffer, value reflect.Value) error {
 	length := value.Len()
-	if length <= 15 {
-		buffer.WriteByte(0x90 | byte(length))
-	} else if length <= math.MaxUint16 {
-		buffer.WriteByte(0xdc)
-		if err := binary.Write(buffer, binary.BigEndian, uint16(length)); err != nil {
-			return err
-		}
-	} else {
-		buffer.WriteByte(0xdd)
-		if err := binary.Write(buffer, binary.BigEndian, uint32(length)); err != nil {
-			return err
-		}
+	if err := encodeArrayHeader(buffer, length); err != nil {
+		return err
 	}
 
 	for index := 0; index < length; index += 1 {
 		if err := encodeValue(buffer, value.Index(index)); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func encodeArrayHeader(buffer *bytes.Buffer, length int) error {
+	if length <= 15 {
+		buffer.WriteByte(0x90 | byte(length))
+	} else if length <= math.MaxUint16 {
+		buffer.WriteByte(0xdc)
+		return writeUint16(buffer, uint16(length))
+	} else {
+		buffer.WriteByte(0xdd)
+		return writeUint32(buffer, uint32(length))
 	}
 
 	return nil
@@ -218,12 +329,12 @@ func encodeBytes(buffer *bytes.Buffer, value []byte) error {
 		buffer.WriteByte(byte(length))
 	} else if length <= math.MaxUint16 {
 		buffer.WriteByte(0xc5)
-		if err := binary.Write(buffer, binary.BigEndian, uint16(length)); err != nil {
+		if err := writeUint16(buffer, uint16(length)); err != nil {
 			return err
 		}
 	} else {
 		buffer.WriteByte(0xc6)
-		if err := binary.Write(buffer, binary.BigEndian, uint32(length)); err != nil {
+		if err := writeUint32(buffer, uint32(length)); err != nil {
 			return err
 		}
 	}
@@ -234,11 +345,11 @@ func encodeBytes(buffer *bytes.Buffer, value []byte) error {
 func encodeMapHeader(buffer *bytes.Buffer, length int) error {
 	if length <= math.MaxUint16 {
 		buffer.WriteByte(0xde)
-		return binary.Write(buffer, binary.BigEndian, uint16(length))
+		return writeUint16(buffer, uint16(length))
 	}
 
 	buffer.WriteByte(0xdf)
-	return binary.Write(buffer, binary.BigEndian, uint32(length))
+	return writeUint32(buffer, uint32(length))
 }
 
 func encodeString(buffer *bytes.Buffer, value string) error {
@@ -250,12 +361,12 @@ func encodeString(buffer *bytes.Buffer, value string) error {
 		buffer.WriteByte(byte(length))
 	} else if length <= math.MaxUint16 {
 		buffer.WriteByte(0xda)
-		if err := binary.Write(buffer, binary.BigEndian, uint16(length)); err != nil {
+		if err := writeUint16(buffer, uint16(length)); err != nil {
 			return err
 		}
 	} else {
 		buffer.WriteByte(0xdb)
-		if err := binary.Write(buffer, binary.BigEndian, uint32(length)); err != nil {
+		if err := writeUint32(buffer, uint32(length)); err != nil {
 			return err
 		}
 	}
@@ -277,13 +388,13 @@ func encodeInt(buffer *bytes.Buffer, value int64) error {
 		buffer.WriteByte(byte(int8(value)))
 	case value >= math.MinInt16:
 		buffer.WriteByte(0xd1)
-		return binary.Write(buffer, binary.BigEndian, int16(value))
+		return writeUint16(buffer, uint16(int16(value)))
 	case value >= math.MinInt32:
 		buffer.WriteByte(0xd2)
-		return binary.Write(buffer, binary.BigEndian, int32(value))
+		return writeUint32(buffer, uint32(int32(value)))
 	default:
 		buffer.WriteByte(0xd3)
-		return binary.Write(buffer, binary.BigEndian, value)
+		return writeUint64(buffer, uint64(value))
 	}
 
 	return nil
@@ -298,16 +409,42 @@ func encodeUint(buffer *bytes.Buffer, value uint64) error {
 		buffer.WriteByte(byte(value))
 	case value <= math.MaxUint16:
 		buffer.WriteByte(0xcd)
-		return binary.Write(buffer, binary.BigEndian, uint16(value))
+		return writeUint16(buffer, uint16(value))
 	case value <= math.MaxUint32:
 		buffer.WriteByte(0xce)
-		return binary.Write(buffer, binary.BigEndian, uint32(value))
+		return writeUint32(buffer, uint32(value))
 	default:
 		buffer.WriteByte(0xcf)
-		return binary.Write(buffer, binary.BigEndian, value)
+		return writeUint64(buffer, value)
 	}
 
 	return nil
+}
+
+func encodeFloat64(buffer *bytes.Buffer, value float64) error {
+	buffer.WriteByte(0xcb)
+	return writeUint64(buffer, math.Float64bits(value))
+}
+
+func writeUint16(buffer *bytes.Buffer, value uint16) error {
+	var data [2]byte
+	binary.BigEndian.PutUint16(data[:], value)
+	_, err := buffer.Write(data[:])
+	return err
+}
+
+func writeUint32(buffer *bytes.Buffer, value uint32) error {
+	var data [4]byte
+	binary.BigEndian.PutUint32(data[:], value)
+	_, err := buffer.Write(data[:])
+	return err
+}
+
+func writeUint64(buffer *bytes.Buffer, value uint64) error {
+	var data [8]byte
+	binary.BigEndian.PutUint64(data[:], value)
+	_, err := buffer.Write(data[:])
+	return err
 }
 
 func parseTag(tag string, fieldName string) (name string, omitEmpty bool, skip bool) {
@@ -487,6 +624,9 @@ func (d *decoder) decodeValue() (any, error) {
 }
 
 func (d *decoder) readObject(length int) (Object, error) {
+	if err := d.validateObjectLength(length); err != nil {
+		return nil, err
+	}
 	object := make(Object, 0, length)
 	for index := 0; index < length; index += 1 {
 		keyValue, err := d.decodeValue()
@@ -510,6 +650,9 @@ func (d *decoder) readObject(length int) (Object, error) {
 }
 
 func (d *decoder) readArray(length int) ([]any, error) {
+	if err := d.validateArrayLength(length); err != nil {
+		return nil, err
+	}
 	values := make([]any, 0, length)
 	for index := 0; index < length; index += 1 {
 		value, err := d.decodeValue()
@@ -529,8 +672,24 @@ func (d *decoder) readString(length int) (string, error) {
 	return string(bytes), nil
 }
 
+func (d *decoder) validateArrayLength(length int) error {
+	if length < 0 || length > d.remaining() {
+		return fmt.Errorf("codec: declared array length %d exceeds %d remaining bytes", length, d.remaining())
+	}
+	return nil
+}
+
+func (d *decoder) validateObjectLength(length int) error {
+	if length < 0 || length > d.remaining()/2 {
+		return fmt.Errorf("codec: declared object length %d exceeds %d remaining bytes", length, d.remaining())
+	}
+	return nil
+}
+
+func (d *decoder) remaining() int { return len(d.data) - d.offset }
+
 func (d *decoder) readBytes(length int) ([]byte, error) {
-	if d.offset+length > len(d.data) {
+	if length < 0 || length > d.remaining() {
 		return nil, ioErrUnexpectedEOF(length, len(d.data)-d.offset)
 	}
 	bytes := d.data[d.offset : d.offset+length]

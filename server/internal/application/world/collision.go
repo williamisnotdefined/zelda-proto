@@ -14,6 +14,7 @@ const (
 	bodyCollisionIterations = 4
 	normalBodyMass          = 1.0
 	bossBodyMass            = 4.0
+	bodyCollisionCellSize   = 128
 )
 
 type dynamicBody struct {
@@ -26,6 +27,8 @@ type dynamicBody struct {
 	ignore    bool
 	onCollide func()
 }
+
+type bodyPair struct{ i, j int }
 
 func (w *World) resolveBodyCollisionsLocked() {
 	bodies := w.dynamicBodiesLocked()
@@ -43,11 +46,10 @@ func (w *World) resolveBodyCollisionsLocked() {
 
 	for iter := 0; iter < bodyCollisionIterations; iter++ {
 		moved := false
-		for i := 0; i < len(bodies); i++ {
-			for j := i + 1; j < len(bodies); j++ {
-				if resolveDynamicBodyPair(&bodies[i], &bodies[j]) {
-					moved = true
-				}
+		pairs := candidateBodyPairs(bodies)
+		for _, pair := range pairs {
+			if resolveDynamicBodyPair(&bodies[pair.i], &bodies[pair.j]) {
+				moved = true
 			}
 		}
 		if !moved {
@@ -134,6 +136,62 @@ func (w *World) dynamicBodiesLocked() []dynamicBody {
 		})
 	}
 	return bodies
+}
+
+func candidateBodyPairs(bodies []dynamicBody) []bodyPair {
+	if len(bodies) < 2 {
+		return nil
+	}
+	maxRadius := 0.0
+	for _, body := range bodies {
+		if body.radius > maxRadius {
+			maxRadius = body.radius
+		}
+	}
+	buckets := make(map[int64][]int, len(bodies))
+	for i, body := range bodies {
+		cx, cy := bodyCollisionCell(*body.x), bodyCollisionCell(*body.y)
+		key := bodyCollisionCellKey(cx, cy)
+		buckets[key] = append(buckets[key], i)
+	}
+	pairs := make([]bodyPair, 0, len(bodies)*2)
+	for i, body := range bodies {
+		radius := body.radius + maxRadius
+		radiusSq := radius * radius
+		minX, maxX := bodyCollisionCell(*body.x-radius), bodyCollisionCell(*body.x+radius)
+		minY, maxY := bodyCollisionCell(*body.y-radius), bodyCollisionCell(*body.y+radius)
+		for cx := minX; cx <= maxX; cx++ {
+			for cy := minY; cy <= maxY; cy++ {
+				for _, j := range buckets[bodyCollisionCellKey(cx, cy)] {
+					if j <= i {
+						continue
+					}
+					other := bodies[j]
+					dx := *other.x - *body.x
+					dy := *other.y - *body.y
+					if dx*dx+dy*dy > radiusSq {
+						continue
+					}
+					pairs = append(pairs, bodyPair{i: i, j: j})
+				}
+			}
+		}
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		if pairs[i].i != pairs[j].i {
+			return pairs[i].i < pairs[j].i
+		}
+		return pairs[i].j < pairs[j].j
+	})
+	return pairs
+}
+
+func bodyCollisionCell(value float64) int {
+	return int(math.Floor(value / bodyCollisionCellSize))
+}
+
+func bodyCollisionCellKey(cx, cy int) int64 {
+	return int64(cx)<<32 | int64(uint32(cy))
 }
 
 func dynamicBodyKey(kind, id string) string {

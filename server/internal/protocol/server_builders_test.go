@@ -67,11 +67,11 @@ func TestBuildSnapshotDeltaIncludesUpsertRemove(t *testing.T) {
 		RemovedEnemyIDs: []string{"e2"},
 	})
 	v, _ := msg.Lookup("enemies")
-	if len(v.([]any)) != 1 {
+	if len(v.([]codec.Object)) != 1 {
 		t.Fatal("expected 1 enemy upsert")
 	}
 	v, _ = msg.Lookup("removedEnemyIds")
-	if len(v.([]any)) != 1 {
+	if len(v.([]string)) != 1 {
 		t.Fatal("expected 1 enemy remove")
 	}
 }
@@ -83,7 +83,7 @@ func TestBuildLeaderboardOrder(t *testing.T) {
 		{PlayerID: "a", Nickname: "Link", MonsterKills: 3, PlayerKills: 1, Deaths: 2},
 	})
 	entries, _ := msg.Lookup("players")
-	if len(entries.([]any)) != 1 {
+	if len(entries.([]codec.Object)) != 1 {
 		t.Fatal("expected 1 entry")
 	}
 }

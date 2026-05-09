@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/williamisnotdefined/zelda-proto/server/internal/config"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/monitoring"
 	"github.com/williamisnotdefined/zelda-proto/server/internal/infrastructure/policy"
+	"github.com/williamisnotdefined/zelda-proto/server/internal/observability"
 )
 
 func TestHealthRouting(t *testing.T) {
@@ -47,6 +49,55 @@ func TestClientErrorEndpointAccepts(t *testing.T) {
 	}
 }
 
+func TestDebugMetricsEndpointRequiresFlag(t *testing.T) {
+	t.Parallel()
+
+	mux := NewMux(Config{Metrics: &observability.RuntimeMetrics{}})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, DebugMetricsPath, nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when debug metrics disabled, got %d", rec.Code)
+	}
+}
+
+func TestDebugMetricsEndpointReturnsSnapshot(t *testing.T) {
+	t.Parallel()
+
+	metrics := &observability.RuntimeMetrics{}
+	metrics.ConnectionOpened()
+	mux := NewMux(Config{Metrics: metrics, DebugMetrics: true})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, DebugMetricsPath, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"activeConnections":1`)) {
+		t.Fatalf("expected active connection metric, got %s", rec.Body.String())
+	}
+}
+
+func TestDebugPprofRequiresFlag(t *testing.T) {
+	t.Parallel()
+
+	mux := NewMux(Config{})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when debug pprof disabled, got %d", rec.Code)
+	}
+}
+
+func TestDebugPprofEndpointWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	mux := NewMux(Config{DebugMetrics: true})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+}
+
 func TestClientErrorEndpointRejectsMethod(t *testing.T) {
 	t.Parallel()
 
@@ -63,9 +114,10 @@ func TestClientErrorRateLimiter(t *testing.T) {
 	t.Parallel()
 
 	limiter := policy.NewFixedWindowLimiter(time.Minute, map[string]int{ClientErrorRateCategory: 1}, func() time.Time { return time.Unix(0, 0) })
-	mux := NewMux(Config{ErrorRateLimiter: limiter})
+	mux := NewMux(Config{ErrorRateLimiter: limiter, IPExtractor: policy.NewIPExtractor(policyConfig())})
 	for i := 0; i < 2; i++ {
 		req := httptest.NewRequest(http.MethodPost, ClientErrorPathPrefix, bytes.NewReader([]byte(`{}`)))
+		req.RemoteAddr = "10.0.0.1:1234"
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if i == 1 && rec.Code != http.StatusTooManyRequests {
@@ -73,6 +125,27 @@ func TestClientErrorRateLimiter(t *testing.T) {
 		}
 	}
 }
+
+func TestClientErrorRateLimiterIsPerIP(t *testing.T) {
+	t.Parallel()
+
+	limiter := policy.NewFixedWindowLimiter(time.Minute, map[string]int{ClientErrorRateCategory: 1}, func() time.Time { return time.Unix(0, 0) })
+	mux := NewMux(Config{ErrorRateLimiter: limiter, IPExtractor: policy.NewIPExtractor(policyConfig())})
+
+	first := httptest.NewRequest(http.MethodPost, ClientErrorPathPrefix, bytes.NewReader([]byte(`{}`)))
+	first.RemoteAddr = "10.0.0.1:1234"
+	mux.ServeHTTP(httptest.NewRecorder(), first)
+
+	second := httptest.NewRequest(http.MethodPost, ClientErrorPathPrefix, bytes.NewReader([]byte(`{}`)))
+	second.RemoteAddr = "10.0.0.2:1234"
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, second)
+	if rec.Code == http.StatusTooManyRequests {
+		t.Fatal("expected different ip to have separate quota")
+	}
+}
+
+func policyConfig() config.Config { return config.Config{} }
 
 func TestSPAServesIndexFallback(t *testing.T) {
 	t.Parallel()

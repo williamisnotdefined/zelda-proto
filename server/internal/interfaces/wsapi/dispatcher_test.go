@@ -1,6 +1,7 @@
 package wsapi
 
 import (
+	"errors"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -33,15 +34,26 @@ type fakeConn struct {
 	id   string
 	mu   sync.Mutex
 	sent [][]byte
+	fail bool
 }
+
+var errFakeSend = errors.New("fake send failed")
 
 func (c *fakeConn) Send(p []byte) error {
 	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.fail {
+		return errFakeSend
+	}
 	c.sent = append(c.sent, append([]byte(nil), p...))
-	c.mu.Unlock()
 	return nil
 }
 func (c *fakeConn) ConnectionID() string { return c.id }
+func (c *fakeConn) setFail(fail bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fail = fail
+}
 func (c *fakeConn) snapshot() [][]byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -106,6 +118,26 @@ func TestBroadcastSendsSnapshot(t *testing.T) {
 	d.Broadcast()
 	if len(conn.snapshot()) < 2 {
 		t.Fatal("expected snapshot in addition to welcome")
+	}
+}
+
+func TestBroadcastSendFailureDoesNotAdvanceSnapshotBase(t *testing.T) {
+	t.Parallel()
+
+	d, _, conn := newDispatcher(t)
+	if err := d.HandleJoin("c1", protocol.JoinMessage{Nickname: "Link"}); err != nil {
+		t.Fatal(err)
+	}
+	playerID := d.connections["c1"].playerID
+	conn.setFail(true)
+	d.Broadcast()
+	if d.builder.HasPrevious(playerID) {
+		t.Fatal("failed send must not commit snapshot base")
+	}
+	conn.setFail(false)
+	d.Broadcast()
+	if !d.builder.HasPrevious(playerID) {
+		t.Fatal("successful send should commit snapshot base")
 	}
 }
 
