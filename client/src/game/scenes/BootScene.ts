@@ -7,46 +7,75 @@ const EXPLOSION_FRAME_HEIGHT = 241;
 const EXPLOSION_FRAME_COUNT = 7;
 const EXPLOSION_STRIP_TEXTURE_KEY = 'explosion_strip';
 const EXPLOSION_FRAME_TEXTURE_KEY_PREFIX = 'explosion_';
+const MOLOTOV_EXPLOSION_FRAME_WIDTH = 311;
+const MOLOTOV_EXPLOSION_FRAME_HEIGHT = 242;
+const MOLOTOV_EXPLOSION_FRAME_COUNT = 5;
+const MOLOTOV_EXPLOSION_FRAME_COLUMNS = 3;
+const MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY = 'molotov_explosion_strip';
+const MOLOTOV_EXPLOSION_FRAME_TEXTURE_KEY_PREFIX = 'molotov_explosion_';
 
-function getExplosionFrameTextureKey(frameIndex: number): string {
-  return `${EXPLOSION_FRAME_TEXTURE_KEY_PREFIX}${frameIndex}`;
-}
-
-function registerExplosionTextures(scene: Phaser.Scene): void {
-  const stripTexture = scene.textures.get(EXPLOSION_STRIP_TEXTURE_KEY);
+function registerStripTextures(
+  scene: Phaser.Scene,
+  stripTextureKey: string,
+  frameTextureKeyPrefix: string,
+  frameWidth: number,
+  frameHeight: number,
+  frameCount: number,
+  frameColumns: number
+): void {
+  const stripTexture = scene.textures.get(stripTextureKey);
   const sourceImage = stripTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
 
-  for (let frameIndex = 0; frameIndex < EXPLOSION_FRAME_COUNT; frameIndex += 1) {
-    const textureKey = getExplosionFrameTextureKey(frameIndex);
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const textureKey = `${frameTextureKeyPrefix}${frameIndex}`;
 
     if (scene.textures.exists(textureKey)) {
       continue;
     }
 
-    const frameTexture = scene.textures.createCanvas(
-      textureKey,
-      EXPLOSION_FRAME_WIDTH,
-      EXPLOSION_FRAME_HEIGHT
-    );
+    const frameTexture = scene.textures.createCanvas(textureKey, frameWidth, frameHeight);
 
     if (!frameTexture) {
       continue;
     }
 
+    const sourceColumn = frameIndex % frameColumns;
+    const sourceRow = Math.floor(frameIndex / frameColumns);
     frameTexture.context.imageSmoothingEnabled = false;
     frameTexture.context.drawImage(
       sourceImage,
-      frameIndex * EXPLOSION_FRAME_WIDTH,
+      sourceColumn * frameWidth,
+      sourceRow * frameHeight,
+      frameWidth,
+      frameHeight,
       0,
-      EXPLOSION_FRAME_WIDTH,
-      EXPLOSION_FRAME_HEIGHT,
       0,
-      0,
-      EXPLOSION_FRAME_WIDTH,
-      EXPLOSION_FRAME_HEIGHT
+      frameWidth,
+      frameHeight
     );
     frameTexture.refresh();
   }
+}
+
+function registerExplosionTextures(scene: Phaser.Scene): void {
+  registerStripTextures(
+    scene,
+    EXPLOSION_STRIP_TEXTURE_KEY,
+    EXPLOSION_FRAME_TEXTURE_KEY_PREFIX,
+    EXPLOSION_FRAME_WIDTH,
+    EXPLOSION_FRAME_HEIGHT,
+    EXPLOSION_FRAME_COUNT,
+    EXPLOSION_FRAME_COUNT
+  );
+  registerStripTextures(
+    scene,
+    MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY,
+    MOLOTOV_EXPLOSION_FRAME_TEXTURE_KEY_PREFIX,
+    MOLOTOV_EXPLOSION_FRAME_WIDTH,
+    MOLOTOV_EXPLOSION_FRAME_HEIGHT,
+    MOLOTOV_EXPLOSION_FRAME_COUNT,
+    MOLOTOV_EXPLOSION_FRAME_COLUMNS
+  );
 }
 
 export class BootScene extends Phaser.Scene {
@@ -153,6 +182,10 @@ export class BootScene extends Phaser.Scene {
     this.load.image('molotov', 'assets/sprites/attacks/molotov.png');
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
     this.load.image(EXPLOSION_STRIP_TEXTURE_KEY, 'assets/sprites/attacks/explosion.png');
+    this.load.image(
+      MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY,
+      'assets/sprites/attacks/explosion_2.png'
+    );
 
     this.load.image('grass_tile', 'assets/sprites/tilesets/Grass_Tile.gif');
     this.load.image('stone_floor_bege_tile', 'assets/sprites/tilesets/Stone_Floor_(Bege).gif');

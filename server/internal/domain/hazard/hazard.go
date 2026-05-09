@@ -19,6 +19,7 @@ const (
 	KindMolotov           Kind = "molotov"
 	KindLandmine          Kind = "landmine"
 	KindLandmineExplosion Kind = "landmine_explosion"
+	KindMolotovExplosion  Kind = "molotov_explosion"
 )
 
 // Tick parameters.
@@ -73,10 +74,17 @@ func TTLFor(k Kind) time.Duration {
 		return MolotovTTL
 	case KindLandmine:
 		return LandmineTTL
-	case KindLandmineExplosion:
+	case KindLandmineExplosion, KindMolotovExplosion:
 		return LandmineExplosionTTL
 	}
 	return DefaultTTL
+}
+
+// NewMolotovExplosion builds the short-lived visual explosion for a molotov.
+func NewMolotovExplosion(id string, x, y float64) *Hazard {
+	h := NewLandmineExplosion(id, x, y)
+	h.Kind = KindMolotovExplosion
+	return h
 }
 
 // Hazard is the runtime entity.

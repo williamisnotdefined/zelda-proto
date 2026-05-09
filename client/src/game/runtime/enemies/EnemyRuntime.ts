@@ -1,5 +1,6 @@
 import type { EnemySnapshot } from '@/shared';
 import Phaser from 'phaser';
+import { BurningStatusOverlay } from '../../../entities/BurningStatusOverlay';
 import { FxController } from '../../fx/FxController';
 import { EnemySnapshotStore } from './EnemySnapshotStore';
 import {
@@ -60,6 +61,7 @@ export class EnemyRuntime {
   );
   private readonly expandedEnemyView = new Phaser.Geom.Rectangle();
   private readonly dirtyEnemyVisualIds = new Set<string>();
+  private readonly burningOverlays = new Map<string, BurningStatusOverlay>();
   private pendingEnemyVisualSync = true;
   private lastEnemyVisualSyncCenterX = Number.NaN;
   private lastEnemyVisualSyncCenterY = Number.NaN;
@@ -147,6 +149,10 @@ export class EnemyRuntime {
 
     this.snapshotStore.clear();
     this.dirtyEnemyVisualIds.clear();
+    for (const overlay of this.burningOverlays.values()) {
+      overlay.destroy();
+    }
+    this.burningOverlays.clear();
     this.pendingEnemyVisualSync = true;
     this.lastEnemyVisualSyncCenterX = Number.NaN;
     this.lastEnemyVisualSyncCenterY = Number.NaN;
@@ -315,7 +321,38 @@ export class EnemyRuntime {
     }
 
     entry.entities.delete(id);
+    this.destroyBurningOverlay(id);
     this.releaseToPoolOrDestroy(entry.getReleasePool(entity), entity, entry.maxPoolSize);
+  }
+
+  private syncEnemyBurningOverlay(
+    id: string,
+    x: number,
+    y: number,
+    active: boolean,
+    inView: boolean
+  ): void {
+    if (!active) {
+      this.destroyBurningOverlay(id);
+      return;
+    }
+
+    let overlay = this.burningOverlays.get(id);
+    if (!overlay) {
+      overlay = new BurningStatusOverlay(this.scene, x, y, { depth: 13.3 });
+      this.burningOverlays.set(id, overlay);
+    }
+    overlay.sync(x, y, inView);
+  }
+
+  private destroyBurningOverlay(id: string): void {
+    const overlay = this.burningOverlays.get(id);
+    if (!overlay) {
+      return;
+    }
+
+    overlay.destroy();
+    this.burningOverlays.delete(id);
   }
 
   private acquirePooledEntity<T extends EnemyVisualEntity>(
@@ -483,7 +520,7 @@ export class EnemyRuntime {
     const stats = this.createEnemyVisualStats(visibleCount, false);
 
     for (const entry of this.getRegistryEntries()) {
-      for (const entity of entry.entities.values()) {
+      for (const [id, entity] of entry.entities) {
         const x = entry.getX(entity);
         const y = entry.getY(entity);
         const inView = this.isEntityInView(view, x, y);
@@ -497,6 +534,13 @@ export class EnemyRuntime {
         }
 
         entity.update(delta, inView, lod);
+        this.syncEnemyBurningOverlay(
+          id,
+          entry.getX(entity),
+          entry.getY(entity),
+          entity.serverState !== 'dead' && !!this.snapshotStore.get(id)?.statusEffects?.burning,
+          inView
+        );
       }
     }
 
@@ -519,6 +563,13 @@ export class EnemyRuntime {
           ? (enemyVisualBudget.lodById.get(id) ?? ENEMY_VISUAL_LOD_FAR)
           : ENEMY_VISUAL_LOD_FAR;
         entity.update(delta, inView, lod);
+        this.syncEnemyBurningOverlay(
+          id,
+          entry.getX(entity),
+          entry.getY(entity),
+          entity.serverState !== 'dead' && !!this.snapshotStore.get(id)?.statusEffects?.burning,
+          inView
+        );
       }
     }
 

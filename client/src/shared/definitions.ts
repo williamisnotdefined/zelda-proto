@@ -200,4 +200,11 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     burningTicks: 0,
     idPrefix: 'hazard_landmine_explosion',
   },
+  [HAZARD_KINDS.MOLOTOV_EXPLOSION]: {
+    kind: HAZARD_KINDS.MOLOTOV_EXPLOSION,
+    ttlMs: 420,
+    hitRadius: 180,
+    burningTicks: 0,
+    idPrefix: 'hazard_molotov_explosion',
+  },
 };

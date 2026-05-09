@@ -126,3 +126,19 @@ func TestDiffEnemyEliteChangeBecomesUpsert(t *testing.T) {
 		t.Fatalf("expected only upsert, got transforms=%v states=%v remove=%v", transforms, states, remove)
 	}
 }
+
+func TestDiffEnemyBurningChangeBecomesStateDelta(t *testing.T) {
+	t.Parallel()
+
+	upsert, transforms, states, remove := diffEnemiesDetailed(
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle}},
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle, BurningTicksRemaining: 5}},
+	)
+
+	if len(states) != 1 || states[0].BurningTicksRemaining != 5 {
+		t.Fatalf("expected burning state delta, got %v", states)
+	}
+	if len(upsert) != 0 || len(transforms) != 0 || len(remove) != 0 {
+		t.Fatalf("expected only state delta, got upsert=%v transforms=%v remove=%v", upsert, transforms, remove)
+	}
+}

@@ -352,15 +352,22 @@ func TestPlayerMolotovExplodesOnLandingAndSkipsOwner(t *testing.T) {
 	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
 	attacker.SafeZoneTimer = 0
 	target.SafeZoneTimer = 0
+	attacker.TakeDamage(20)
 
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
 	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
 	w.SpawnEnemy(e)
+	d := boss.NewDragonLord("d1", tx+80, ty)
+	d.Speed = 0
+	d.Damage = 0
+	d.AttackCD = time.Hour
+	w.SpawnDragon(d)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Molotov: true})
 	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2})
 
 	if target.HP != player.MaxHP {
 		t.Fatalf("expected molotov to stay airborne before landing, got target HP=%d", target.HP)
@@ -387,14 +394,36 @@ func TestPlayerMolotovExplodesOnLandingAndSkipsOwner(t *testing.T) {
 		w.Tick(20 * time.Millisecond)
 	}
 
-	if got, want := attacker.HP, player.MaxHP; got != want {
+	if got, want := attacker.HP, player.MaxHP-20; got != want {
 		t.Fatalf("expected molotov owner to ignore own explosion, got HP=%d", got)
 	}
 	if got, want := target.HP, player.MaxHP-player.MolotovDamage; got != want {
 		t.Fatalf("expected target HP=%d after molotov, got %d", want, got)
 	}
+	if len(target.Snapshot().StatusEffects) != 0 {
+		t.Fatalf("expected molotov to avoid burning players, got %#v", target.Snapshot().StatusEffects)
+	}
 	if got, want := e.HP, passiveConfig.MaxHP-player.MolotovDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after molotov, got %d", want, got)
+	}
+	if got, want := d.HP, boss.DragonLordMaxHP-player.MolotovDamage; got != want {
+		t.Fatalf("expected boss HP=%d after molotov, got %d", want, got)
+	}
+	snap := w.Snapshot()
+	foundBurningEnemy := false
+	foundBurningBoss := false
+	for _, enemySnap := range snap.Enemies {
+		if enemySnap.ID == e.ID && enemySnap.BurningTicksRemaining == player.MolotovBurnTicks {
+			foundBurningEnemy = true
+		}
+	}
+	for _, bossSnap := range snap.Bosses {
+		if bossSnap.ID == d.ID && bossSnap.BurningTicksRemaining == player.MolotovBurnTicks {
+			foundBurningBoss = true
+		}
+	}
+	if !foundBurningEnemy || !foundBurningBoss {
+		t.Fatalf("expected molotov burn on enemy and boss, enemy=%v boss=%v", foundBurningEnemy, foundBurningBoss)
 	}
 
 	foundExplosion := false
@@ -402,12 +431,25 @@ func TestPlayerMolotovExplodesOnLandingAndSkipsOwner(t *testing.T) {
 		if h.Kind == hazard.KindMolotov {
 			t.Fatal("expected landed molotov to be removed from snapshot")
 		}
-		if h.Kind == hazard.KindLandmineExplosion {
+		if h.Kind == hazard.KindMolotovExplosion {
 			foundExplosion = true
 		}
 	}
 	if !foundExplosion {
-		t.Fatal("expected molotov landing to spawn the shared explosion hazard")
+		t.Fatal("expected molotov landing to spawn the molotov explosion hazard")
+	}
+
+	for i := 0; i < player.MolotovBurnTicks; i++ {
+		w.Tick(player.MolotovBurnTickInterval)
+	}
+	if got, want := e.HP, 0; got != want {
+		t.Fatalf("expected enemy HP=%d after molotov burn, got %d", want, got)
+	}
+	if got, want := d.HP, boss.DragonLordMaxHP-player.MolotovDamage-player.MolotovBurnTickDamage*player.MolotovBurnTicks; got != want {
+		t.Fatalf("expected boss HP=%d after molotov burn, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-10; got != want {
+		t.Fatalf("expected attacker HP=%d after molotov burn lifesteal, got %d", want, got)
 	}
 }
 
@@ -785,6 +827,7 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 	attacker.SafeZoneTimer = 0
 	aggressiveConfig := enemy.BlobConfig
 	aggressiveConfig.Damage = 0
+	aggressiveConfig.MaxHP = 80
 	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindHeartSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
@@ -792,6 +835,7 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 
 	w.HandleInput("p1", player.Input{Seq: 1, Venom: true})
 	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2})
 	windupSnap := w.Snapshot()
 	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].State != boss.WaveWindup {
 		t.Fatalf("expected player venom windup indicator, got %#v", windupSnap.WaveIndicators)
@@ -810,19 +854,20 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 	}
 
 	w.Tick(player.WaveExpandDuration() + 20*time.Millisecond)
-	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage; got != want {
+	if got, want := e.HP, aggressiveConfig.MaxHP-player.VenomDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after venom, got %d", want, got)
 	}
 	if got, want := attacker.HP, player.MaxHP-36; got != want {
 		t.Fatalf("expected attacker HP=%d after venom life steal, got %d", want, got)
 	}
 
-	w.HandleInput("p1", player.Input{Seq: 2, Down: true, Molotov: true})
+	w.HandleInput("p1", player.Input{Seq: 3, Down: true, Molotov: true})
 	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 4})
 	for i := 0; i < 15; i++ {
 		w.Tick(20 * time.Millisecond)
 	}
-	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2; got != want {
+	if got, want := e.HP, aggressiveConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2; got != want {
 		t.Fatalf("expected enemy HP=%d after doubled molotov damage, got %d", want, got)
 	}
 	if got, want := attacker.HP, player.MaxHP-24; got != want {
@@ -830,15 +875,19 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 	}
 
 	w.Tick(player.VenomDebuffDuration)
-	w.HandleInput("p1", player.Input{Seq: 3, Down: true, Molotov: true})
+	e.X = 1000
+	e.Y = 1150
+	w.enemyIndex.Upsert(e.ID, e.X, e.Y)
+	w.HandleInput("p1", player.Input{Seq: 5, Down: true, Molotov: true})
 	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 6})
 	for i := 0; i < 15; i++ {
 		w.Tick(20 * time.Millisecond)
 	}
-	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2-player.MolotovDamage; got != want {
+	if got, want := e.HP, aggressiveConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2-player.MolotovBurnTickDamage*player.MolotovBurnTicks-player.MolotovDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after venom expired, got %d", want, got)
 	}
-	if got, want := attacker.HP, player.MaxHP-24; got != want {
+	if got, want := attacker.HP, player.MaxHP-19; got != want {
 		t.Fatalf("expected attacker HP=%d to stop gaining venom lifesteal, got %d", want, got)
 	}
 	if len(w.Snapshot().WaveIndicators) != 0 {

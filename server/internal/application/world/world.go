@@ -94,6 +94,7 @@ type World struct {
 	waveFrozenVanessas     map[string]time.Duration
 	pullOverlapBodies      map[string]time.Duration
 	venomDebuffs           map[string]venomDebuff
+	molotovBurns           map[string]molotovBurn
 }
 
 type pendingFireLine struct {
@@ -108,6 +109,14 @@ type pendingFireLine struct {
 type venomDebuff struct {
 	SourcePlayerID string
 	Remaining      time.Duration
+}
+
+type molotovBurn struct {
+	Kind           string
+	ID             string
+	SourcePlayerID string
+	TicksRemaining int
+	TickTimer      time.Duration
 }
 
 // New constructs a World with empty state.
@@ -143,6 +152,7 @@ func New(cfg Config) *World {
 		waveFrozenVanessas:     make(map[string]time.Duration),
 		pullOverlapBodies:      make(map[string]time.Duration),
 		venomDebuffs:           make(map[string]venomDebuff),
+		molotovBurns:           make(map[string]molotovBurn),
 	}
 	if cfg.Definition != nil {
 		w.def = cfg.Definition
@@ -618,6 +628,7 @@ func (w *World) Tick(dt time.Duration) {
 			func(id string) { w.enemyIndex.Remove(id) },
 		)
 	}
+	w.advanceMolotovBurns(dt)
 	w.tickEnemies(dt, safeZoneActive)
 	w.tickBosses(dt)
 	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
@@ -809,6 +820,7 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool) {
 	for id, e := range w.enemies {
 		if e.TryRespawn(dt) {
 			delete(w.venomDebuffs, dynamicBodyKey("enemy", id))
+			delete(w.molotovBurns, dynamicBodyKey("enemy", id))
 			w.enemyIndex.Upsert(id, e.X, e.Y)
 			continue
 		}
@@ -896,6 +908,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	for id, d := range w.dragons {
 		if d.TryRespawn(dt) {
 			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
+			delete(w.molotovBurns, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, d.X, d.Y)
 			continue
 		}
@@ -912,6 +925,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	for id, g := range w.gelehks {
 		if g.TryRespawn(dt) {
 			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
+			delete(w.molotovBurns, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, g.X, g.Y)
 			continue
 		}
@@ -939,6 +953,7 @@ func (w *World) tickBosses(dt time.Duration) {
 	for id, v := range w.vanessas {
 		if v.TryRespawn(dt) {
 			delete(w.venomDebuffs, dynamicBodyKey("boss", id))
+			delete(w.molotovBurns, dynamicBodyKey("boss", id))
 			w.bossIndex.Upsert(id, v.X, v.Y)
 			continue
 		}
@@ -1051,6 +1066,125 @@ func healVenomSource(source *player.Player, dealt int) {
 	source.Heal(int(math.Ceil(float64(dealt) * player.VenomLifeStealRatio)))
 }
 
+func healMolotovBurnSource(source *player.Player, dealt int) {
+	if source == nil || dealt <= 0 {
+		return
+	}
+	source.Heal(int(math.Ceil(float64(dealt) * player.MolotovBurnLifeStealRatio)))
+}
+
+func (w *World) armMolotovBurn(kind, id, sourcePlayerID string) {
+	if id == "" {
+		return
+	}
+	key := dynamicBodyKey(kind, id)
+	w.molotovBurns[key] = molotovBurn{
+		Kind:           kind,
+		ID:             id,
+		SourcePlayerID: sourcePlayerID,
+		TicksRemaining: player.MolotovBurnTicks,
+		TickTimer:      player.MolotovBurnTickInterval,
+	}
+}
+
+func (w *World) advanceMolotovBurns(dt time.Duration) {
+	for key, burn := range w.molotovBurns {
+		burn.TickTimer -= dt
+		for burn.TicksRemaining > 0 && burn.TickTimer <= 0 {
+			dealt, killed := w.applyMolotovBurnDamage(burn)
+			healMolotovBurnSource(w.players[burn.SourcePlayerID], dealt)
+			burn.TicksRemaining--
+			burn.TickTimer += player.MolotovBurnTickInterval
+			if killed {
+				if dealt > 0 {
+					w.awardHazardMonsterKill(burn.SourcePlayerID, 0)
+				}
+				delete(w.molotovBurns, key)
+				break
+			}
+		}
+		if _, ok := w.molotovBurns[key]; !ok {
+			continue
+		}
+		if burn.TicksRemaining <= 0 {
+			delete(w.molotovBurns, key)
+			continue
+		}
+		w.molotovBurns[key] = burn
+	}
+}
+
+func (w *World) applyMolotovBurnDamage(burn molotovBurn) (int, bool) {
+	switch burn.Kind {
+	case "enemy":
+		e := w.enemies[burn.ID]
+		if e == nil || e.State == enemy.StateDead {
+			return 0, true
+		}
+		beforeHP := e.HP
+		e.TakeDamage(player.MolotovBurnTickDamage)
+		dealt := beforeHP - e.HP
+		if e.State == enemy.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
+			return dealt, true
+		}
+		return dealt, false
+	case "boss":
+		if d := w.dragons[burn.ID]; d != nil {
+			return w.applyMolotovBurnDamageToDragon(d)
+		}
+		if g := w.gelehks[burn.ID]; g != nil {
+			return w.applyMolotovBurnDamageToGelehk(g)
+		}
+		if v := w.vanessas[burn.ID]; v != nil {
+			return w.applyMolotovBurnDamageToVanessa(v)
+		}
+	}
+	return 0, true
+}
+
+func (w *World) applyMolotovBurnDamageToDragon(d *boss.DragonLord) (int, bool) {
+	if d.State == boss.StateDead {
+		return 0, true
+	}
+	beforeHP := d.HP
+	d.TakeDamage(player.MolotovBurnTickDamage)
+	dealt := beforeHP - d.HP
+	if d.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
+		return dealt, true
+	}
+	return dealt, false
+}
+
+func (w *World) applyMolotovBurnDamageToGelehk(g *boss.Gelehk) (int, bool) {
+	if g.State == boss.StateDead {
+		return 0, true
+	}
+	beforeHP := g.HP
+	g.TakeDamage(player.MolotovBurnTickDamage)
+	dealt := beforeHP - g.HP
+	if g.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
+		return dealt, true
+	}
+	return dealt, false
+}
+
+func (w *World) applyMolotovBurnDamageToVanessa(v *boss.VanessaTheRuthless) (int, bool) {
+	if v.State == boss.StateDead {
+		return 0, true
+	}
+	beforeHP := v.HP
+	v.TakeDamage(player.MolotovBurnTickDamage)
+	dealt := beforeHP - v.HP
+	if v.State == boss.StateDead {
+		delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
+		return dealt, true
+	}
+	return dealt, false
+}
+
 func (w *World) applyPlayerDamageToEnemy(sourcePlayerID string, e *enemy.Enemy, baseDamage int) int {
 	damage, venomSource := w.venomDamage(sourcePlayerID, "enemy", e.ID, baseDamage)
 	beforeHP := e.HP
@@ -1058,6 +1192,7 @@ func (w *World) applyPlayerDamageToEnemy(sourcePlayerID string, e *enemy.Enemy, 
 	dealt := beforeHP - e.HP
 	if e.State == enemy.StateDead {
 		delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
+		delete(w.molotovBurns, dynamicBodyKey("enemy", e.ID))
 	}
 	healVenomSource(venomSource, dealt)
 	return dealt
@@ -1070,6 +1205,7 @@ func (w *World) applyPlayerDamageToDragon(sourcePlayerID string, d *boss.DragonL
 	dealt := beforeHP - d.HP
 	if d.State == boss.StateDead {
 		delete(w.venomDebuffs, dynamicBodyKey("boss", d.ID))
+		delete(w.molotovBurns, dynamicBodyKey("boss", d.ID))
 	}
 	healVenomSource(venomSource, dealt)
 	return dealt
@@ -1082,6 +1218,7 @@ func (w *World) applyPlayerDamageToGelehk(sourcePlayerID string, g *boss.Gelehk,
 	dealt := beforeHP - g.HP
 	if g.State == boss.StateDead {
 		delete(w.venomDebuffs, dynamicBodyKey("boss", g.ID))
+		delete(w.molotovBurns, dynamicBodyKey("boss", g.ID))
 	}
 	healVenomSource(venomSource, dealt)
 	return dealt
@@ -1094,6 +1231,7 @@ func (w *World) applyPlayerDamageToVanessa(sourcePlayerID string, v *boss.Vaness
 	dealt := beforeHP - v.HP
 	if v.State == boss.StateDead {
 		delete(w.venomDebuffs, dynamicBodyKey("boss", v.ID))
+		delete(w.molotovBurns, dynamicBodyKey("boss", v.ID))
 	}
 	healVenomSource(venomSource, dealt)
 	return dealt
@@ -1145,7 +1283,7 @@ func (w *World) tickHazards(dt time.Duration) {
 			w.hazardIndex.Upsert(id, h.X, h.Y)
 			continue
 		}
-		if h.Kind == hazard.KindLandmineExplosion {
+		if h.Kind == hazard.KindLandmineExplosion || h.Kind == hazard.KindMolotovExplosion {
 			if expired {
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
@@ -1430,15 +1568,22 @@ func (w *World) spawnPlayerLandmine(
 	w.hazardIndex.Upsert(id, h.X, h.Y)
 }
 
-func (w *World) spawnLandmineExplosion(sourcePlayerID string, x, y float64) {
+func (w *World) spawnPlayerExplosion(sourcePlayerID string, x, y float64, kind hazard.Kind) {
 	if w.cfg.IDs == nil {
 		return
 	}
-	id := w.cfg.IDs.NewID(string(hazard.KindLandmineExplosion))
+	id := w.cfg.IDs.NewID(string(kind))
 	h := hazard.NewLandmineExplosion(id, x, y)
+	if kind == hazard.KindMolotovExplosion {
+		h = hazard.NewMolotovExplosion(id, x, y)
+	}
 	h.SourcePlayerID = sourcePlayerID
 	w.hazards[id] = h
 	w.hazardIndex.Upsert(id, x, y)
+}
+
+func (w *World) spawnLandmineExplosion(sourcePlayerID string, x, y float64) {
+	w.spawnPlayerExplosion(sourcePlayerID, x, y, hazard.KindLandmineExplosion)
 }
 
 func (w *World) spawnFireBurst(x, y float64, kind hazard.Kind, tints []uint32) {
@@ -1749,12 +1894,14 @@ func (w *World) Snapshot() SnapshotView {
 	for _, e := range w.enemies {
 		snapshot := e.Snapshot()
 		snapshot.VenomMarked = w.venomDebuffs[dynamicBodyKey("enemy", e.ID)].Remaining > 0
+		snapshot.BurningTicksRemaining = w.molotovBurns[dynamicBodyKey("enemy", e.ID)].TicksRemaining
 		view.Enemies = append(view.Enemies, snapshot)
 	}
 	playerViews := w.playerViewsLocked()
 	for _, d := range w.dragons {
 		bs := BossSnapshot{Snapshot: d.Snapshot()}
 		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", d.ID)].Remaining > 0
+		bs.BurningTicksRemaining = w.molotovBurns[dynamicBodyKey("boss", d.ID)].TicksRemaining
 		if tx, ty, ok := d.TargetPosition(playerViews); ok {
 			bs.TargetX, bs.TargetY, bs.HasTarget = physics.QuantizePosition(tx), physics.QuantizePosition(ty), true
 		}
@@ -1763,6 +1910,7 @@ func (w *World) Snapshot() SnapshotView {
 	for _, g := range w.gelehks {
 		bs := BossSnapshot{Snapshot: g.Snapshot()}
 		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", g.ID)].Remaining > 0
+		bs.BurningTicksRemaining = w.molotovBurns[dynamicBodyKey("boss", g.ID)].TicksRemaining
 		view.Bosses = append(view.Bosses, bs)
 		view.IceZones = append(view.IceZones, g.IceZones...)
 		view.AOEIndicators = append(view.AOEIndicators, g.AOEIndicators...)
@@ -1773,6 +1921,7 @@ func (w *World) Snapshot() SnapshotView {
 	for _, v := range w.vanessas {
 		bs := BossSnapshot{Snapshot: v.Snapshot()}
 		bs.VenomMarked = w.venomDebuffs[dynamicBodyKey("boss", v.ID)].Remaining > 0
+		bs.BurningTicksRemaining = w.molotovBurns[dynamicBodyKey("boss", v.ID)].TicksRemaining
 		if text, color, ok := v.Speech(); ok {
 			bs.SpeechText = text
 			bs.SpeechColor = color
@@ -1908,7 +2057,12 @@ func (w *World) landmineTriggered(h *hazard.Hazard, playerHalfDiag float64) bool
 }
 
 func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64) {
-	w.spawnLandmineExplosion(h.SourcePlayerID, h.X, h.Y)
+	explosionKind := hazard.KindLandmineExplosion
+	if h.Kind == hazard.KindMolotov {
+		explosionKind = hazard.KindMolotovExplosion
+	}
+	w.spawnPlayerExplosion(h.SourcePlayerID, h.X, h.Y, explosionKind)
+	isMolotov := h.Kind == hazard.KindMolotov
 
 	for _, p := range w.players {
 		if p.State == player.StateDead || p.ID == h.SourcePlayerID {
@@ -1932,6 +2086,9 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		}
 		wasAlive := e.State != enemy.StateDead
 		w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
+		if isMolotov && e.State != enemy.StateDead {
+			w.armMolotovBurn("enemy", e.ID, h.SourcePlayerID)
+		}
 		if wasAlive && e.State == enemy.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1942,6 +2099,9 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		}
 		wasAlive := d.State != boss.StateDead
 		w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
+		if isMolotov && d.State != boss.StateDead {
+			w.armMolotovBurn("boss", d.ID, h.SourcePlayerID)
+		}
 		if wasAlive && d.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1952,6 +2112,9 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		}
 		wasAlive := g.State != boss.StateDead
 		w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
+		if isMolotov && g.State != boss.StateDead {
+			w.armMolotovBurn("boss", g.ID, h.SourcePlayerID)
+		}
 		if wasAlive && g.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}
@@ -1962,6 +2125,9 @@ func (w *World) detonatePlayerExplosive(h *hazard.Hazard, playerHalfDiag float64
 		}
 		wasAlive := v.State != boss.StateDead
 		w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
+		if isMolotov && v.State != boss.StateDead {
+			w.armMolotovBurn("boss", v.ID, h.SourcePlayerID)
+		}
 		if wasAlive && v.State == boss.StateDead {
 			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
 		}

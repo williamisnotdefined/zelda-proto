@@ -225,7 +225,7 @@ cloudflared tunnel info wilho
 | Source | Attack | Damage | Cooldown | Notes |
 | --- | --- | --- | --- | --- |
 | Player | Grenade (`A`) | `10` | `2s` | Damage is applied on detonation only |
-| Player | Molotov (`D`) | `5` | `1s` | Same detonation behavior as grenade with half damage and half cooldown |
+| Player | Molotov (`D`) | `5` + burn | `1s` | Detonation damages players, monsters, and bosses; monsters and bosses burn for `5` ticks of `5` damage with `10%` lifesteal |
 | Player | Landmine (`S`) | `10` | `2s` | Stationary explosive, detonates on proximity or expiry |
 | Player | Wave (`Q`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
 | Player | Numb (`W`) | `3` | `5s` | Wave variant with freeze effect and life steal |

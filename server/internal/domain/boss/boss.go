@@ -69,14 +69,15 @@ type DamagePlayer func(id string, amount int)
 
 // Snapshot is the wire projection.
 type Snapshot struct {
-	ID    string
-	Kind  Kind
-	X, Y  float64
-	HP    int
-	MaxHP int
-	State State
-	Phase int
-	VenomMarked bool
+	ID                    string
+	Kind                  Kind
+	X, Y                  float64
+	HP                    int
+	MaxHP                 int
+	State                 State
+	Phase                 int
+	VenomMarked           bool
+	BurningTicksRemaining int
 }
 
 func nearestAlive(players []PlayerView, x, y, radius float64, find FindNearestPlayer) *PlayerView {

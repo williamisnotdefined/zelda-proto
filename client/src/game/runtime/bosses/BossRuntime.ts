@@ -1,5 +1,6 @@
 import type { AoeIndicator, BossSnapshot, IceZone, WaveIndicator } from '@/shared';
 import type Phaser from 'phaser';
+import { BurningStatusOverlay } from '../../../entities/BurningStatusOverlay';
 import { FxController } from '../../fx/FxController';
 import type { GameUiSink } from '../ui/GameUiSink';
 import { bossRegistry, type BossEntity } from './bossRegistry';
@@ -7,6 +8,7 @@ import { bossRegistry, type BossEntity } from './bossRegistry';
 export class BossRuntime {
   private readonly bossEntities = new Map<string, BossEntity>();
   private readonly bossSnapshotsById = new Map<string, BossSnapshot>();
+  private readonly burningOverlays = new Map<string, BurningStatusOverlay>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -30,8 +32,15 @@ export class BossRuntime {
   }
 
   update(delta: number): void {
-    for (const entity of this.bossEntities.values()) {
+    for (const [id, entity] of this.bossEntities) {
       entity.update(delta);
+      const snapshot = this.bossSnapshotsById.get(id);
+      this.syncBossBurningOverlay(
+        id,
+        entity.x,
+        entity.y,
+        snapshot?.state !== 'dead' && !!snapshot?.statusEffects?.burning
+      );
     }
   }
 
@@ -41,6 +50,10 @@ export class BossRuntime {
     }
     this.bossEntities.clear();
     this.bossSnapshotsById.clear();
+    for (const overlay of this.burningOverlays.values()) {
+      overlay.destroy();
+    }
+    this.burningOverlays.clear();
     this.ui.setBoss(null);
   }
 
@@ -110,6 +123,7 @@ export class BossRuntime {
       }
 
       entity.destroy();
+      this.destroyBurningOverlay(id);
       this.bossEntities.delete(id);
     }
 
@@ -128,5 +142,33 @@ export class BossRuntime {
     }
 
     this.ui.setBoss(null);
+  }
+
+  private syncBossBurningOverlay(id: string, x: number, y: number, active: boolean): void {
+    if (!active) {
+      this.destroyBurningOverlay(id);
+      return;
+    }
+
+    let overlay = this.burningOverlays.get(id);
+    if (!overlay) {
+      overlay = new BurningStatusOverlay(this.scene, x, y, {
+        sizePx: 126,
+        offsetY: -6,
+        depth: 13.4,
+      });
+      this.burningOverlays.set(id, overlay);
+    }
+    overlay.sync(x, y, true);
+  }
+
+  private destroyBurningOverlay(id: string): void {
+    const overlay = this.burningOverlays.get(id);
+    if (!overlay) {
+      return;
+    }
+
+    overlay.destroy();
+    this.burningOverlays.delete(id);
   }
 }

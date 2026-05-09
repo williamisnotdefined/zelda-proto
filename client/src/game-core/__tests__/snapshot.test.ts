@@ -183,6 +183,38 @@ describe('normalizeServerMessage', () => {
     });
   });
 
+  it('applies enemy status effects from state deltas', () => {
+    const state = createSnapshotNormalizationState();
+
+    normalizeServerMessage(createSnapshot(), state);
+    const burning = normalizeServerMessage(
+      createIncrementalDelta({
+        enemyStates: [
+          {
+            id: 'enemy-1',
+            hp: 4,
+            maxHp: 5,
+            state: 'chasing',
+            statusEffects: { burning: { ticksRemaining: 5 } },
+          },
+        ],
+      }),
+      state
+    ) as SnapshotMessage;
+
+    expect(burning.enemies[0].statusEffects?.burning?.ticksRemaining).toBe(5);
+
+    const cleared = normalizeServerMessage(
+      createIncrementalDelta({
+        tick: 6,
+        enemyStates: [{ id: 'enemy-1', hp: 4, maxHp: 5, state: 'chasing', statusEffects: {} }],
+      }),
+      state
+    ) as SnapshotMessage;
+
+    expect(cleared.enemies[0].statusEffects?.burning).toBeUndefined();
+  });
+
   it('keeps a normalized full snapshot view across removals and auxiliary replacements', () => {
     const state = createSnapshotNormalizationState();
 

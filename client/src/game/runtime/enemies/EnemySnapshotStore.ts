@@ -154,6 +154,8 @@ export class EnemySnapshotStore {
       previous.elite !== next.elite ||
       previous.variant !== next.variant ||
       previous.venomMarked !== next.venomMarked ||
+      previous.statusEffects?.burning?.ticksRemaining !==
+        next.statusEffects?.burning?.ticksRemaining ||
       previous.x !== next.x ||
       previous.y !== next.y ||
       previous.hp !== next.hp ||

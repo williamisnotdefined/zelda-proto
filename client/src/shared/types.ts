@@ -71,11 +71,12 @@ export const HAZARD_KINDS = {
   MOLOTOV: 'molotov',
   LANDMINE: 'landmine',
   LANDMINE_EXPLOSION: 'landmine_explosion',
+  MOLOTOV_EXPLOSION: 'molotov_explosion',
 } as const;
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 12 as const;
+export const PROTOCOL_VERSION = 13 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -180,6 +181,7 @@ export interface EnemySnapshot {
   elite?: boolean;
   variant?: PacmanGhostVariant;
   venomMarked?: boolean;
+  statusEffects?: PlayerStatusSnapshot;
   x: number;
   y: number;
   hp: number;
@@ -200,6 +202,7 @@ export interface EnemyStateDelta {
   hp: number;
   maxHp: number;
   state: EnemyState;
+  statusEffects?: PlayerStatusSnapshot;
 }
 
 export interface BossSnapshot {
@@ -212,6 +215,7 @@ export interface BossSnapshot {
   state: BossState;
   phase: BossPhase;
   venomMarked?: boolean;
+  statusEffects?: PlayerStatusSnapshot;
   targetX?: number;
   targetY?: number;
   speechText?: string;

@@ -328,15 +328,16 @@ func (e *Enemy) TryRespawn(dt time.Duration) bool {
 
 // Snapshot is the wire projection.
 type Snapshot struct {
-	ID      string
-	Kind    Kind
-	Elite   bool
-	Variant PacmanVariant
-	VenomMarked bool
-	X, Y    float64
-	HP      int
-	MaxHP   int
-	State   State
+	ID                    string
+	Kind                  Kind
+	Elite                 bool
+	Variant               PacmanVariant
+	VenomMarked           bool
+	BurningTicksRemaining int
+	X, Y                  float64
+	HP                    int
+	MaxHP                 int
+	State                 State
 }
 
 // Snapshot returns a quantized projection.

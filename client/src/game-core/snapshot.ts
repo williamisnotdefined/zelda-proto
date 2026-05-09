@@ -168,6 +168,7 @@ export function applySnapshotDelta(
     enemy.hp = state.hp;
     enemy.maxHp = state.maxHp;
     enemy.state = state.state;
+    if (state.statusEffects !== undefined) enemy.statusEffects = cloneItem(state.statusEffects);
   }
   for (const boss of delta.bosses) snapshotCache.bosses.set(boss.id, cloneItem(boss));
   for (const drop of delta.drops) snapshotCache.drops.set(drop.id, cloneItem(drop));

@@ -42,4 +42,8 @@ export const hazardRegistry: Record<
     create: (scene, snapshot) =>
       new LandmineHazardEntity(scene, snapshot.x, snapshot.y, snapshot.kind),
   },
+  [HAZARD_KINDS.MOLOTOV_EXPLOSION]: {
+    create: (scene, snapshot) =>
+      new LandmineHazardEntity(scene, snapshot.x, snapshot.y, snapshot.kind),
+  },
 };

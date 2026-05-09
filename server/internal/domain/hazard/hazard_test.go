@@ -32,6 +32,9 @@ func TestEffectAndTTL(t *testing.T) {
 	if TTLFor(KindLandmineExplosion) != LandmineExplosionTTL {
 		t.Fatal("landmine explosion ttl")
 	}
+	if TTLFor(KindMolotovExplosion) != LandmineExplosionTTL {
+		t.Fatal("molotov explosion ttl")
+	}
 }
 
 func TestTickExpires(t *testing.T) {
@@ -79,6 +82,10 @@ func TestNewDefaults(t *testing.T) {
 	explosion := NewLandmineExplosion("x1", 0, 0)
 	if explosion.TTL != LandmineExplosionTTL || explosion.Damage != 0 || explosion.HitRadius != LandmineExplosionRadius {
 		t.Fatalf("unexpected explosion defaults: %+v", explosion)
+	}
+	molotovExplosion := NewMolotovExplosion("mx1", 0, 0)
+	if molotovExplosion.Kind != KindMolotovExplosion || molotovExplosion.TTL != LandmineExplosionTTL || molotovExplosion.Damage != 0 || molotovExplosion.HitRadius != LandmineExplosionRadius {
+		t.Fatalf("unexpected molotov explosion defaults: %+v", molotovExplosion)
 	}
 	_ = time.Second // keep import
 }

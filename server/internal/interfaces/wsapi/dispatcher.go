@@ -420,6 +420,17 @@ func playerObj(p player.Snapshot) codec.Object {
 	}
 }
 
+func burningStatusEffectsObj(ticksRemaining int) codec.Object {
+	if ticksRemaining <= 0 {
+		return codec.Object{}
+	}
+	return codec.Object{
+		{Key: "burning", Value: codec.Object{
+			{Key: "ticksRemaining", Value: ticksRemaining},
+		}},
+	}
+}
+
 func enemyObj(e enemy.Snapshot) codec.Object {
 	obj := codec.Object{
 		{Key: "id", Value: e.ID}, {Key: "kind", Value: string(e.Kind)},
@@ -427,6 +438,7 @@ func enemyObj(e enemy.Snapshot) codec.Object {
 		{Key: "y", Value: physics.QuantizePosition(e.Y)},
 		{Key: "hp", Value: e.HP}, {Key: "maxHp", Value: e.MaxHP},
 		{Key: "state", Value: string(e.State)},
+		{Key: "statusEffects", Value: burningStatusEffectsObj(e.BurningTicksRemaining)},
 	}
 	if e.Elite {
 		obj = append(obj, codec.Field{Key: "elite", Value: true})
@@ -454,6 +466,7 @@ func enemyStateObj(s appsnap.EnemyState) codec.Object {
 		{Key: "hp", Value: s.HP},
 		{Key: "maxHp", Value: s.MaxHP},
 		{Key: "state", Value: string(s.State)},
+		{Key: "statusEffects", Value: burningStatusEffectsObj(s.BurningTicksRemaining)},
 	}
 }
 
@@ -463,6 +476,7 @@ func bossObj(b appworld.BossSnapshot) codec.Object {
 		{Key: "x", Value: b.X}, {Key: "y", Value: b.Y},
 		{Key: "hp", Value: b.HP}, {Key: "maxHp", Value: b.MaxHP},
 		{Key: "state", Value: string(b.State)}, {Key: "phase", Value: b.Phase},
+		{Key: "statusEffects", Value: burningStatusEffectsObj(b.BurningTicksRemaining)},
 	}
 	if b.HasTarget {
 		obj = append(obj,
