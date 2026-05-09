@@ -217,18 +217,18 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		Down:     msg.Down,
 		Left:     msg.Left,
 		Right:    msg.Right,
-		Attack:   msg.Attack,
 		Wave:     msg.Wave,
 		Numb:     msg.Numb,
 		Pull:     msg.Pull,
 		Venom:    msg.Venom,
 		Dash:     msg.Dash,
-		Fireball: msg.Fireball,
 		Grenade:  msg.Grenade,
+		Molotov:  msg.Molotov,
 		Landmine: msg.Landmine,
 	})
 	return nil
 }
+
 // Sim drives a simulation tick (loop.Tickable).
 func (d *Dispatcher) Sim(dt time.Duration) {
 	d.manager.Tick(dt)
@@ -417,7 +417,6 @@ func playerObj(p player.Snapshot) codec.Object {
 		{Key: "toastyCount", Value: p.ToastyCount},
 		{Key: "lastProcessedInputSeq", Value: p.LastProcessedInputSeq},
 		{Key: "statusEffects", Value: statusEffects},
-		{Key: "equippedWeapon", Value: string(p.EquippedWeapon)},
 	}
 }
 

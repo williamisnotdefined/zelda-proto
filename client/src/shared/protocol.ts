@@ -33,14 +33,13 @@ export type ClientInputState = Pick<
   | 'down'
   | 'left'
   | 'right'
-  | 'attack'
   | 'wave'
   | 'numb'
   | 'pull'
   | 'venom'
   | 'dash'
-  | 'fireball'
   | 'grenade'
+  | 'molotov'
   | 'landmine'
 >;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
@@ -137,14 +136,13 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     down: input.down,
     left: input.left,
     right: input.right,
-    attack: input.attack,
     wave: input.wave,
     numb: input.numb,
     pull: input.pull,
     venom: input.venom,
     dash: input.dash,
-    fireball: input.fireball,
     grenade: input.grenade,
+    molotov: input.molotov,
     landmine: input.landmine,
   };
 }
@@ -212,14 +210,13 @@ export function parseClientMessage(
         'down',
         'left',
         'right',
-        'attack',
         'wave',
         'numb',
         'pull',
         'venom',
         'dash',
-        'fireball',
         'grenade',
+        'molotov',
         'landmine',
       ])
     ) {
@@ -235,14 +232,13 @@ export function parseClientMessage(
         down: input.down,
         left: input.left,
         right: input.right,
-        attack: input.attack,
         wave: input.wave,
         numb: input.numb,
         pull: input.pull,
         venom: input.venom,
         dash: input.dash,
-        fireball: input.fireball,
         grenade: input.grenade,
+        molotov: input.molotov,
         landmine: input.landmine,
       }),
     };

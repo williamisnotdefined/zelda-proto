@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 11,
+  "protocolVersion": 12,
   "inputs": {
     "initialBundle": {
       "instanceId": "phase1",
@@ -22,8 +22,7 @@
             "burning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-2",
@@ -39,8 +38,7 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {},
-          "equippedWeapon": "pistol"
+          "statusEffects": {}
         }
       ],
       "enemies": [
@@ -141,7 +139,7 @@
           "y": 205.2,
           "hp": 86,
           "maxHp": 100,
-          "state": "attacking",
+          "state": "moving",
           "direction": "right",
           "playerKills": 1,
           "monsterKills": 3,
@@ -155,8 +153,7 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-3",
@@ -176,8 +173,7 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         }
       ],
       "enemies": [
@@ -282,7 +278,7 @@
   },
   "messages": {
     "initialFullSnapshot": {
-      "protocolVersion": 11,
+      "protocolVersion": 12,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -304,8 +300,7 @@
             "burning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-2",
@@ -321,8 +316,7 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {},
-          "equippedWeapon": "pistol"
+          "statusEffects": {}
         }
       ],
       "enemies": [
@@ -414,7 +408,7 @@
       ]
     },
     "initialFullDelta": {
-      "protocolVersion": 11,
+      "protocolVersion": 12,
       "type": "snapshot_delta",
       "tick": 4,
       "full": true,
@@ -438,8 +432,7 @@
             "burning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-2",
@@ -455,8 +448,7 @@
           "deaths": 0,
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
-          "statusEffects": {},
-          "equippedWeapon": "pistol"
+          "statusEffects": {}
         }
       ],
       "removedPlayerIds": [],
@@ -556,7 +548,7 @@
       ]
     },
     "updatedIncrementalDelta": {
-      "protocolVersion": 11,
+      "protocolVersion": 12,
       "type": "snapshot_delta",
       "tick": 5,
       "full": false,
@@ -569,7 +561,7 @@
           "y": 205.2,
           "hp": 86,
           "maxHp": 100,
-          "state": "attacking",
+          "state": "moving",
           "direction": "right",
           "playerKills": 1,
           "monsterKills": 3,
@@ -583,8 +575,7 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-3",
@@ -604,8 +595,7 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         }
       ],
       "removedPlayerIds": [
@@ -718,7 +708,7 @@
       ]
     },
     "updatedFullSnapshot": {
-      "protocolVersion": 11,
+      "protocolVersion": 12,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -729,7 +719,7 @@
           "y": 205.2,
           "hp": 86,
           "maxHp": 100,
-          "state": "attacking",
+          "state": "moving",
           "direction": "right",
           "playerKills": 1,
           "monsterKills": 3,
@@ -743,8 +733,7 @@
             "blueBurning": {
               "ticksRemaining": 3
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         },
         {
           "id": "player-3",
@@ -764,8 +753,7 @@
             "purpleBurning": {
               "ticksRemaining": 2
             }
-          },
-          "equippedWeapon": "pistol"
+          }
         }
       ],
       "enemies": [

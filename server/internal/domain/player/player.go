@@ -16,10 +16,9 @@ const (
 	Speed                   float64 = 150
 	MaxHP                           = 100
 	MeleeDamage                     = 10
-	PistolDamage                    = 2
-	FireballDamage                  = 5
 	LandmineDamage                  = 10
 	GrenadeDamage                   = 10
+	MolotovDamage                   = GrenadeDamage / 2
 	WaveDamage                      = 3
 	NumbDamage                      = WaveDamage
 	PullDamage                      = WaveDamage
@@ -43,16 +42,11 @@ const (
 	PullClusterHoldDuration         = 2 * time.Second
 	PullOverlapDuration             = 100 * time.Millisecond
 	DashCooldown                    = 1 * time.Second
-	FireballCooldown                = 400 * time.Millisecond
 	GrenadeCooldown                 = 2 * time.Second
+	MolotovCooldown                 = GrenadeCooldown / 2
 	LandmineCooldown                = 2 * time.Second
-	AttackStateDuration             = 300 * time.Millisecond
-	AttackSpeedPenalty      float64 = 1
-	AttackProjectileSpeed   float64 = 1500
-	AttackProjectileRange   float64 = 300
 	WaveMaxRadius           float64 = 150
 	WaveSpeed               float64 = 900
-	FireballSpeed           float64 = 900
 	GrenadeDistance         float64 = 150
 	GrenadeFlightDuration           = 300 * time.Millisecond
 	LandmineSpawnOffset     float64 = 34
@@ -64,7 +58,6 @@ const (
 	AttackRangeRight        float64 = 48
 	AttackWidth                     = 72
 	PvPDamage                       = 25
-	PistolPvPDamage                 = 5
 	SafeZoneDuration                = 3000 * time.Millisecond
 	BurningTickDamage               = 8
 	BurningTicks                    = 3
@@ -82,14 +75,6 @@ const (
 	StateDead      State = "dead"
 )
 
-// WeaponKind identifies the currently equipped primary weapon.
-type WeaponKind string
-
-// Canonical weapon kinds mirrored by the client snapshot schema.
-const (
-	WeaponKindPistol WeaponKind = "pistol"
-)
-
 // Input is one client input frame (movement + attack).
 type Input struct {
 	Seq      int64
@@ -97,14 +82,13 @@ type Input struct {
 	Down     bool
 	Left     bool
 	Right    bool
-	Attack   bool
 	Wave     bool
 	Numb     bool
 	Pull     bool
 	Venom    bool
 	Dash     bool
-	Fireball bool
 	Grenade  bool
+	Molotov  bool
 	Landmine bool
 }
 
@@ -198,7 +182,6 @@ type Snapshot struct {
 	ToastyCount           int
 	LastProcessedInputSeq int64
 	StatusEffects         map[StatusEffect]BurningSnapshot
-	EquippedWeapon        WeaponKind
 }
 
 // WaveKind identifies which wave-like player skill is currently visualized.
@@ -206,9 +189,9 @@ type WaveKind string
 
 // Wave-like skill identifiers mirrored by the client indicator styling.
 const (
-	WaveKindWave WaveKind = "wave"
-	WaveKindNumb WaveKind = "numb"
-	WaveKindPull WaveKind = "pull"
+	WaveKindWave  WaveKind = "wave"
+	WaveKindNumb  WaveKind = "numb"
+	WaveKindPull  WaveKind = "pull"
 	WaveKindVenom WaveKind = "venom"
 )
 
@@ -256,17 +239,14 @@ type Player struct {
 	State     State
 	Direction world.Direction
 
-	EquippedWeapon WeaponKind
-
-	AttackCooldown        time.Duration
 	AttackState           time.Duration
 	WaveCooldown          time.Duration
 	NumbCooldown          time.Duration
 	PullCooldown          time.Duration
 	VenomCooldown         time.Duration
 	DashCooldown          time.Duration
-	FireballCooldown      time.Duration
 	GrenadeCooldown       time.Duration
+	MolotovCooldown       time.Duration
 	LandmineCooldown      time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
@@ -319,18 +299,14 @@ type Player struct {
 	dashStartX            float64
 	dashStartY            float64
 	dashDirection         world.Direction
-	pistolCastQueued      bool
-	pistolStartX          float64
-	pistolStartY          float64
-	pistolDirection       world.Direction
-	fireballCastQueued    bool
-	fireballStartX        float64
-	fireballStartY        float64
-	fireballDirection     world.Direction
 	grenadeCastQueued     bool
 	grenadeStartX         float64
 	grenadeStartY         float64
 	grenadeDirection      world.Direction
+	molotovCastQueued     bool
+	molotovStartX         float64
+	molotovStartY         float64
+	molotovDirection      world.Direction
 	landmineCastQueued    bool
 	landmineStartX        float64
 	landmineStartY        float64
@@ -340,9 +316,8 @@ type Player struct {
 	numbCastID            uint64
 	pullCastID            uint64
 	venomCastID           uint64
-	pistolCastID          uint64
-	fireballCastID        uint64
 	grenadeCastID         uint64
+	molotovCastID         uint64
 	landmineCastID        uint64
 	castMonsterKills      map[uint64]int
 
@@ -363,7 +338,6 @@ func New(id, nickname string, x, y float64) *Player {
 		Speed:                 Speed,
 		State:                 StateIdle,
 		Direction:             world.DirectionDown,
-		EquippedWeapon:        WeaponKindPistol,
 		AttackHitEnemyIDs:     make(map[string]struct{}),
 		AttackHitPlayerIDs:    make(map[string]struct{}),
 		castMonsterKills:      make(map[uint64]int),
@@ -412,12 +386,6 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	}
 	defer p.advanceWaveLikeCasts(dt)
 
-	if p.AttackCooldown > 0 {
-		p.AttackCooldown -= dt
-		if p.AttackCooldown < 0 {
-			p.AttackCooldown = 0
-		}
-	}
 	if p.WaveCooldown > 0 {
 		p.WaveCooldown -= dt
 		if p.WaveCooldown < 0 {
@@ -448,16 +416,16 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.DashCooldown = 0
 		}
 	}
-	if p.FireballCooldown > 0 {
-		p.FireballCooldown -= dt
-		if p.FireballCooldown < 0 {
-			p.FireballCooldown = 0
-		}
-	}
 	if p.GrenadeCooldown > 0 {
 		p.GrenadeCooldown -= dt
 		if p.GrenadeCooldown < 0 {
 			p.GrenadeCooldown = 0
+		}
+	}
+	if p.MolotovCooldown > 0 {
+		p.MolotovCooldown -= dt
+		if p.MolotovCooldown < 0 {
+			p.MolotovCooldown = 0
 		}
 	}
 	if p.LandmineCooldown > 0 {
@@ -474,17 +442,6 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 	}
 	p.LastProcessedInputSeq = input.Seq
 
-	if input.Attack && p.AttackCooldown <= 0 {
-		if attackDirection := dashDirectionFromInput(input, p.Direction); attackDirection != "" {
-			p.Direction = attackDirection
-			p.AttackCooldown = AttackCooldown
-			p.pistolCastQueued = true
-			p.pistolStartX = p.X
-			p.pistolStartY = p.Y
-			p.pistolDirection = attackDirection
-			p.pistolCastID = p.beginCast()
-		}
-	}
 	if input.Wave && p.WaveCooldown <= 0 && !p.waveLikeActive() {
 		p.WaveCooldown = WaveCooldown
 		p.waveActive = true
@@ -533,16 +490,6 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.venomTargets = WaveTargets{}
 		p.venomCastID = p.beginCast()
 	}
-	if input.Fireball && p.FireballCooldown <= 0 {
-		if fireballDirection := dashDirectionFromInput(input, p.Direction); fireballDirection != "" {
-			p.FireballCooldown = FireballCooldown
-			p.fireballCastQueued = true
-			p.fireballStartX = p.X
-			p.fireballStartY = p.Y
-			p.fireballDirection = fireballDirection
-			p.fireballCastID = p.beginCast()
-		}
-	}
 	if input.Grenade && p.GrenadeCooldown <= 0 {
 		if grenadeDirection := dashDirectionFromInput(input, p.Direction); grenadeDirection != "" {
 			p.GrenadeCooldown = GrenadeCooldown
@@ -551,6 +498,16 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 			p.grenadeStartY = p.Y
 			p.grenadeDirection = grenadeDirection
 			p.grenadeCastID = p.beginCast()
+		}
+	}
+	if input.Molotov && p.MolotovCooldown <= 0 {
+		if molotovDirection := dashDirectionFromInput(input, p.Direction); molotovDirection != "" {
+			p.MolotovCooldown = MolotovCooldown
+			p.molotovCastQueued = true
+			p.molotovStartX = p.X
+			p.molotovStartY = p.Y
+			p.molotovDirection = molotovDirection
+			p.molotovCastID = p.beginCast()
 		}
 	}
 	if input.Landmine && p.LandmineCooldown <= 0 {
@@ -633,9 +590,8 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetPull()
 		p.resetVenom()
 		p.resetDash()
-		p.resetPistol()
-		p.resetFireball()
 		p.resetGrenade()
+		p.resetMolotov()
 		p.resetLandmine()
 		p.transition(StateDead)
 		p.Deaths += 1
@@ -671,7 +627,6 @@ func (p *Player) Respawn(x, y float64) {
 	p.purpleBurning = BurningStatus{}
 	p.blueBurning = BurningStatus{}
 	p.pendingInput = nil
-	p.AttackCooldown = 0
 	p.AttackState = 0
 	p.resetAttackTracking()
 	p.resetCastTracking()
@@ -680,9 +635,8 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetPull()
 	p.resetVenom()
 	p.resetDash()
-	p.resetPistol()
-	p.resetFireball()
 	p.resetGrenade()
+	p.resetMolotov()
 	p.resetLandmine()
 }
 
@@ -697,9 +651,8 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetPull()
 	p.resetVenom()
 	p.resetDash()
-	p.resetPistol()
-	p.resetFireball()
 	p.resetGrenade()
+	p.resetMolotov()
 	p.resetLandmine()
 	if p.State != StateDead {
 		p.AttackState = 0
@@ -926,28 +879,6 @@ func (p *Player) ConsumeDashCast() (float64, float64, world.Direction, bool) {
 	return p.dashStartX, p.dashStartY, p.dashDirection, true
 }
 
-// ConsumePistolCast returns a newly triggered pistol shot once.
-func (p *Player) ConsumePistolCast() (float64, float64, world.Direction, uint64, bool) {
-	if !p.pistolCastQueued {
-		return 0, 0, "", 0, false
-	}
-	p.pistolCastQueued = false
-	castID := p.pistolCastID
-	p.pistolCastID = 0
-	return p.pistolStartX, p.pistolStartY, p.pistolDirection, castID, true
-}
-
-// ConsumeFireballCast returns a newly triggered fireball once.
-func (p *Player) ConsumeFireballCast() (float64, float64, world.Direction, uint64, bool) {
-	if !p.fireballCastQueued {
-		return 0, 0, "", 0, false
-	}
-	p.fireballCastQueued = false
-	castID := p.fireballCastID
-	p.fireballCastID = 0
-	return p.fireballStartX, p.fireballStartY, p.fireballDirection, castID, true
-}
-
 // ConsumeGrenadeCast returns a newly triggered grenade once.
 func (p *Player) ConsumeGrenadeCast() (float64, float64, world.Direction, uint64, bool) {
 	if !p.grenadeCastQueued {
@@ -957,6 +888,17 @@ func (p *Player) ConsumeGrenadeCast() (float64, float64, world.Direction, uint64
 	castID := p.grenadeCastID
 	p.grenadeCastID = 0
 	return p.grenadeStartX, p.grenadeStartY, p.grenadeDirection, castID, true
+}
+
+// ConsumeMolotovCast returns a newly triggered molotov once.
+func (p *Player) ConsumeMolotovCast() (float64, float64, world.Direction, uint64, bool) {
+	if !p.molotovCastQueued {
+		return 0, 0, "", 0, false
+	}
+	p.molotovCastQueued = false
+	castID := p.molotovCastID
+	p.molotovCastID = 0
+	return p.molotovStartX, p.molotovStartY, p.molotovDirection, castID, true
 }
 
 // ConsumeLandmineCast returns a newly triggered landmine once.
@@ -1027,7 +969,6 @@ func (p *Player) Snapshot() Snapshot {
 		ToastyCount:           p.ToastyCount,
 		LastProcessedInputSeq: p.LastProcessedInputSeq,
 		StatusEffects:         effects,
-		EquippedWeapon:        p.EquippedWeapon,
 	}
 }
 
@@ -1139,23 +1080,6 @@ func (p *Player) resetDash() {
 	p.dashDirection = ""
 }
 
-func (p *Player) resetPistol() {
-	p.pistolCastQueued = false
-	p.pistolStartX = 0
-	p.pistolStartY = 0
-	p.pistolDirection = ""
-	p.pistolCastID = 0
-}
-
-func (p *Player) resetFireball() {
-	p.FireballCooldown = 0
-	p.fireballCastQueued = false
-	p.fireballStartX = 0
-	p.fireballStartY = 0
-	p.fireballDirection = ""
-	p.fireballCastID = 0
-}
-
 func (p *Player) resetGrenade() {
 	p.GrenadeCooldown = 0
 	p.grenadeCastQueued = false
@@ -1163,6 +1087,15 @@ func (p *Player) resetGrenade() {
 	p.grenadeStartY = 0
 	p.grenadeDirection = ""
 	p.grenadeCastID = 0
+}
+
+func (p *Player) resetMolotov() {
+	p.MolotovCooldown = 0
+	p.molotovCastQueued = false
+	p.molotovStartX = 0
+	p.molotovStartY = 0
+	p.molotovDirection = ""
+	p.molotovCastID = 0
 }
 
 func (p *Player) resetLandmine() {
@@ -1187,9 +1120,8 @@ func (p *Player) resetCastTracking() {
 	p.numbCastID = 0
 	p.pullCastID = 0
 	p.venomCastID = 0
-	p.pistolCastID = 0
-	p.fireballCastID = 0
 	p.grenadeCastID = 0
+	p.molotovCastID = 0
 	p.landmineCastID = 0
 }
 

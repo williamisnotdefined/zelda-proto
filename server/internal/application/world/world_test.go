@@ -83,30 +83,6 @@ func TestEnemyContactDamagesPlayerOutsideSafeZone(t *testing.T) {
 	}
 }
 
-func TestPlayerPistolKillsEnemyAndCountsKillAfterRepeatedShots(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	x, y := 1000.0, 1000.0
-	p := w.AddPlayer("p1", "Link", &x, &y)
-	p.SafeZoneTimer = 0
-	p.Direction = domworld.DirectionRight
-	targetConfig := enemy.HandConfig
-	targetConfig.MaxHP = player.PistolDamage * 3
-	e := enemy.New("e1", 1040, 1000, "0,0", targetConfig, drop.KindHeartSmall)
-	w.SpawnEnemy(e)
-	w.HandleInput("p1", player.Input{Seq: 1, Attack: true})
-	for i := 0; i < 260 && e.State != enemy.StateDead; i++ {
-		w.Tick(20 * time.Millisecond)
-	}
-	if e.State != enemy.StateDead {
-		t.Fatalf("expected enemy dead after repeated pistol shots, got %s hp=%d", e.State, e.HP)
-	}
-	if p.MonsterKills < 1 {
-		t.Fatalf("expected kill counted, got %d", p.MonsterKills)
-	}
-}
-
 func TestPortalQueuesTransferRequest(t *testing.T) {
 	t.Parallel()
 
@@ -297,170 +273,6 @@ func TestPlayerDashCanEndOnEnemyAndStillTakeContactDamage(t *testing.T) {
 	}
 }
 
-func TestPlayerPistolPiercesTargetsAcrossAttackRange(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	ax, ay := 1000.0, 1000.0
-	tx, ty := 1160.0, 1000.0
-	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
-	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
-	attacker.SafeZoneTimer = 0
-	target.SafeZoneTimer = 0
-
-	passiveConfig := enemy.BlobConfig
-	passiveConfig.Damage = 0
-	passiveConfig.Speed = 0
-	e1 := enemy.New("e1", 1100, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
-	e2 := enemy.New("e2", 1240, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
-	w.SpawnEnemy(e1)
-	w.SpawnEnemy(e2)
-
-	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Attack: true})
-	w.Tick(20 * time.Millisecond)
-	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
-
-	foundPistol := false
-	for _, h := range w.Snapshot().Hazards {
-		if h.Kind == hazard.KindPistol {
-			foundPistol = true
-			if h.Direction != domworld.DirectionRight {
-				t.Fatalf("expected pistol direction right, got %s", h.Direction)
-			}
-			break
-		}
-	}
-	if !foundPistol {
-		t.Fatal("expected pistol hazard after attack")
-	}
-
-	for i := 0; i < 10; i++ {
-		w.Tick(20 * time.Millisecond)
-	}
-
-	if got, want := target.HP, player.MaxHP-player.PistolPvPDamage; got != want {
-		t.Fatalf("expected target HP=%d after pistol shot, got %d", want, got)
-	}
-	if got, want := e1.HP, passiveConfig.MaxHP-player.PistolDamage; got != want {
-		t.Fatalf("expected first enemy HP=%d after pistol shot, got %d", want, got)
-	}
-	if got, want := e2.HP, passiveConfig.MaxHP-player.PistolDamage; got != want {
-		t.Fatalf("expected second enemy HP=%d after piercing pistol shot, got %d", want, got)
-	}
-	for _, h := range w.Snapshot().Hazards {
-		if h.Kind == hazard.KindPistol {
-			t.Fatal("expected pistol shot to expire after traversing its range")
-		}
-	}
-}
-
-func TestPlayerPistolDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	ax, ay := 200.0, 200.0
-	tx, ty := 360.0, 200.0
-	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
-	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
-	target.SafeZoneTimer = 0
-
-	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Attack: true})
-	w.Tick(20 * time.Millisecond)
-	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
-	for i := 0; i < 9; i++ {
-		w.Tick(20 * time.Millisecond)
-	}
-
-	if target.HP != player.MaxHP {
-		t.Fatalf("expected protected caster pistol shot to skip PvP damage, got target HP=%d", target.HP)
-	}
-	if attacker.HP != player.MaxHP {
-		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
-	}
-}
-
-func TestPlayerFireballPiercesTargetsAcrossDashDistance(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	ax, ay := 1000.0, 1000.0
-	tx, ty := 1160.0, 1000.0
-	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
-	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
-	attacker.SafeZoneTimer = 0
-	target.SafeZoneTimer = 0
-
-	passiveConfig := enemy.BlobConfig
-	passiveConfig.Damage = 0
-	passiveConfig.Speed = 0
-	e1 := enemy.New("e1", 1100, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
-	e2 := enemy.New("e2", 1240, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
-	w.SpawnEnemy(e1)
-	w.SpawnEnemy(e2)
-
-	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Fireball: true})
-	w.Tick(20 * time.Millisecond)
-	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
-
-	foundFireball := false
-	for _, h := range w.Snapshot().Hazards {
-		if h.Kind == hazard.KindFireball {
-			foundFireball = true
-			if h.Direction != domworld.DirectionRight {
-				t.Fatalf("expected fireball direction right, got %s", h.Direction)
-			}
-			break
-		}
-	}
-	if !foundFireball {
-		t.Fatal("expected fireball hazard after cast")
-	}
-
-	for i := 0; i < 20; i++ {
-		w.Tick(20 * time.Millisecond)
-	}
-
-	if got, want := target.HP, player.MaxHP-player.FireballDamage; got != want {
-		t.Fatalf("expected target HP=%d after fireball, got %d", want, got)
-	}
-	if got, want := e1.HP, passiveConfig.MaxHP-player.FireballDamage; got != want {
-		t.Fatalf("expected first enemy HP=%d after fireball, got %d", want, got)
-	}
-	if got, want := e2.HP, passiveConfig.MaxHP-player.FireballDamage; got != want {
-		t.Fatalf("expected second enemy HP=%d after piercing fireball, got %d", want, got)
-	}
-	for _, h := range w.Snapshot().Hazards {
-		if h.Kind == hazard.KindFireball {
-			t.Fatal("expected fireball to expire after traversing its range")
-		}
-	}
-}
-
-func TestPlayerFireballDoesNotDamagePlayersWhenCasterIsProtected(t *testing.T) {
-	t.Parallel()
-
-	w := newWorld(t)
-	ax, ay := 200.0, 200.0
-	tx, ty := 360.0, 200.0
-	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
-	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
-	target.SafeZoneTimer = 0
-
-	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Fireball: true})
-	w.Tick(20 * time.Millisecond)
-	w.HandleInput("p1", player.Input{Seq: 2, Right: true})
-	for i := 0; i < 19; i++ {
-		w.Tick(20 * time.Millisecond)
-	}
-
-	if target.HP != player.MaxHP {
-		t.Fatalf("expected protected caster fireball to skip PvP damage, got target HP=%d", target.HP)
-	}
-	if attacker.HP != player.MaxHP {
-		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
-	}
-}
-
 func TestPlayerGrenadeExplodesOnLandingAndSkipsOwner(t *testing.T) {
 	t.Parallel()
 
@@ -527,6 +339,75 @@ func TestPlayerGrenadeExplodesOnLandingAndSkipsOwner(t *testing.T) {
 	}
 	if !foundExplosion {
 		t.Fatal("expected grenade landing to spawn the shared explosion hazard")
+	}
+}
+
+func TestPlayerMolotovExplodesOnLandingAndSkipsOwner(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	tx, ty := ax+player.GrenadeDistance, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Molotov: true})
+	w.Tick(20 * time.Millisecond)
+
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected molotov to stay airborne before landing, got target HP=%d", target.HP)
+	}
+	if e.HP != passiveConfig.MaxHP {
+		t.Fatalf("expected molotov to avoid mid-air monster damage, got HP=%d", e.HP)
+	}
+
+	foundMolotov := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindMolotov {
+			foundMolotov = true
+			if h.Direction != domworld.DirectionRight {
+				t.Fatalf("expected molotov direction right, got %s", h.Direction)
+			}
+			break
+		}
+	}
+	if !foundMolotov {
+		t.Fatal("expected molotov hazard after throw")
+	}
+
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := attacker.HP, player.MaxHP; got != want {
+		t.Fatalf("expected molotov owner to ignore own explosion, got HP=%d", got)
+	}
+	if got, want := target.HP, player.MaxHP-player.MolotovDamage; got != want {
+		t.Fatalf("expected target HP=%d after molotov, got %d", want, got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.MolotovDamage; got != want {
+		t.Fatalf("expected enemy HP=%d after molotov, got %d", want, got)
+	}
+
+	foundExplosion := false
+	for _, h := range w.Snapshot().Hazards {
+		if h.Kind == hazard.KindMolotov {
+			t.Fatal("expected landed molotov to be removed from snapshot")
+		}
+		if h.Kind == hazard.KindLandmineExplosion {
+			foundExplosion = true
+		}
+	}
+	if !foundExplosion {
+		t.Fatal("expected molotov landing to spawn the shared explosion hazard")
 	}
 }
 
@@ -631,6 +512,39 @@ func TestProtectedCasterGrenadeSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	}
 	if got, want := e.HP, passiveConfig.MaxHP-player.GrenadeDamage; got != want {
 		t.Fatalf("expected protected caster grenade to still damage monsters, got HP=%d", got)
+	}
+	if attacker.HP != player.MaxHP {
+		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
+	}
+}
+
+func TestProtectedCasterMolotovSkipsPvPButStillDamagesMonsters(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 200.0, 200.0
+	tx, ty := ax+player.GrenadeDistance, ay
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	target.SafeZoneTimer = 0
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Molotov: true})
+	w.Tick(20 * time.Millisecond)
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+
+	if got, want := target.HP, player.MaxHP; got != want {
+		t.Fatalf("expected protected caster molotov to skip PvP damage, got HP=%d", got)
+	}
+	if got, want := e.HP, passiveConfig.MaxHP-player.MolotovDamage; got != want {
+		t.Fatalf("expected protected caster molotov to still damage monsters, got HP=%d", got)
 	}
 	if attacker.HP != player.MaxHP {
 		t.Fatalf("expected caster HP unchanged, got %d", attacker.HP)
@@ -903,24 +817,28 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 		t.Fatalf("expected attacker HP=%d after venom life steal, got %d", want, got)
 	}
 
-	w.HandleInput("p1", player.Input{Seq: 2, Down: true, Attack: true})
+	w.HandleInput("p1", player.Input{Seq: 2, Down: true, Molotov: true})
 	w.Tick(20 * time.Millisecond)
-	w.Tick(220 * time.Millisecond)
-	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.PistolDamage*2; got != want {
-		t.Fatalf("expected enemy HP=%d after doubled pistol damage, got %d", want, got)
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
 	}
-	if got, want := attacker.HP, player.MaxHP-31; got != want {
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2; got != want {
+		t.Fatalf("expected enemy HP=%d after doubled molotov damage, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-24; got != want {
 		t.Fatalf("expected attacker HP=%d after venom follow-up lifesteal, got %d", want, got)
 	}
 
 	w.Tick(player.VenomDebuffDuration)
-	w.HandleInput("p1", player.Input{Seq: 3, Down: true, Attack: true})
+	w.HandleInput("p1", player.Input{Seq: 3, Down: true, Molotov: true})
 	w.Tick(20 * time.Millisecond)
-	w.Tick(220 * time.Millisecond)
-	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.PistolDamage*2-player.PistolDamage; got != want {
+	for i := 0; i < 15; i++ {
+		w.Tick(20 * time.Millisecond)
+	}
+	if got, want := e.HP, enemy.BlobConfig.MaxHP-player.VenomDamage-player.MolotovDamage*2-player.MolotovDamage; got != want {
 		t.Fatalf("expected enemy HP=%d after venom expired, got %d", want, got)
 	}
-	if got, want := attacker.HP, player.MaxHP-31; got != want {
+	if got, want := attacker.HP, player.MaxHP-24; got != want {
 		t.Fatalf("expected attacker HP=%d to stop gaining venom lifesteal, got %d", want, got)
 	}
 	if len(w.Snapshot().WaveIndicators) != 0 {

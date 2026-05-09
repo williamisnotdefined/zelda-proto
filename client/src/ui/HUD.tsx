@@ -1,17 +1,16 @@
-import classNames from 'classnames';
-import { useEffect, useState } from 'react';
 import {
   PLAYER_DASH_COOLDOWN,
-  PLAYER_FIREBALL_COOLDOWN,
   PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
+  PLAYER_MOLOTOV_COOLDOWN,
   PLAYER_NUMB_COOLDOWN,
   PLAYER_PULL_COOLDOWN,
   PLAYER_VENOM_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
-import { weaponDefinitions } from '@/shared/definitions';
+import classNames from 'classnames';
 import { Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { phaserGame } from '../game/instance';
 import { gameConnection } from '../network/gameConnection';
 import { Leaderboard } from './Leaderboard';
@@ -58,7 +57,13 @@ function CooldownMeter({
           {ready ? 'READY' : `${(remainingMs / 1000).toFixed(1)}s`}
         </span>
       </div>
-      <div className={classNames(widthClassName, trackClassName, 'mb-2 h-2.5 overflow-hidden rounded-full border')}>
+      <div
+        className={classNames(
+          widthClassName,
+          trackClassName,
+          'mb-2 h-2.5 overflow-hidden rounded-full border'
+        )}
+      >
         <div
           className={classNames(
             'h-full',
@@ -85,8 +90,8 @@ export function HUD() {
   const pullCooldownEndsAt = useGameStore((s) => s.pullCooldownEndsAt);
   const venomCooldownEndsAt = useGameStore((s) => s.venomCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
-  const fireballCooldownEndsAt = useGameStore((s) => s.fireballCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
+  const molotovCooldownEndsAt = useGameStore((s) => s.molotovCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((s) => s.landmineCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
@@ -106,8 +111,8 @@ export function HUD() {
       !pullCooldownEndsAt &&
       !venomCooldownEndsAt &&
       !dashCooldownEndsAt &&
-      !fireballCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
+      !molotovCooldownEndsAt &&
       !landmineCooldownEndsAt
     ) {
       setCooldownNowMs(Date.now());
@@ -124,8 +129,8 @@ export function HUD() {
         now >= (pullCooldownEndsAt ?? 0) &&
         now >= (venomCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
-        now >= (fireballCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
+        now >= (molotovCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
@@ -135,9 +140,9 @@ export function HUD() {
     return () => window.clearInterval(intervalId);
   }, [
     dashCooldownEndsAt,
-    fireballCooldownEndsAt,
     grenadeCooldownEndsAt,
     landmineCooldownEndsAt,
+    molotovCooldownEndsAt,
     numbCooldownEndsAt,
     pullCooldownEndsAt,
     venomCooldownEndsAt,
@@ -167,28 +172,27 @@ export function HUD() {
   const pullCooldownProgress = pullReady ? 1 : 1 - pullCooldownRemainingMs / PLAYER_PULL_COOLDOWN;
   const venomCooldownRemainingMs = Math.max(0, (venomCooldownEndsAt ?? 0) - cooldownNowMs);
   const venomReady = !venomCooldownEndsAt || venomCooldownRemainingMs <= 0;
-  const venomCooldownProgress = venomReady ? 1 : 1 - venomCooldownRemainingMs / PLAYER_VENOM_COOLDOWN;
+  const venomCooldownProgress = venomReady
+    ? 1
+    : 1 - venomCooldownRemainingMs / PLAYER_VENOM_COOLDOWN;
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
-  const fireballCooldownRemainingMs = Math.max(0, (fireballCooldownEndsAt ?? 0) - cooldownNowMs);
-  const fireballReady = !fireballCooldownEndsAt || fireballCooldownRemainingMs <= 0;
-  const fireballCooldownProgress = fireballReady
-    ? 1
-    : 1 - fireballCooldownRemainingMs / PLAYER_FIREBALL_COOLDOWN;
   const grenadeCooldownRemainingMs = Math.max(0, (grenadeCooldownEndsAt ?? 0) - cooldownNowMs);
   const grenadeReady = !grenadeCooldownEndsAt || grenadeCooldownRemainingMs <= 0;
   const grenadeCooldownProgress = grenadeReady
     ? 1
     : 1 - grenadeCooldownRemainingMs / PLAYER_GRENADE_COOLDOWN;
+  const molotovCooldownRemainingMs = Math.max(0, (molotovCooldownEndsAt ?? 0) - cooldownNowMs);
+  const molotovReady = !molotovCooldownEndsAt || molotovCooldownRemainingMs <= 0;
+  const molotovCooldownProgress = molotovReady
+    ? 1
+    : 1 - molotovCooldownRemainingMs / PLAYER_MOLOTOV_COOLDOWN;
   const landmineCooldownRemainingMs = Math.max(0, (landmineCooldownEndsAt ?? 0) - cooldownNowMs);
   const landmineReady = !landmineCooldownEndsAt || landmineCooldownRemainingMs <= 0;
   const landmineCooldownProgress = landmineReady
     ? 1
     : 1 - landmineCooldownRemainingMs / PLAYER_LANDMINE_COOLDOWN;
-  const equippedWeaponDefinition = localPlayer
-    ? weaponDefinitions[localPlayer.equippedWeapon]
-    : null;
   const hpRatio = localPlayer ? localPlayer.hp / localPlayer.maxHp : 0;
 
   const weaponAbilityMeters = [
@@ -207,7 +211,7 @@ export function HUD() {
       glowClassName: 'shadow-[0_0_12px_rgba(127,238,255,0.45)]',
     },
     {
-      label: 'Grenade (Q)',
+      label: 'Grenade (A)',
       ready: grenadeReady,
       remainingMs: grenadeCooldownRemainingMs,
       progress: grenadeCooldownProgress,
@@ -221,7 +225,21 @@ export function HUD() {
       glowClassName: 'shadow-[0_0_12px_rgba(178,234,119,0.45)]',
     },
     {
-      label: 'Landmine (W)',
+      label: 'Molotov (D)',
+      ready: molotovReady,
+      remainingMs: molotovCooldownRemainingMs,
+      progress: molotovCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#ffbd84]',
+      valueCooldownClassName: 'text-[#ffe3c8]',
+      trackClassName:
+        'bg-[rgba(38,20,10,0.92)] border-[rgba(255,170,100,0.28)] shadow-[inset_0_0_12px_rgba(255,149,72,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#ff9838_0%,#ffd084_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#c7561d_0%,#ff8e3c_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(255,164,88,0.5)]',
+    },
+    {
+      label: 'Landmine (S)',
       ready: landmineReady,
       remainingMs: landmineCooldownRemainingMs,
       progress: landmineCooldownProgress,
@@ -234,25 +252,11 @@ export function HUD() {
       fillCooldownClassName: 'bg-[linear-gradient(90deg,#8f7b1f_0%,#d0b13a_100%)]',
       glowClassName: 'shadow-[0_0_12px_rgba(255,232,139,0.45)]',
     },
-    {
-      label: 'Fireball (E)',
-      ready: fireballReady,
-      remainingMs: fireballCooldownRemainingMs,
-      progress: fireballCooldownProgress,
-      widthClassName: 'w-[200px]',
-      valueReadyClassName: 'text-[#ffbd84]',
-      valueCooldownClassName: 'text-[#ffe3c8]',
-      trackClassName:
-        'bg-[rgba(38,20,10,0.92)] border-[rgba(255,170,100,0.28)] shadow-[inset_0_0_12px_rgba(255,149,72,0.1)]',
-      fillReadyClassName: 'bg-[linear-gradient(90deg,#ff9838_0%,#ffd084_100%)]',
-      fillCooldownClassName: 'bg-[linear-gradient(90deg,#c7561d_0%,#ff8e3c_100%)]',
-      glowClassName: 'shadow-[0_0_12px_rgba(255,164,88,0.5)]',
-    },
   ];
 
   const waveAbilityMeters = [
     {
-      label: 'Wave (1)',
+      label: 'Wave (Q)',
       ready: waveReady,
       remainingMs: waveCooldownRemainingMs,
       progress: waveCooldownProgress,
@@ -266,7 +270,7 @@ export function HUD() {
       glowClassName: 'shadow-[0_0_12px_rgba(255,166,245,0.5)]',
     },
     {
-      label: 'Numb (2)',
+      label: 'Numb (W)',
       ready: numbReady,
       remainingMs: numbCooldownRemainingMs,
       progress: numbCooldownProgress,
@@ -280,7 +284,7 @@ export function HUD() {
       glowClassName: 'shadow-[0_0_12px_rgba(207,216,225,0.45)]',
     },
     {
-      label: 'Pull (3)',
+      label: 'Pull (E)',
       ready: pullReady,
       remainingMs: pullCooldownRemainingMs,
       progress: pullCooldownProgress,
@@ -294,7 +298,7 @@ export function HUD() {
       glowClassName: 'shadow-[0_0_12px_rgba(255,120,120,0.45)]',
     },
     {
-      label: 'Venom (4)',
+      label: 'Venom (R)',
       ready: venomReady,
       remainingMs: venomCooldownRemainingMs,
       progress: venomCooldownProgress,
@@ -320,7 +324,11 @@ export function HUD() {
           title={musicMuted ? 'Ativar musica' : 'Mutar musica'}
           className="pointer-events-auto inline-flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[3px] border border-[#666] bg-[rgba(0,0,0,0.55)] text-white"
         >
-          {musicMuted ? <VolumeX size={16} strokeWidth={2} /> : <Volume2 size={16} strokeWidth={2} />}
+          {musicMuted ? (
+            <VolumeX size={16} strokeWidth={2} />
+          ) : (
+            <Volume2 size={16} strokeWidth={2} />
+          )}
         </button>
 
         <div className="text-right text-[11px] opacity-70">
@@ -351,24 +359,6 @@ export function HUD() {
 
       {localPlayer && (
         <div className="absolute top-4 left-4">
-          {equippedWeaponDefinition && (
-            <div className="mb-3 flex w-[200px] flex-col gap-2 rounded-lg border border-[rgba(255,255,255,0.14)] bg-[rgba(10,12,18,0.78)] px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
-              <div className="text-[10px] tracking-[0.08em] opacity-70">ARMA</div>
-              <div className="flex items-center gap-2.5">
-                <img
-                  src={equippedWeaponDefinition.iconSrc}
-                  alt={equippedWeaponDefinition.label}
-                  draggable={false}
-                  className="h-12 w-[68px] object-contain [filter:drop-shadow(0_0_10px_rgba(255,190,116,0.22))] [image-rendering:pixelated]"
-                />
-                <div>
-                  <div className="text-[13px] font-bold">{equippedWeaponDefinition.label}</div>
-                  <div className="text-[10px] opacity-60">Equipada</div>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="mb-1 text-xs">HP</div>
           <div className="h-4 w-[200px] overflow-hidden rounded-[3px] bg-[#333]">
             <div
@@ -409,11 +399,6 @@ export function HUD() {
           <div className="mt-2 text-sm opacity-70">Respawning...</div>
         </div>
       )}
-
-      <div className="absolute right-2 bottom-2 text-[10px] opacity-40">
-        Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball |
-        1: wave | 2: numb | 3: pull | 4: venom | Space: attack | Tab: players
-      </div>
 
       <Leaderboard />
     </div>

@@ -1,9 +1,10 @@
 import { getDirectionVector, PLAYER_GRENADE_DISTANCE, PLAYER_GRENADE_FLIGHT_MS } from '@/game-core';
-import type { Direction, HazardSnapshot } from '@/shared';
+import { HAZARD_KINDS, type Direction, type HazardSnapshot } from '@/shared';
 import type Phaser from 'phaser';
 
 const GRENADE_ARC_HEIGHT = 80;
-const GRENADE_DISPLAY_SIZE = 28;
+const GRENADE_DISPLAY_SIZE = 40;
+const MOLOTOV_DISPLAY_SIZE = 50;
 const GRENADE_SHADOW_WIDTH = 26;
 const GRENADE_SHADOW_HEIGHT = 12;
 const GRENADE_SHADOW_COLOR = 0x0b0b0b;
@@ -16,6 +17,7 @@ function clamp(value: number, min: number, max: number): number {
 export class GrenadeHazardEntity {
   sprite: Phaser.GameObjects.Image;
   shadow: Phaser.GameObjects.Ellipse;
+  private displaySize = GRENADE_DISPLAY_SIZE;
   private startX = 0;
   private startY = 0;
   private endX = 0;
@@ -24,6 +26,8 @@ export class GrenadeHazardEntity {
   private direction: Direction = 'right';
 
   constructor(scene: Phaser.Scene, snapshot: HazardSnapshot) {
+    const isMolotov = snapshot.kind === HAZARD_KINDS.MOLOTOV;
+
     this.shadow = scene.add.ellipse(
       snapshot.x,
       snapshot.y,
@@ -34,8 +38,9 @@ export class GrenadeHazardEntity {
     );
     this.shadow.setDepth(10.11);
 
-    this.sprite = scene.add.image(snapshot.x, snapshot.y, 'grenade');
-    this.sprite.setDisplaySize(GRENADE_DISPLAY_SIZE, GRENADE_DISPLAY_SIZE);
+    this.sprite = scene.add.image(snapshot.x, snapshot.y, isMolotov ? 'molotov' : 'grenade');
+    this.displaySize = isMolotov ? MOLOTOV_DISPLAY_SIZE : GRENADE_DISPLAY_SIZE;
+    this.sprite.setDisplaySize(this.displaySize, this.displaySize);
     this.sprite.setDepth(10.22);
 
     this.syncSnapshot(snapshot);
@@ -90,7 +95,9 @@ export class GrenadeHazardEntity {
     this.shadow.setAlpha(GRENADE_SHADOW_ALPHA * (1 - heightProgress * 0.45));
 
     this.sprite.setPosition(groundX, groundY - lift);
-    this.sprite.setScale(1 + heightProgress * 0.08);
+    const airborneScale = 1 + heightProgress * 0.08;
+    const airborneDisplaySize = this.displaySize * airborneScale;
+    this.sprite.setDisplaySize(airborneDisplaySize, airborneDisplaySize);
   }
 
   destroy(): void {

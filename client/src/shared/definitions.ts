@@ -5,7 +5,6 @@ import {
   HAZARD_KINDS,
   PLAYER_STATUS_EFFECTS,
   PORTAL_KINDS,
-  WEAPON_KINDS,
 } from './types.js';
 import type {
   BossKind,
@@ -15,7 +14,6 @@ import type {
   HazardKind,
   PlayerStatusEffect,
   PortalKind,
-  WeaponKind,
 } from './types.js';
 
 export interface EnemyDefinition {
@@ -38,12 +36,6 @@ export interface DropDefinition {
 export interface PortalDefinition {
   kind: PortalKind;
   group: 'advance' | 'return';
-}
-
-export interface WeaponDefinition {
-  kind: WeaponKind;
-  label: string;
-  iconSrc: string;
 }
 
 export interface HazardDefinition {
@@ -128,14 +120,6 @@ export const dropDefinitions: Record<DropKind, DropDefinition> = {
   },
 };
 
-export const weaponDefinitions: Record<WeaponKind, WeaponDefinition> = {
-  [WEAPON_KINDS.PISTOL]: {
-    kind: WEAPON_KINDS.PISTOL,
-    label: 'Pistol',
-    iconSrc: '/assets/sprites/attacks/pistol.png',
-  },
-};
-
 export const portalDefinitions: Record<PortalKind, PortalDefinition> = {
   [PORTAL_KINDS.PHASE1_TO_PHASE2]: {
     kind: PORTAL_KINDS.PHASE1_TO_PHASE2,
@@ -188,26 +172,19 @@ export const hazardDefinitions: Record<HazardKind, HazardDefinition> = {
     idPrefix: 'hazard_blue',
     statusEffect: PLAYER_STATUS_EFFECTS.BLUE_BURNING,
   },
-  [HAZARD_KINDS.PISTOL]: {
-    kind: HAZARD_KINDS.PISTOL,
-    ttlMs: 200,
-    hitRadius: 12,
-    burningTicks: 0,
-    idPrefix: 'hazard_pistol',
-  },
-  [HAZARD_KINDS.FIREBALL]: {
-    kind: HAZARD_KINDS.FIREBALL,
-    ttlMs: 400,
-    hitRadius: 18,
-    burningTicks: 0,
-    idPrefix: 'hazard_fireball',
-  },
   [HAZARD_KINDS.GRENADE]: {
     kind: HAZARD_KINDS.GRENADE,
     ttlMs: 300,
     hitRadius: 18,
     burningTicks: 0,
     idPrefix: 'hazard_grenade',
+  },
+  [HAZARD_KINDS.MOLOTOV]: {
+    kind: HAZARD_KINDS.MOLOTOV,
+    ttlMs: 300,
+    hitRadius: 18,
+    burningTicks: 0,
+    idPrefix: 'hazard_molotov',
   },
   [HAZARD_KINDS.LANDMINE]: {
     kind: HAZARD_KINDS.LANDMINE,

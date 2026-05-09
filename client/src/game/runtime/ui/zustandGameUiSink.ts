@@ -55,12 +55,12 @@ class ZustandGameUiSink implements GameUiSink {
     useGameStore.getState().setDashCooldownEndsAt(time);
   }
 
-  setFireballCooldownEndsAt(time: number | null): void {
-    useGameStore.getState().setFireballCooldownEndsAt(time);
-  }
-
   setGrenadeCooldownEndsAt(time: number | null): void {
     useGameStore.getState().setGrenadeCooldownEndsAt(time);
+  }
+
+  setMolotovCooldownEndsAt(time: number | null): void {
+    useGameStore.getState().setMolotovCooldownEndsAt(time);
   }
 
   setLandmineCooldownEndsAt(time: number | null): void {

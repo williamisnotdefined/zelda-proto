@@ -494,37 +494,6 @@ func resolvePlayerWaveLike(
 // the blue flame trail after movement is resolved.
 type DashTrailSpawner func(sourcePlayerID string, startX, startY float64, direction domworld.Direction)
 
-// PlayerPistolSpawner receives a queued base-attack shot so the world can
-// spawn the projectile after movement is resolved.
-type PlayerPistolSpawner func(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX, startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-)
-
-// PlayerPistolSystem resolves queued pistol shots.
-type PlayerPistolSystem struct{}
-
-// Resolve emits every queued pistol shot.
-func (PlayerPistolSystem) Resolve(
-	players map[string]*player.Player,
-	zone safezone.Zone,
-	spawnPistol PlayerPistolSpawner,
-) {
-	if spawnPistol == nil {
-		return
-	}
-	for _, caster := range players {
-		startX, startY, direction, castID, ok := caster.ConsumePistolCast()
-		if !ok || direction == "" || caster.State == player.StateDead {
-			continue
-		}
-		spawnPistol(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
-	}
-}
-
 // PlayerLandmineSpawner receives a queued landmine cast so the world can spawn
 // the hazard after movement is resolved.
 type PlayerLandmineSpawner func(
@@ -556,9 +525,9 @@ func (PlayerLandmineSystem) Resolve(
 	}
 }
 
-// PlayerFireballSpawner receives a queued fireball cast so the world can spawn
-// the projectile entity after movement is resolved.
-type PlayerFireballSpawner func(
+// PlayerMolotovSpawner receives a queued molotov cast so the world can spawn
+// the projectile after movement is resolved.
+type PlayerMolotovSpawner func(
 	sourcePlayerID string,
 	sourceCastID uint64,
 	startX, startY float64,
@@ -566,24 +535,24 @@ type PlayerFireballSpawner func(
 	hitsPlayers bool,
 )
 
-// PlayerFireballSystem resolves queued player fireball casts.
-type PlayerFireballSystem struct{}
+// PlayerMolotovSystem resolves queued player molotov casts.
+type PlayerMolotovSystem struct{}
 
-// Resolve emits every queued fireball cast.
-func (PlayerFireballSystem) Resolve(
+// Resolve emits every queued molotov cast.
+func (PlayerMolotovSystem) Resolve(
 	players map[string]*player.Player,
 	zone safezone.Zone,
-	spawnFireball PlayerFireballSpawner,
+	spawnMolotov PlayerMolotovSpawner,
 ) {
-	if spawnFireball == nil {
+	if spawnMolotov == nil {
 		return
 	}
 	for _, caster := range players {
-		startX, startY, direction, castID, ok := caster.ConsumeFireballCast()
+		startX, startY, direction, castID, ok := caster.ConsumeMolotovCast()
 		if !ok || direction == "" || caster.State == player.StateDead {
 			continue
 		}
-		spawnFireball(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
+		spawnMolotov(caster.ID, castID, startX, startY, direction, !zone.Protects(caster))
 	}
 }
 

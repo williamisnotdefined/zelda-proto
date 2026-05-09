@@ -60,8 +60,8 @@ function createUiSink(): GameUiSink & {
   setNumbCooldownEndsAt: ReturnType<typeof vi.fn>;
   setVenomCooldownEndsAt: ReturnType<typeof vi.fn>;
   setDashCooldownEndsAt: ReturnType<typeof vi.fn>;
-  setFireballCooldownEndsAt: ReturnType<typeof vi.fn>;
   setGrenadeCooldownEndsAt: ReturnType<typeof vi.fn>;
+  setMolotovCooldownEndsAt: ReturnType<typeof vi.fn>;
   setLandmineCooldownEndsAt: ReturnType<typeof vi.fn>;
   setPullCooldownEndsAt: ReturnType<typeof vi.fn>;
 } {
@@ -78,8 +78,8 @@ function createUiSink(): GameUiSink & {
     setWaveCooldownEndsAt: vi.fn(),
     setNumbCooldownEndsAt: vi.fn(),
     setDashCooldownEndsAt: vi.fn(),
-    setFireballCooldownEndsAt: vi.fn(),
     setGrenadeCooldownEndsAt: vi.fn(),
+    setMolotovCooldownEndsAt: vi.fn(),
     setLandmineCooldownEndsAt: vi.fn(),
     setBoss: vi.fn(),
     setLeaderboard: vi.fn(),
@@ -183,7 +183,10 @@ describe('WorldNetworkSession', () => {
     const leaderboardEvent = createLeaderboard();
     connection.emit(leaderboardEvent);
 
-    if (leaderboardEvent.type !== 'message' || leaderboardEvent.message.type !== SERVER_MESSAGE_TYPES.LEADERBOARD) {
+    if (
+      leaderboardEvent.type !== 'message' ||
+      leaderboardEvent.message.type !== SERVER_MESSAGE_TYPES.LEADERBOARD
+    ) {
       throw new Error('expected message events');
     }
 

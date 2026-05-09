@@ -66,14 +66,13 @@ describe('message builders', () => {
         down: false,
         left: false,
         right: true,
-        attack: false,
         wave: false,
         numb: false,
         pull: false,
         venom: false,
         dash: false,
-        fireball: false,
         grenade: false,
+        molotov: false,
         landmine: false,
       })
     ).toEqual({
@@ -84,14 +83,13 @@ describe('message builders', () => {
       down: false,
       left: false,
       right: true,
-      attack: false,
       wave: false,
       numb: false,
       pull: false,
       venom: false,
       dash: false,
-      fireball: false,
       grenade: false,
+      molotov: false,
       landmine: false,
     });
 
@@ -173,14 +171,13 @@ describe('parseClientMessage', () => {
         down: false,
         left: false,
         right: false,
-        attack: false,
         wave: false,
         numb: false,
         pull: false,
         venom: false,
         dash: false,
-        fireball: false,
         grenade: false,
+        molotov: false,
         landmine: false,
       })
     ).toEqual({ ok: false, reason: 'invalid_message' });

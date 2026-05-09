@@ -224,14 +224,13 @@ cloudflared tunnel info wilho
 
 | Source | Attack | Damage | Cooldown | Notes |
 | --- | --- | --- | --- | --- |
-| Player | Pistol (`Space`) | `2` vs monsters, `5` vs players | `500ms` | This is the current basic attack bound to `Space` |
-| Player | Fireball (`E`) | `5` | `400ms` | Projectile, hits monsters and players outside safezone |
-| Player | Grenade (`Q`) | `10` | `2s` | Damage is applied on detonation only |
-| Player | Landmine (`W`) | `10` | `2s` | Stationary explosive, detonates on proximity or expiry |
-| Player | Wave (`R`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
-| Player | Numb (`T`) | `3` | `5s` | Wave variant with freeze effect and life steal |
-| Player | Pull (`Y`) | `3` | `5s` | Pulls targets to the caster, then holds overlap briefly |
-| Player | Venom (`U`) | `3` | `5s` | Green wave that marks hostiles for `10s`, causing `2x` player damage and `120%` lifesteal from those targets |
+| Player | Grenade (`A`) | `10` | `2s` | Damage is applied on detonation only |
+| Player | Molotov (`D`) | `5` | `1s` | Same detonation behavior as grenade with half damage and half cooldown |
+| Player | Landmine (`S`) | `10` | `2s` | Stationary explosive, detonates on proximity or expiry |
+| Player | Wave (`Q`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
+| Player | Numb (`W`) | `3` | `5s` | Wave variant with freeze effect and life steal |
+| Player | Pull (`E`) | `3` | `5s` | Pulls targets to the caster, then holds overlap briefly |
+| Player | Venom (`R`) | `3` | `5s` | Green wave that marks hostiles for `10s`, causing `2x` player damage and `120%` lifesteal from those targets |
 | Player | Dash | `0` direct | `1s` | Mobility skill; dash itself does not hit directly |
 | Player dash trail | Blue flame | `8` + blue burning | n/a | Spawned along the dash path |
 | Hazard | Fire field | `8` + burning | n/a | Applies `3` burning ticks of `8` each |
@@ -294,6 +293,6 @@ cloudflared tunnel info wilho
 
 ## Notes About Current Behavior
 
-- `Space` currently fires the pistol; it does not trigger a melee swing in the active gameplay path
-- The melee combat system still exists in the server code, but the live player input path is currently projectile-based for the base attack
+- The basic `Space` attack and the old pistol/fireball path were removed from the live input schema
+- Current player hotkeys are `Q/W/E/R` for wave skills and `A/S/D` for grenade, landmine, and molotov
 - Safezone protection blocks hostile contact damage and PvP hazard damage while the player is protected inside the spawn zone

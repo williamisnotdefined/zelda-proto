@@ -7,18 +7,17 @@ import (
 // PlayerSnapshot mirrors the wire layout of a player on a snapshot. Keep
 // fields ordered to match the MessagePack object order expected by the client.
 type PlayerSnapshot struct {
-	ID             string
-	Nickname       string
-	X              float64
-	Y              float64
-	HP             int
-	MaxHP          int
-	State          string
-	Direction      string
-	MonsterKills   int
-	PlayerKills    int
-	Toasty         bool
-	EquippedWeapon string
+	ID           string
+	Nickname     string
+	X            float64
+	Y            float64
+	HP           int
+	MaxHP        int
+	State        string
+	Direction    string
+	MonsterKills int
+	PlayerKills  int
+	Toasty       bool
 }
 
 // EnemySnapshot mirrors enemy fields on the wire.
@@ -181,6 +180,7 @@ func BuildSnapshotDelta(in SnapshotDeltaInput) codec.Object {
 		{Key: "waveIndicators", Value: toAny(in.WaveIndicators)},
 	}
 }
+
 // BuildLeaderboard constructs a leaderboard envelope. The client reads
 // `players`, with each entry exposing id/nickname/playerKills/monsterKills/deaths.
 func BuildLeaderboard(entries []LeaderboardEntry) codec.Object {

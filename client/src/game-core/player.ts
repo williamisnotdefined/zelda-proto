@@ -6,12 +6,8 @@ export const PLAYER_MAX_HP = 100;
 export const PLAYER_DAMAGE = 10;
 export const PLAYER_WAVE_DAMAGE = 3;
 export const PLAYER_WAVE_WINDUP = 80;
-export const PLAYER_ATTACK_COOLDOWN = 500;
-export const PLAYER_ATTACK_PROJECTILE_SPEED = 1500;
-export const PLAYER_ATTACK_PROJECTILE_RANGE = 300;
-export const PLAYER_ATTACK_PROJECTILE_TTL = 200;
-export const PLAYER_FIREBALL_COOLDOWN = 400;
 export const PLAYER_GRENADE_COOLDOWN = 2000;
+export const PLAYER_MOLOTOV_COOLDOWN = PLAYER_GRENADE_COOLDOWN / 2;
 export const PLAYER_LANDMINE_COOLDOWN = 2000;
 export const PLAYER_GRENADE_DISTANCE = 150;
 export const PLAYER_GRENADE_FLIGHT_MS = 300;
@@ -25,31 +21,17 @@ export const PLAYER_NUMB_COOLDOWN = PLAYER_WAVE_COOLDOWN;
 export const PLAYER_PULL_COOLDOWN = PLAYER_WAVE_COOLDOWN;
 export const PLAYER_VENOM_COOLDOWN = PLAYER_WAVE_COOLDOWN;
 export const PLAYER_NUMB_FREEZE_MS = 2000;
-export const PLAYER_ATTACK_STATE_DURATION = 300;
-export const PLAYER_ATTACK_SPEED_PENALTY = 1;
 export const PLAYER_WAVE_RADIUS = 150;
 export const PLAYER_WAVE_SPEED = 900;
 export const PLAYER_WAVE_CAST_DURATION =
   PLAYER_WAVE_WINDUP + (PLAYER_WAVE_RADIUS / PLAYER_WAVE_SPEED) * 1000;
 export const PLAYER_WIDTH = 48;
 export const PLAYER_HEIGHT = 48;
-export const PLAYER_ATTACK_RANGE_UP = 40;
-export const PLAYER_ATTACK_RANGE_DOWN = 56;
-export const PLAYER_ATTACK_RANGE_LEFT = 48;
-export const PLAYER_ATTACK_RANGE_RIGHT = 48;
-export const PLAYER_ATTACK_WIDTH = 72;
 export const PVP_DAMAGE = 25;
 export const SAFE_ZONE_DURATION = 3000;
 export const BURNING_TICK_DAMAGE = 8;
 export const BURNING_TICKS = 3;
 export const BURNING_TICK_MS = 1000;
-
-export const PLAYER_ATTACK_RANGE_BY_DIRECTION: Record<Direction, number> = {
-  up: PLAYER_ATTACK_RANGE_UP,
-  down: PLAYER_ATTACK_RANGE_DOWN,
-  left: PLAYER_ATTACK_RANGE_LEFT,
-  right: PLAYER_ATTACK_RANGE_RIGHT,
-};
 
 export function getDirectionVector(direction: Direction): { dx: number; dy: number } {
   switch (direction) {

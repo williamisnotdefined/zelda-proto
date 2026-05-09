@@ -15,9 +15,8 @@ const (
 	KindFireField         Kind = "fire_field"
 	KindPurpleField       Kind = "purple_field"
 	KindBlueFlame         Kind = "blue_flame"
-	KindPistol            Kind = "pistol"
-	KindFireball          Kind = "fireball"
 	KindGrenade           Kind = "grenade"
+	KindMolotov           Kind = "molotov"
 	KindLandmine          Kind = "landmine"
 	KindLandmineExplosion Kind = "landmine_explosion"
 )
@@ -35,12 +34,10 @@ const (
 	PurpleTileStep          = 34
 	DefaultTTL              = 1800 * time.Millisecond
 	PurpleTTL               = 3000 * time.Millisecond
-	PistolTTL               = 200 * time.Millisecond
-	FireballTTL             = 400 * time.Millisecond
 	GrenadeTTL              = 300 * time.Millisecond
+	MolotovTTL              = GrenadeTTL
 	LandmineTTL             = 30 * time.Second
 	LandmineExplosionTTL    = 420 * time.Millisecond
-	PistolHitRadius         = 12
 	LandmineExplosionRadius = 180
 )
 
@@ -70,12 +67,10 @@ func TTLFor(k Kind) time.Duration {
 	switch k {
 	case KindPurpleField:
 		return PurpleTTL
-	case KindPistol:
-		return PistolTTL
-	case KindFireball:
-		return FireballTTL
 	case KindGrenade:
 		return GrenadeTTL
+	case KindMolotov:
+		return MolotovTTL
 	case KindLandmine:
 		return LandmineTTL
 	case KindLandmineExplosion:
@@ -117,31 +112,19 @@ func New(id string, x, y float64, kind Kind) *Hazard {
 	}
 }
 
-// NewPistol builds a moving player pistol projectile.
-func NewPistol(id string, x, y float64, direction domworld.Direction) *Hazard {
-	h := New(id, x, y, KindPistol)
-	h.TTL = PistolTTL
-	h.BurningTicks = 0
-	h.HitRadius = PistolHitRadius
-	h.Direction = direction
-	h.HitsPlayers = true
-	return h
-}
-
-// NewFireball builds a moving player fireball.
-func NewFireball(id string, x, y float64, direction domworld.Direction) *Hazard {
-	h := New(id, x, y, KindFireball)
-	h.TTL = FireballTTL
-	h.BurningTicks = 0
-	h.Direction = direction
-	h.HitsPlayers = true
-	return h
-}
-
 // NewGrenade builds a moving player grenade that only deals damage on landing.
 func NewGrenade(id string, x, y float64, direction domworld.Direction) *Hazard {
 	h := New(id, x, y, KindGrenade)
 	h.TTL = GrenadeTTL
+	h.BurningTicks = 0
+	h.Direction = direction
+	return h
+}
+
+// NewMolotov builds a moving player molotov that only deals damage on landing.
+func NewMolotov(id string, x, y float64, direction domworld.Direction) *Hazard {
+	h := New(id, x, y, KindMolotov)
+	h.TTL = MolotovTTL
 	h.BurningTicks = 0
 	h.Direction = direction
 	return h

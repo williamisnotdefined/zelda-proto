@@ -231,8 +231,8 @@ func TestHazardWireOmitsZeroTintAndIncludesNonZeroTint(t *testing.T) {
 		t.Fatalf("expected tint field on tinted hazard wire object, got %v ok=%v", v, ok)
 	}
 
-	fireball := hazardObj(hazard.Snapshot{ID: "h3", Kind: hazard.KindFireball, Direction: domworld.DirectionLeft})
-	if v, ok := fireball.Lookup("direction"); !ok || v != string(domworld.DirectionLeft) {
-		t.Fatalf("expected direction field on fireball wire object, got %v ok=%v", v, ok)
+	molotov := hazardObj(hazard.Snapshot{ID: "h3", Kind: hazard.KindMolotov, Direction: domworld.DirectionLeft})
+	if v, ok := molotov.Lookup("direction"); !ok || v != string(domworld.DirectionLeft) {
+		t.Fatalf("expected direction field on molotov wire object, got %v ok=%v", v, ok)
 	}
 }

@@ -34,7 +34,6 @@ function createPlayer(overrides: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
     toastyCount: 0,
     lastProcessedInputSeq: 0,
     statusEffects: {},
-    equippedWeapon: 'pistol',
     ...overrides,
   };
 }

@@ -15,8 +15,8 @@ export interface GameUiSink {
   setPullCooldownEndsAt(time: number | null): void;
   setVenomCooldownEndsAt(time: number | null): void;
   setDashCooldownEndsAt(time: number | null): void;
-  setFireballCooldownEndsAt(time: number | null): void;
   setGrenadeCooldownEndsAt(time: number | null): void;
+  setMolotovCooldownEndsAt(time: number | null): void;
   setLandmineCooldownEndsAt(time: number | null): void;
   setBoss(boss: BossData | null): void;
   setLeaderboard(players: PlayerLeaderboardEntry[]): void;

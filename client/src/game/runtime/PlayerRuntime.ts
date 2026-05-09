@@ -39,10 +39,10 @@ export class PlayerRuntime {
         this.ui.setDashCooldownEndsAt(time);
       },
       (time) => {
-        this.ui.setFireballCooldownEndsAt(time);
+        this.ui.setGrenadeCooldownEndsAt(time);
       },
       (time) => {
-        this.ui.setGrenadeCooldownEndsAt(time);
+        this.ui.setMolotovCooldownEndsAt(time);
       },
       (time) => {
         this.ui.setLandmineCooldownEndsAt(time);
@@ -181,7 +181,6 @@ export class PlayerRuntime {
         maxHp: player.maxHp,
         state: player.state,
         direction: player.direction,
-        equippedWeapon: player.equippedWeapon,
       });
       entity.syncWaveIndicator(waveIndicator);
       if (damageTaken > 0) {

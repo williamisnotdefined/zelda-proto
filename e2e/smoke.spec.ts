@@ -123,7 +123,7 @@ test.describe('Go server end-to-end smoke', () => {
     ).toBeGreaterThan(0);
   });
 
-  test('player moves, changes direction, attacks; enemies chase; player dies and respawns', async ({
+  test('player moves, changes direction; enemies chase; player dies and respawns', async ({
     page,
   }) => {
     // Per-snapshot tracking we accumulate from the WebSocket frames.
@@ -292,22 +292,6 @@ test.describe('Go server end-to-end smoke', () => {
         .map((p) => p.direction)
         .join(',')}`
     ).toBe(true);
-
-    // === ATTACK ===
-    await page.keyboard.down('Space');
-    await page.waitForTimeout(120);
-    await page.keyboard.up('Space');
-    await page.waitForTimeout(400);
-    await page.keyboard.down('Space');
-    await page.waitForTimeout(120);
-    await page.keyboard.up('Space');
-    await page.waitForTimeout(400);
-    me = selfFrames();
-    const attacked = me.some((p) => p.state === 'attacking');
-    expect(
-      attacked,
-      `player should keep pistol fire as a non-melee action, states=${[...new Set(me.map((p) => p.state))]}`
-    ).toBe(false);
 
     // === ENEMIES MOVING ===
     expect(enemyMovementCount, 'enemies should move').toBeGreaterThan(5);

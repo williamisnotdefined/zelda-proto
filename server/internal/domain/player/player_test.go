@@ -24,9 +24,6 @@ func TestNewPlayerDefaults(t *testing.T) {
 	if p.LastProcessedInputSeq != -1 {
 		t.Fatalf("expected lastProcessedInputSeq=-1, got %d", p.LastProcessedInputSeq)
 	}
-	if p.EquippedWeapon != WeaponKindPistol {
-		t.Fatalf("expected default equipped weapon %q, got %q", WeaponKindPistol, p.EquippedWeapon)
-	}
 }
 
 func TestApplyInputIgnoresOutOfOrderAndNegative(t *testing.T) {
@@ -66,64 +63,6 @@ func TestUpdateMovesAndUpdatesDirection(t *testing.T) {
 	}
 	if p.State != StateMoving {
 		t.Fatalf("expected moving, got %s", p.State)
-	}
-}
-
-func TestUpdateAttackQueuesPistolCastAndConsumesCooldown(t *testing.T) {
-	t.Parallel()
-
-	p := New("p1", "Link", 0, 0)
-	p.ApplyInput(Input{Seq: 1, Right: true, Attack: true})
-	p.Update(10*time.Millisecond, 1)
-	if p.State != StateMoving {
-		t.Fatalf("expected moving while firing, got %s", p.State)
-	}
-
-	cx, cy, direction, castID, ok := p.ConsumePistolCast()
-	if !ok {
-		t.Fatal("expected queued pistol cast")
-	}
-	if castID == 0 {
-		t.Fatal("expected cast id for pistol shot")
-	}
-	if cx != 0 || cy != 0 {
-		t.Fatalf("expected pistol cast at player position, got (%.1f, %.1f)", cx, cy)
-	}
-	if direction != world.DirectionRight {
-		t.Fatalf("expected pistol direction right, got %s", direction)
-	}
-
-	p.ApplyInput(Input{Seq: 2, Right: true, Attack: true})
-	p.Update(490*time.Millisecond, 1)
-	if p.AttackCooldown <= 0 {
-		t.Fatal("expected cooldown to be active")
-	}
-	if _, _, _, _, ok := p.ConsumePistolCast(); ok {
-		t.Fatal("expected cooldown to block pistol cast before 500ms")
-	}
-
-	p.Update(10*time.Millisecond, 1)
-	if _, _, _, secondCastID, ok := p.ConsumePistolCast(); !ok {
-		t.Fatal("expected second pistol cast after 500ms")
-	} else if secondCastID == castID {
-		t.Fatal("expected a fresh cast id for the second pistol shot")
-	}
-
-	p.ApplyInput(Input{Seq: 3})
-	p.Update(50*time.Millisecond, 1)
-	if p.State != StateIdle {
-		t.Fatalf("expected idle after firing stops, got %s", p.State)
-	}
-}
-
-func TestAttackDoesNotReduceMovementSpeed(t *testing.T) {
-	t.Parallel()
-
-	p := New("p1", "Link", 0, 0)
-	p.ApplyInput(Input{Seq: 1, Right: true, Attack: true})
-	p.Update(time.Second, 1)
-	if math.Abs(p.X-Speed) > 1e-9 {
-		t.Fatalf("expected attack movement speed to stay at %v, got %v", Speed, p.X)
 	}
 }
 
@@ -366,36 +305,36 @@ func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
-func TestFireballTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+func TestMolotovTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	t.Parallel()
 
 	p := New("p1", "Link", 10, 20)
-	p.ApplyInput(Input{Seq: 1, Left: true, Fireball: true})
+	p.ApplyInput(Input{Seq: 1, Left: true, Molotov: true})
 	p.Update(20*time.Millisecond, 1)
-	if p.FireballCooldown != FireballCooldown {
-		t.Fatalf("expected fireball cooldown %s, got %s", FireballCooldown, p.FireballCooldown)
+	if p.MolotovCooldown != MolotovCooldown {
+		t.Fatalf("expected molotov cooldown %s, got %s", MolotovCooldown, p.MolotovCooldown)
 	}
-	cx, cy, direction, castID, ok := p.ConsumeFireballCast()
+	cx, cy, direction, castID, ok := p.ConsumeMolotovCast()
 	if !ok {
-		t.Fatal("expected queued fireball cast")
+		t.Fatal("expected queued molotov cast")
 	}
 	if castID == 0 {
-		t.Fatal("expected cast id for fireball")
+		t.Fatal("expected cast id for molotov")
 	}
 	if cx != 10 || cy != 20 {
-		t.Fatalf("expected fireball start at player position, got (%.1f, %.1f)", cx, cy)
+		t.Fatalf("expected molotov start at player position, got (%.1f, %.1f)", cx, cy)
 	}
 	if direction != world.DirectionLeft {
-		t.Fatalf("expected fireball direction left, got %s", direction)
+		t.Fatalf("expected molotov direction left, got %s", direction)
 	}
-	if _, _, _, _, ok := p.ConsumeFireballCast(); ok {
-		t.Fatal("expected fireball cast to be consumed once")
+	if _, _, _, _, ok := p.ConsumeMolotovCast(); ok {
+		t.Fatal("expected molotov cast to be consumed once")
 	}
 
-	p.ApplyInput(Input{Seq: 2, Left: true, Fireball: true})
+	p.ApplyInput(Input{Seq: 2, Left: true, Molotov: true})
 	p.Update(10*time.Millisecond, 1)
-	if _, _, _, _, ok := p.ConsumeFireballCast(); ok {
-		t.Fatal("expected cooldown to block second fireball cast")
+	if _, _, _, _, ok := p.ConsumeMolotovCast(); ok {
+		t.Fatal("expected cooldown to block second molotov cast")
 	}
 }
 
@@ -578,7 +517,7 @@ func TestSuspendForDisconnectClearsTransientState(t *testing.T) {
 	t.Parallel()
 
 	p := New("p1", "Link", 0, 0)
-	p.ApplyInput(Input{Seq: 5, Right: true, Attack: true})
+	p.ApplyInput(Input{Seq: 5, Right: true, Grenade: true})
 	p.Update(10*time.Millisecond, 1)
 	p.SuspendForDisconnect()
 	if p.LastProcessedInputSeq != -1 {
@@ -682,9 +621,6 @@ func TestSnapshotProjectsStatusEffects(t *testing.T) {
 	}
 	if snap.StatusEffects[StatusBurning].TicksRemaining != BurningTicks {
 		t.Fatal("burning ticks mismatch")
-	}
-	if snap.EquippedWeapon != WeaponKindPistol {
-		t.Fatalf("expected snapshot equipped weapon %q, got %q", WeaponKindPistol, snap.EquippedWeapon)
 	}
 }
 

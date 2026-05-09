@@ -14,14 +14,13 @@ export interface InputState {
   down: boolean;
   left: boolean;
   right: boolean;
-  attack: boolean;
   wave: boolean;
   numb: boolean;
   pull: boolean;
   venom: boolean;
   dash: boolean;
-  fireball: boolean;
   grenade: boolean;
+  molotov: boolean;
   landmine: boolean;
 }
 

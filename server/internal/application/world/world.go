@@ -1116,20 +1116,8 @@ func (w *World) tickHazards(dt time.Duration) {
 	// Per-tick dedup so overlapping purple clusters only land once per actor.
 	purpleHitThisTick := make(map[string]struct{})
 	for id, h := range w.hazards {
-		startX, startY := h.X, h.Y
 		expired := h.Tick(dt)
-		if h.Kind == hazard.KindPistol || h.Kind == hazard.KindFireball {
-			w.tickFireball(h, startX, startY, playerHalfDiag)
-			if expired {
-				w.finishHazardCast(h.SourcePlayerID, h.SourceCastID)
-				delete(w.hazards, id)
-				w.hazardIndex.Remove(id)
-				continue
-			}
-			w.hazardIndex.Upsert(id, h.X, h.Y)
-			continue
-		}
-		if h.Kind == hazard.KindGrenade {
+		if h.Kind == hazard.KindGrenade || h.Kind == hazard.KindMolotov {
 			if expired {
 				delete(w.hazards, id)
 				w.hazardIndex.Remove(id)
@@ -1319,115 +1307,6 @@ func (w *World) tickHazards(dt time.Duration) {
 		}
 	}
 }
-
-func (w *World) tickFireball(h *hazard.Hazard, startX, startY, playerHalfDiag float64) {
-	if h.HitsPlayers {
-		playerDamage := h.Damage
-		if h.PlayerDamage > 0 {
-			playerDamage = h.PlayerDamage
-		}
-		for _, p := range w.players {
-			if p.State == player.StateDead || w.isProtected(p) {
-				continue
-			}
-			actorKey := playerActorKey(p.ID)
-			if !h.MarkHit(actorKey) {
-				continue
-			}
-			hitR := h.HitRadius + playerHalfDiag
-			if !physics.SegmentCircleOverlap(startX, startY, h.X, h.Y, physics.Circle{X: p.X, Y: p.Y, R: hitR}) {
-				delete(h.HitActorKeys, actorKey)
-				continue
-			}
-			wasAlive := p.State != player.StateDead
-			p.TakeDamage(playerDamage)
-			if wasAlive && p.State == player.StateDead {
-				w.awardHazardPlayerKill(h.SourcePlayerID)
-			}
-		}
-	}
-
-	for _, e := range w.enemies {
-		if e.State == enemy.StateDead {
-			continue
-		}
-		actorKey := enemyActorKey(e.ID)
-		if !h.MarkHit(actorKey) {
-			continue
-		}
-		hitR := h.HitRadius + e.CollisionRadius()
-		if !physics.SegmentCircleOverlap(startX, startY, h.X, h.Y, physics.Circle{X: e.X, Y: e.Y, R: hitR}) {
-			delete(h.HitActorKeys, actorKey)
-			continue
-		}
-		wasAlive := e.State != enemy.StateDead
-		w.applyPlayerDamageToEnemy(h.SourcePlayerID, e, h.Damage)
-		if wasAlive && e.State == enemy.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-
-	for _, d := range w.dragons {
-		if d.State == boss.StateDead {
-			continue
-		}
-		actorKey := bossActorKey(d.ID)
-		if !h.MarkHit(actorKey) {
-			continue
-		}
-		hitR := h.HitRadius + d.ContactRadius()
-		if !physics.SegmentCircleOverlap(startX, startY, h.X, h.Y, physics.Circle{X: d.X, Y: d.Y, R: hitR}) {
-			delete(h.HitActorKeys, actorKey)
-			continue
-		}
-		wasAlive := d.State != boss.StateDead
-		w.applyPlayerDamageToDragon(h.SourcePlayerID, d, h.Damage)
-		if wasAlive && d.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-
-	for _, g := range w.gelehks {
-		if g.State == boss.StateDead {
-			continue
-		}
-		actorKey := bossActorKey(g.ID)
-		if !h.MarkHit(actorKey) {
-			continue
-		}
-		hitR := h.HitRadius + g.ContactRadius()
-		if !physics.SegmentCircleOverlap(startX, startY, h.X, h.Y, physics.Circle{X: g.X, Y: g.Y, R: hitR}) {
-			delete(h.HitActorKeys, actorKey)
-			continue
-		}
-		wasAlive := g.State != boss.StateDead
-		w.applyPlayerDamageToGelehk(h.SourcePlayerID, g, h.Damage)
-		if wasAlive && g.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-
-	for _, v := range w.vanessas {
-		if v.State == boss.StateDead {
-			continue
-		}
-		actorKey := bossActorKey(v.ID)
-		if !h.MarkHit(actorKey) {
-			continue
-		}
-		hitR := h.HitRadius + v.ContactRadius()
-		if !physics.SegmentCircleOverlap(startX, startY, h.X, h.Y, physics.Circle{X: v.X, Y: v.Y, R: hitR}) {
-			delete(h.HitActorKeys, actorKey)
-			continue
-		}
-		wasAlive := v.State != boss.StateDead
-		w.applyPlayerDamageToVanessa(h.SourcePlayerID, v, h.Damage)
-		if wasAlive && v.State == boss.StateDead {
-			w.awardHazardMonsterKill(h.SourcePlayerID, h.SourceCastID)
-		}
-	}
-}
-
 func (w *World) queueFireLine(x, y, dirX, dirY float64, kind hazard.Kind, tint uint32) {
 	dx := int(sign(dirX))
 	dy := int(sign(dirY))
@@ -1467,69 +1346,6 @@ func (w *World) spawnDashTrail(
 	}
 }
 
-func (w *World) spawnPlayerPistol(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	startX += dirX * (player.Width / 2)
-	startY += dirY * (player.Height / 2)
-	id := w.cfg.IDs.NewID(string(hazard.KindPistol))
-	h := hazard.NewPistol(id, startX, startY, direction)
-	h.SourcePlayerID = sourcePlayerID
-	h.SourceCastID = sourceCastID
-	h.Damage = player.PistolDamage
-	h.PlayerDamage = player.PistolPvPDamage
-	h.Speed = player.AttackProjectileSpeed
-	h.RemainingDistance = player.AttackProjectileRange
-	h.HitsAllActors = true
-	h.HitsPlayers = hitsPlayers
-	h.IgnoreActor(playerActorKey(sourcePlayerID))
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
-func (w *World) spawnPlayerFireball(
-	sourcePlayerID string,
-	sourceCastID uint64,
-	startX,
-	startY float64,
-	direction domworld.Direction,
-	hitsPlayers bool,
-) {
-	if w.cfg.IDs == nil {
-		return
-	}
-	dirX, dirY := dashDirectionVector(direction)
-	if dirX == 0 && dirY == 0 {
-		return
-	}
-	startX += dirX * (player.Width / 2)
-	startY += dirY * (player.Height / 2)
-	id := w.cfg.IDs.NewID(string(hazard.KindFireball))
-	h := hazard.NewFireball(id, startX, startY, direction)
-	h.SourcePlayerID = sourcePlayerID
-	h.SourceCastID = sourceCastID
-	h.Damage = player.FireballDamage
-	h.Speed = player.FireballSpeed
-	h.RemainingDistance = player.DashDistance
-	h.HitsAllActors = true
-	h.HitsPlayers = hitsPlayers
-	h.IgnoreActor(playerActorKey(sourcePlayerID))
-	w.hazards[id] = h
-	w.hazardIndex.Upsert(id, h.X, h.Y)
-}
-
 func (w *World) spawnPlayerGrenade(
 	sourcePlayerID string,
 	sourceCastID uint64,
@@ -1550,6 +1366,34 @@ func (w *World) spawnPlayerGrenade(
 	h.SourcePlayerID = sourcePlayerID
 	h.SourceCastID = sourceCastID
 	h.Damage = player.GrenadeDamage
+	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
+	h.RemainingDistance = player.GrenadeDistance
+	h.HitsPlayers = hitsPlayers
+	h.IgnoreActor(playerActorKey(sourcePlayerID))
+	w.hazards[id] = h
+	w.hazardIndex.Upsert(id, h.X, h.Y)
+}
+
+func (w *World) spawnPlayerMolotov(
+	sourcePlayerID string,
+	sourceCastID uint64,
+	startX,
+	startY float64,
+	direction domworld.Direction,
+	hitsPlayers bool,
+) {
+	if w.cfg.IDs == nil {
+		return
+	}
+	dirX, dirY := dashDirectionVector(direction)
+	if dirX == 0 && dirY == 0 {
+		return
+	}
+	id := w.cfg.IDs.NewID(string(hazard.KindMolotov))
+	h := hazard.NewMolotov(id, startX, startY, direction)
+	h.SourcePlayerID = sourcePlayerID
+	h.SourceCastID = sourceCastID
+	h.Damage = player.MolotovDamage
 	h.Speed = player.GrenadeDistance / player.GrenadeFlightDuration.Seconds()
 	h.RemainingDistance = player.GrenadeDistance
 	h.HitsPlayers = hitsPlayers
@@ -1727,16 +1571,9 @@ func (w *World) tickPortals() {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerPistol → PlayerWave → PlayerNumb → PlayerPull → PlayerLandmine →
-	// PlayerGrenade → PlayerFireball → PlayerDash → ContactDamage. Each system is
+	// PlayerWave → PlayerNumb → PlayerPull → PlayerLandmine → PlayerGrenade →
+	// PlayerMolotov → PlayerDash → ContactDamage. Each system is
 	// stateless and reads/mutates only the slices it needs.
-	(appcombat.PlayerPistolSystem{}).Resolve(
-		w.players,
-		w.safeZone(),
-		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerPistol(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
-		},
-	)
 	if (appcombat.PlayerWaveSystem{}).Resolve(
 		w.players,
 		w.enemies,
@@ -1794,11 +1631,11 @@ func (w *World) resolveCombat() {
 			w.spawnPlayerGrenade(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
 		},
 	)
-	(appcombat.PlayerFireballSystem{}).Resolve(
+	(appcombat.PlayerMolotovSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
 		func(sourcePlayerID string, sourceCastID uint64, startX, startY float64, direction domworld.Direction, hitsPlayers bool) {
-			w.spawnPlayerFireball(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
+			w.spawnPlayerMolotov(sourcePlayerID, sourceCastID, startX, startY, direction, hitsPlayers)
 		},
 	)
 	if (appcombat.PlayerDashSystem{}).Resolve(

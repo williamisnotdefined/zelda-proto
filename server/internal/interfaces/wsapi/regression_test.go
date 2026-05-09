@@ -8,9 +8,9 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/protocol"
 )
 
-// TestPlayerActuallyMovesAndAttacks is a regression guard for the migration
-// bug where the player did not move, change direction, or attack on Go server.
-func TestPlayerActuallyMovesAndAttacks(t *testing.T) {
+// TestPlayerActuallyMovesAndCasts is a regression guard for the migration
+// bug where the player did not move, change direction, or cast on Go server.
+func TestPlayerActuallyMovesAndCasts(t *testing.T) {
 	t.Parallel()
 	d, mgr, conn := newDispatcher(t)
 
@@ -41,31 +41,31 @@ func TestPlayerActuallyMovesAndAttacks(t *testing.T) {
 		t.Fatalf("expected Y unchanged, got %.1f vs %.1f", p.Y, startY)
 	}
 
-	// Press attack — should spawn a pistol shot without entering a melee state.
-	if err := d.HandleInput("c1", protocol.InputMessage{Seq: 2, Attack: true}); err != nil {
+	// Press molotov — should spawn a hazard without entering an attacking state.
+	if err := d.HandleInput("c1", protocol.InputMessage{Seq: 2, Molotov: true}); err != nil {
 		t.Fatal(err)
 	}
 	d.Sim(16 * time.Millisecond)
 	p = w.Players()[playerID]
 	if string(p.State) == "attacking" {
-		t.Fatalf("expected pistol fire to avoid attacking state, got %q", p.State)
+		t.Fatalf("expected molotov cast to avoid attacking state, got %q", p.State)
 	}
-	foundPistol := false
+	foundMolotov := false
 	for _, h := range w.Snapshot().Hazards {
-		if string(h.Kind) == "pistol" {
-			foundPistol = true
+		if string(h.Kind) == "molotov" {
+			foundMolotov = true
 			break
 		}
 	}
-	if !foundPistol {
-		t.Fatal("expected pistol hazard after Attack input")
+	if !foundMolotov {
+		t.Fatal("expected molotov hazard after Molotov input")
 	}
 
 	// Direction change: press up.
 	if err := d.HandleInput("c1", protocol.InputMessage{Seq: 3, Up: true}); err != nil {
 		t.Fatal(err)
 	}
-	// Wait out the attack state (~300ms).
+	// Let the world advance a bit more before checking the next direction change.
 	for i := 0; i < 25; i++ {
 		d.Sim(16 * time.Millisecond)
 	}

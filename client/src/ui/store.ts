@@ -6,7 +6,6 @@ import type {
   EnemyState,
   PlayerLeaderboardEntry,
   PlayerState,
-  WeaponKind,
 } from '@/shared';
 import { create } from 'zustand';
 import { readStoredConnectionContext } from '../network/sessionContext';
@@ -22,7 +21,6 @@ export interface PlayerData {
   maxHp: number;
   state: PlayerState;
   direction: Direction;
-  equippedWeapon: WeaponKind;
 }
 
 export interface BlobData {
@@ -60,8 +58,8 @@ export interface GameStore {
   pullCooldownEndsAt: number | null;
   venomCooldownEndsAt: number | null;
   dashCooldownEndsAt: number | null;
-  fireballCooldownEndsAt: number | null;
   grenadeCooldownEndsAt: number | null;
+  molotovCooldownEndsAt: number | null;
   landmineCooldownEndsAt: number | null;
   boss: BossData | null;
   connected: boolean;
@@ -79,8 +77,8 @@ export interface GameStore {
   setPullCooldownEndsAt: (time: number | null) => void;
   setVenomCooldownEndsAt: (time: number | null) => void;
   setDashCooldownEndsAt: (time: number | null) => void;
-  setFireballCooldownEndsAt: (time: number | null) => void;
   setGrenadeCooldownEndsAt: (time: number | null) => void;
+  setMolotovCooldownEndsAt: (time: number | null) => void;
   setLandmineCooldownEndsAt: (time: number | null) => void;
   setBoss: (b: BossData | null) => void;
   setConnected: (c: boolean) => void;
@@ -102,8 +100,8 @@ export const useGameStore = create<GameStore>((set) => ({
   pullCooldownEndsAt: null,
   venomCooldownEndsAt: null,
   dashCooldownEndsAt: null,
-  fireballCooldownEndsAt: null,
   grenadeCooldownEndsAt: null,
+  molotovCooldownEndsAt: null,
   landmineCooldownEndsAt: null,
   boss: null,
   connected: false,
@@ -121,8 +119,8 @@ export const useGameStore = create<GameStore>((set) => ({
   setPullCooldownEndsAt: (pullCooldownEndsAt) => set({ pullCooldownEndsAt }),
   setVenomCooldownEndsAt: (venomCooldownEndsAt) => set({ venomCooldownEndsAt }),
   setDashCooldownEndsAt: (dashCooldownEndsAt) => set({ dashCooldownEndsAt }),
-  setFireballCooldownEndsAt: (fireballCooldownEndsAt) => set({ fireballCooldownEndsAt }),
   setGrenadeCooldownEndsAt: (grenadeCooldownEndsAt) => set({ grenadeCooldownEndsAt }),
+  setMolotovCooldownEndsAt: (molotovCooldownEndsAt) => set({ molotovCooldownEndsAt }),
   setLandmineCooldownEndsAt: (landmineCooldownEndsAt) => set({ landmineCooldownEndsAt }),
   setBoss: (b) => set({ boss: b }),
   setConnected: (c) => set({ connected: c }),
