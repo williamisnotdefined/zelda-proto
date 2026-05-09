@@ -378,10 +378,10 @@ export class LocalInputController {
 
   private bindKeys(): void {
     this.cursors = this.scene.input.keyboard!.createCursorKeys();
-    this.waveKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.R, false);
-    this.numbKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.T, false);
-    this.pullKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Y, false);
-    this.venomKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.U, false);
+    this.waveKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ONE, false);
+    this.numbKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.TWO, false);
+    this.pullKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.THREE, false);
+    this.venomKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR, false);
     this.attackKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false);
     this.fireballKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E, false);
     this.grenadeKey = this.scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q, false);

@@ -1,3 +1,4 @@
+import classNames from 'classnames';
 import { useEffect, useState } from 'react';
 import {
   PLAYER_DASH_COOLDOWN,
@@ -16,6 +17,64 @@ import { gameConnection } from '../network/gameConnection';
 import { Leaderboard } from './Leaderboard';
 import { NicknameModal } from './NicknameModal';
 import { useGameStore } from './store';
+
+interface CooldownMeterProps {
+  label: string;
+  ready: boolean;
+  remainingMs: number;
+  progress: number;
+  widthClassName: string;
+  valueReadyClassName: string;
+  valueCooldownClassName: string;
+  trackClassName: string;
+  fillReadyClassName: string;
+  fillCooldownClassName: string;
+  glowClassName?: string;
+}
+
+function CooldownMeter({
+  label,
+  ready,
+  remainingMs,
+  progress,
+  widthClassName,
+  valueReadyClassName,
+  valueCooldownClassName,
+  trackClassName,
+  fillReadyClassName,
+  fillCooldownClassName,
+  glowClassName,
+}: CooldownMeterProps) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-[11px] opacity-[0.92]">
+        <span>{label}</span>
+        <span
+          className={classNames({
+            [valueReadyClassName]: ready,
+            [valueCooldownClassName]: !ready,
+          })}
+        >
+          {ready ? 'READY' : `${(remainingMs / 1000).toFixed(1)}s`}
+        </span>
+      </div>
+      <div className={classNames(widthClassName, trackClassName, 'mb-2 h-2.5 overflow-hidden rounded-full border')}>
+        <div
+          className={classNames(
+            'h-full',
+            {
+              [fillReadyClassName]: ready,
+              [fillCooldownClassName]: !ready,
+              'transition-[width,box-shadow] duration-75 ease-linear': ready,
+            },
+            ready && glowClassName
+          )}
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function HUD() {
   const localPlayer = useGameStore((s) => s.localPlayer);
@@ -130,79 +189,149 @@ export function HUD() {
   const equippedWeaponDefinition = localPlayer
     ? weaponDefinitions[localPlayer.equippedWeapon]
     : null;
+  const hpRatio = localPlayer ? localPlayer.hp / localPlayer.maxHp : 0;
+
+  const weaponAbilityMeters = [
+    {
+      label: 'Dash',
+      ready: dashReady,
+      remainingMs: dashCooldownRemainingMs,
+      progress: dashCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#8df7ff]',
+      valueCooldownClassName: 'text-[#d3fbff]',
+      trackClassName:
+        'bg-[rgba(14,24,34,0.92)] border-[rgba(114,224,255,0.28)] shadow-[inset_0_0_12px_rgba(117,226,255,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#66d9ff_0%,#b8f5ff_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#2f7db8_0%,#5ad7ff_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(127,238,255,0.45)]',
+    },
+    {
+      label: 'Grenade (Q)',
+      ready: grenadeReady,
+      remainingMs: grenadeCooldownRemainingMs,
+      progress: grenadeCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#c3ef8c]',
+      valueCooldownClassName: 'text-[#ebffd0]',
+      trackClassName:
+        'bg-[rgba(18,31,14,0.92)] border-[rgba(177,232,108,0.28)] shadow-[inset_0_0_12px_rgba(132,209,81,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#8acb4d_0%,#d9f7a1_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#4e7b2a_0%,#91c654_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(178,234,119,0.45)]',
+    },
+    {
+      label: 'Landmine (W)',
+      ready: landmineReady,
+      remainingMs: landmineCooldownRemainingMs,
+      progress: landmineCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#f6e38e]',
+      valueCooldownClassName: 'text-[#fff1bf]',
+      trackClassName:
+        'bg-[rgba(34,28,10,0.92)] border-[rgba(235,213,121,0.28)] shadow-[inset_0_0_12px_rgba(232,204,96,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#d5c25b_0%,#fff2a6_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#8f7b1f_0%,#d0b13a_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(255,232,139,0.45)]',
+    },
+    {
+      label: 'Fireball (E)',
+      ready: fireballReady,
+      remainingMs: fireballCooldownRemainingMs,
+      progress: fireballCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#ffbd84]',
+      valueCooldownClassName: 'text-[#ffe3c8]',
+      trackClassName:
+        'bg-[rgba(38,20,10,0.92)] border-[rgba(255,170,100,0.28)] shadow-[inset_0_0_12px_rgba(255,149,72,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#ff9838_0%,#ffd084_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#c7561d_0%,#ff8e3c_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(255,164,88,0.5)]',
+    },
+  ];
+
+  const waveAbilityMeters = [
+    {
+      label: 'Wave (1)',
+      ready: waveReady,
+      remainingMs: waveCooldownRemainingMs,
+      progress: waveCooldownProgress,
+      widthClassName: 'w-[180px]',
+      valueReadyClassName: 'text-[#ffb7ff]',
+      valueCooldownClassName: 'text-[#ffd9ff]',
+      trackClassName:
+        'bg-[rgba(26,16,36,0.92)] border-[rgba(255,164,245,0.28)] shadow-[inset_0_0_12px_rgba(255,135,240,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#f68cff_0%,#ffb7ff_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#8b43d9_0%,#d668ff_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(255,166,245,0.5)]',
+    },
+    {
+      label: 'Numb (2)',
+      ready: numbReady,
+      remainingMs: numbCooldownRemainingMs,
+      progress: numbCooldownProgress,
+      widthClassName: 'w-[180px]',
+      valueReadyClassName: 'text-[#d7dde4]',
+      valueCooldownClassName: 'text-[#f2f5f8]',
+      trackClassName:
+        'bg-[rgba(19,22,27,0.92)] border-[rgba(178,186,196,0.28)] shadow-[inset_0_0_12px_rgba(150,160,173,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#aab3bc_0%,#e1e6eb_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#5f6974_0%,#98a2ad_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(207,216,225,0.45)]',
+    },
+    {
+      label: 'Pull (3)',
+      ready: pullReady,
+      remainingMs: pullCooldownRemainingMs,
+      progress: pullCooldownProgress,
+      widthClassName: 'w-[180px]',
+      valueReadyClassName: 'text-[#ff9f9f]',
+      valueCooldownClassName: 'text-[#ffd3d3]',
+      trackClassName:
+        'bg-[rgba(40,14,14,0.92)] border-[rgba(255,118,118,0.28)] shadow-[inset_0_0_12px_rgba(255,110,110,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#ff5f5f_0%,#ff9f9f_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#b82f2f_0%,#ff6767_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(255,120,120,0.45)]',
+    },
+    {
+      label: 'Venom (4)',
+      ready: venomReady,
+      remainingMs: venomCooldownRemainingMs,
+      progress: venomCooldownProgress,
+      widthClassName: 'w-[180px]',
+      valueReadyClassName: 'text-[#9df6a4]',
+      valueCooldownClassName: 'text-[#d4ffd8]',
+      trackClassName:
+        'bg-[rgba(12,32,15,0.92)] border-[rgba(112,234,122,0.28)] shadow-[inset_0_0_12px_rgba(90,210,100,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#4fd26a_0%,#a3f7ae_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#287a39_0%,#5fd375_100%)]',
+      glowClassName: 'shadow-[0_0_12px_rgba(122,241,133,0.45)]',
+    },
+  ];
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        fontFamily: 'monospace',
-        color: '#fff',
-      }}
-    >
-      {/* Nickname modal */}
+    <div className="pointer-events-none absolute inset-0 font-mono text-white">
       <NicknameModal />
 
-      {/* Top-right status + music button */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: 6,
-        }}
-      >
+      <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5">
         <button
           onClick={toggleMusicMute}
           aria-label={musicMuted ? 'Ativar musica' : 'Mutar musica'}
           title={musicMuted ? 'Ativar musica' : 'Mutar musica'}
-          style={{
-            pointerEvents: 'auto',
-            width: 30,
-            height: 30,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            background: 'rgba(0, 0, 0, 0.55)',
-            border: '1px solid #666',
-            color: '#fff',
-            borderRadius: 3,
-          }}
+          className="pointer-events-auto inline-flex h-[30px] w-[30px] cursor-pointer items-center justify-center rounded-[3px] border border-[#666] bg-[rgba(0,0,0,0.55)] text-white"
         >
-          {musicMuted ? (
-            <VolumeX size={16} strokeWidth={2} />
-          ) : (
-            <Volume2 size={16} strokeWidth={2} />
-          )}
+          {musicMuted ? <VolumeX size={16} strokeWidth={2} /> : <Volume2 size={16} strokeWidth={2} />}
         </button>
 
-        <div style={{ fontSize: '11px', opacity: 0.7, textAlign: 'right' }}>
+        <div className="text-right text-[11px] opacity-70">
           {connected ? (
             `Online (${playerCount} players)`
           ) : connectionError ? (
-            <div style={{ color: '#ff6666', opacity: 1 }}>
+            <div className="text-[#ff6666] opacity-100">
               <div>❌ {connectionError}</div>
               <button
                 onClick={handleRetry}
-                style={{
-                  marginTop: 4,
-                  padding: '4px 8px',
-                  fontSize: '10px',
-                  cursor: 'pointer',
-                  pointerEvents: 'auto',
-                  background: '#444',
-                  border: '1px solid #666',
-                  color: '#fff',
-                  borderRadius: 3,
-                }}
+                className="pointer-events-auto mt-1 cursor-pointer rounded-[3px] border border-[#666] bg-[#444] px-2 py-1 text-[10px] text-white"
               >
                 Retry Connection
               </button>
@@ -211,7 +340,7 @@ export function HUD() {
             <div>
               Connecting...
               {lastConnectionAttempt && (
-                <div style={{ fontSize: '9px', marginTop: 2 }}>
+                <div className="mt-0.5 text-[9px]">
                   Last attempt: {new Date(lastConnectionAttempt).toLocaleTimeString()}
                 </div>
               )}
@@ -220,458 +349,72 @@ export function HUD() {
         </div>
       </div>
 
-      {/* Player HP */}
       {localPlayer && (
-        <div style={{ position: 'absolute', top: 16, left: 16 }}>
+        <div className="absolute top-4 left-4">
           {equippedWeaponDefinition && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                width: 200,
-                marginBottom: 12,
-                padding: '10px 12px',
-                background: 'rgba(10, 12, 18, 0.78)',
-                border: '1px solid rgba(255, 255, 255, 0.14)',
-                borderRadius: 8,
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.24)',
-              }}
-            >
-              <div style={{ fontSize: '10px', letterSpacing: '0.08em', opacity: 0.68 }}>ARMA</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="mb-3 flex w-[200px] flex-col gap-2 rounded-lg border border-[rgba(255,255,255,0.14)] bg-[rgba(10,12,18,0.78)] px-3 py-2.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)]">
+              <div className="text-[10px] tracking-[0.08em] opacity-70">ARMA</div>
+              <div className="flex items-center gap-2.5">
                 <img
                   src={equippedWeaponDefinition.iconSrc}
                   alt={equippedWeaponDefinition.label}
                   draggable={false}
-                  style={{
-                    width: 68,
-                    height: 48,
-                    objectFit: 'contain',
-                    imageRendering: 'pixelated',
-                    filter: 'drop-shadow(0 0 10px rgba(255, 190, 116, 0.22))',
-                  }}
+                  className="h-12 w-[68px] object-contain [filter:drop-shadow(0_0_10px_rgba(255,190,116,0.22))] [image-rendering:pixelated]"
                 />
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 'bold' }}>
-                    {equippedWeaponDefinition.label}
-                  </div>
-                  <div style={{ fontSize: '10px', opacity: 0.62 }}>Equipada</div>
+                  <div className="text-[13px] font-bold">{equippedWeaponDefinition.label}</div>
+                  <div className="text-[10px] opacity-60">Equipada</div>
                 </div>
               </div>
             </div>
           )}
-          <div style={{ fontSize: '12px', marginBottom: 4 }}>HP</div>
-          <div
-            style={{
-              width: 200,
-              height: 16,
-              background: '#333',
-              borderRadius: 3,
-              overflow: 'hidden',
-            }}
-          >
+
+          <div className="mb-1 text-xs">HP</div>
+          <div className="h-4 w-[200px] overflow-hidden rounded-[3px] bg-[#333]">
             <div
-              style={{
-                width: `${(localPlayer.hp / localPlayer.maxHp) * 100}%`,
-                height: '100%',
-                background:
-                  localPlayer.hp / localPlayer.maxHp > 0.5
-                    ? '#44ff44'
-                    : localPlayer.hp / localPlayer.maxHp > 0.25
-                      ? '#ffaa00'
-                      : '#ff4444',
-                transition: 'width 0.1s',
-              }}
+              className={classNames('h-full transition-[width] duration-100', {
+                'bg-[#44ff44]': hpRatio > 0.5,
+                'bg-[#ffaa00]': hpRatio <= 0.5 && hpRatio > 0.25,
+                'bg-[#ff4444]': hpRatio <= 0.25,
+              })}
+              style={{ width: `${hpRatio * 100}%` }}
             />
           </div>
-          <div style={{ fontSize: '11px', marginTop: 2, opacity: 0.8 }}>
+          <div className="mt-0.5 text-[11px] opacity-80">
             {localPlayer.hp} / {localPlayer.maxHp}
           </div>
-          <div style={{ marginTop: 10 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Dash</span>
-              <span
-                style={{
-                  color: dashReady ? '#8df7ff' : '#d3fbff',
-                }}
-              >
-                {dashReady ? 'READY' : `${(dashCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
+
+          <div className="mt-2.5">
+            {weaponAbilityMeters.map((ability) => (
+              <CooldownMeter key={ability.label} {...ability} />
+            ))}
+
+            <div className="mt-3.5 mb-2.5 flex items-center gap-2">
+              <div className="text-[10px] tracking-[0.18em] opacity-70">WAVES</div>
+              <div className="h-px flex-1 bg-[linear-gradient(90deg,rgba(255,164,245,0.45)_0%,rgba(255,164,245,0)_100%)]" />
             </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(14, 24, 34, 0.92)',
-                border: '1px solid rgba(114, 224, 255, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(117, 226, 255, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${dashCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: dashReady
-                    ? 'linear-gradient(90deg, #66d9ff 0%, #b8f5ff 100%)'
-                    : 'linear-gradient(90deg, #2f7db8 0%, #5ad7ff 100%)',
-                  boxShadow: dashReady ? '0 0 12px rgba(127, 238, 255, 0.45)' : 'none',
-                  transition: dashReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Venom (U)</span>
-              <span
-                style={{
-                  color: venomReady ? '#9df6a4' : '#d4ffd8',
-                }}
-              >
-                {venomReady ? 'READY' : `${(venomCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(12, 32, 15, 0.92)',
-                border: '1px solid rgba(112, 234, 122, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(90, 210, 100, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${venomCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: venomReady
-                    ? 'linear-gradient(90deg, #4fd26a 0%, #a3f7ae 100%)'
-                    : 'linear-gradient(90deg, #287a39 0%, #5fd375 100%)',
-                  boxShadow: venomReady ? '0 0 12px rgba(122, 241, 133, 0.45)' : 'none',
-                  transition: venomReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Grenade (Q)</span>
-              <span
-                style={{
-                  color: grenadeReady ? '#c3ef8c' : '#ebffd0',
-                }}
-              >
-                {grenadeReady ? 'READY' : `${(grenadeCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(18, 31, 14, 0.92)',
-                border: '1px solid rgba(177, 232, 108, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(132, 209, 81, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${grenadeCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: grenadeReady
-                    ? 'linear-gradient(90deg, #8acb4d 0%, #d9f7a1 100%)'
-                    : 'linear-gradient(90deg, #4e7b2a 0%, #91c654 100%)',
-                  boxShadow: grenadeReady ? '0 0 12px rgba(178, 234, 119, 0.45)' : 'none',
-                  transition: grenadeReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Pull (Y)</span>
-              <span
-                style={{
-                  color: pullReady ? '#ff9f9f' : '#ffd3d3',
-                }}
-              >
-                {pullReady ? 'READY' : `${(pullCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(40, 14, 14, 0.92)',
-                border: '1px solid rgba(255, 118, 118, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(255, 110, 110, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${pullCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: pullReady
-                    ? 'linear-gradient(90deg, #ff5f5f 0%, #ff9f9f 100%)'
-                    : 'linear-gradient(90deg, #b82f2f 0%, #ff6767 100%)',
-                  boxShadow: pullReady ? '0 0 12px rgba(255, 120, 120, 0.45)' : 'none',
-                  transition: pullReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Landmine (W)</span>
-              <span
-                style={{
-                  color: landmineReady ? '#f6e38e' : '#fff1bf',
-                }}
-              >
-                {landmineReady ? 'READY' : `${(landmineCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(34, 28, 10, 0.92)',
-                border: '1px solid rgba(235, 213, 121, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(232, 204, 96, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${landmineCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: landmineReady
-                    ? 'linear-gradient(90deg, #d5c25b 0%, #fff2a6 100%)'
-                    : 'linear-gradient(90deg, #8f7b1f 0%, #d0b13a 100%)',
-                  boxShadow: landmineReady ? '0 0 12px rgba(255, 232, 139, 0.45)' : 'none',
-                  transition: landmineReady
-                    ? 'width 0.08s linear, box-shadow 0.08s linear'
-                    : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Fireball (E)</span>
-              <span
-                style={{
-                  color: fireballReady ? '#ffbd84' : '#ffe3c8',
-                }}
-              >
-                {fireballReady ? 'READY' : `${(fireballCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(38, 20, 10, 0.92)',
-                border: '1px solid rgba(255, 170, 100, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(255, 149, 72, 0.1)',
-                marginBottom: 8,
-              }}
-            >
-              <div
-                style={{
-                  width: `${fireballCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: fireballReady
-                    ? 'linear-gradient(90deg, #ff9838 0%, #ffd084 100%)'
-                    : 'linear-gradient(90deg, #c7561d 0%, #ff8e3c 100%)',
-                  boxShadow: fireballReady ? '0 0 12px rgba(255, 164, 88, 0.5)' : 'none',
-                  transition: fireballReady
-                    ? 'width 0.08s linear, box-shadow 0.08s linear'
-                    : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Wave (R)</span>
-              <span
-                style={{
-                  color: waveReady ? '#ffb7ff' : '#ffd9ff',
-                }}
-              >
-                {waveReady ? 'READY' : `${(waveCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(26, 16, 36, 0.92)',
-                border: '1px solid rgba(255, 164, 245, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(255, 135, 240, 0.1)',
-              }}
-            >
-              <div
-                style={{
-                  width: `${waveCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: waveReady
-                    ? 'linear-gradient(90deg, #f68cff 0%, #ffb7ff 100%)'
-                    : 'linear-gradient(90deg, #8b43d9 0%, #d668ff 100%)',
-                  boxShadow: waveReady ? '0 0 12px rgba(255, 166, 245, 0.5)' : 'none',
-                  transition: waveReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '11px',
-                marginBottom: 4,
-                opacity: 0.92,
-              }}
-            >
-              <span>Numb (T)</span>
-              <span
-                style={{
-                  color: numbReady ? '#d7dde4' : '#f2f5f8',
-                }}
-              >
-                {numbReady ? 'READY' : `${(numbCooldownRemainingMs / 1000).toFixed(1)}s`}
-              </span>
-            </div>
-            <div
-              style={{
-                width: 200,
-                height: 10,
-                background: 'rgba(19, 22, 27, 0.92)',
-                border: '1px solid rgba(178, 186, 196, 0.28)',
-                borderRadius: 999,
-                overflow: 'hidden',
-                boxShadow: 'inset 0 0 12px rgba(150, 160, 173, 0.1)',
-              }}
-            >
-              <div
-                style={{
-                  width: `${numbCooldownProgress * 100}%`,
-                  height: '100%',
-                  background: numbReady
-                    ? 'linear-gradient(90deg, #aab3bc 0%, #e1e6eb 100%)'
-                    : 'linear-gradient(90deg, #5f6974 0%, #98a2ad 100%)',
-                  boxShadow: numbReady ? '0 0 12px rgba(207, 216, 225, 0.45)' : 'none',
-                  transition: numbReady ? 'width 0.08s linear, box-shadow 0.08s linear' : 'none',
-                }}
-              />
+
+            <div className="rounded-[10px] border border-[rgba(212,151,255,0.16)] bg-[rgba(24,16,34,0.72)] px-2.5 pt-2.5 pb-2 shadow-[inset_0_0_18px_rgba(162,100,255,0.08)]">
+              {waveAbilityMeters.map((ability) => (
+                <CooldownMeter key={ability.label} {...ability} />
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Death overlay */}
       {localPlayer?.state === 'dead' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.6)',
-            flexDirection: 'column',
-          }}
-        >
-          <div style={{ fontSize: '32px', color: '#ff4444', fontWeight: 'bold' }}>YOU DIED</div>
-          <div style={{ fontSize: '14px', marginTop: 8, opacity: 0.7 }}>Respawning...</div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
+          <div className="text-[32px] font-bold text-[#ff4444]">YOU DIED</div>
+          <div className="mt-2 text-sm opacity-70">Respawning...</div>
         </div>
       )}
 
-      {/* Controls hint */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 8,
-          right: 8,
-          fontSize: '10px',
-          opacity: 0.4,
-        }}
-      >
-        Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball | R:
-        wave | T: numb | Y: pull | U: venom | Space: attack | Tab: players
+      <div className="absolute right-2 bottom-2 text-[10px] opacity-40">
+        Arrow keys: move | Double tap arrows: dash | Q: grenade | W: landmine | E: fireball |
+        1: wave | 2: numb | 3: pull | 4: venom | Space: attack | Tab: players
       </div>
 
-      {/* Leaderboard */}
       <Leaderboard />
     </div>
   );

@@ -28,30 +28,10 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     }
 
     return (
-      <div
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#120f16',
-          color: '#f6f1e8',
-          padding: 24,
-          fontFamily: 'monospace',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 420,
-            border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 14,
-            background: 'rgba(0,0,0,0.35)',
-            padding: 24,
-            textAlign: 'center',
-          }}
-        >
-          <h1 style={{ margin: '0 0 12px', fontSize: 24 }}>Algo deu errado</h1>
-          <p style={{ margin: 0, lineHeight: 1.5, color: '#d6d0c7' }}>
+      <div className="flex min-h-screen items-center justify-center bg-[#120f16] px-6 py-6 font-mono text-[#f6f1e8]">
+        <div className="max-w-[420px] rounded-[14px] border border-[rgba(255,255,255,0.15)] bg-[rgba(0,0,0,0.35)] p-6 text-center">
+          <h1 className="mb-3 text-2xl">Algo deu errado</h1>
+          <p className="m-0 leading-6 text-[#d6d0c7]">
             O erro foi registrado. Recarregue o jogo para tentar novamente.
           </p>
         </div>

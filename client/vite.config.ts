@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -23,7 +24,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(clientPackageJson.version),
     __APP_RELEASE__: JSON.stringify(appRelease),
   },
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   server: {
     host: true,
     port: devPort,

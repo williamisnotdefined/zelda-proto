@@ -40,50 +40,15 @@ export function NicknameModal() {
   };
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0, 0, 0, 0.85)',
-        zIndex: 100,
-        pointerEvents: 'auto',
-      }}
-    >
+    <div className="pointer-events-auto absolute inset-0 z-[100] flex items-center justify-center bg-[rgba(0,0,0,0.85)]">
       <form
         onSubmit={handleSubmit}
-        style={{
-          background: '#1a1a2e',
-          borderRadius: 12,
-          padding: 32,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-          border: '2px solid #4a4a6a',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-        }}
+        className="flex flex-col items-center gap-4 rounded-xl border-2 border-[#4a4a6a] bg-[#1a1a2e] p-8 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
       >
-        <h2
-          style={{
-            margin: 0,
-            color: '#fff',
-            fontSize: 24,
-            fontFamily: 'monospace',
-          }}
-        >
+        <h2 className="m-0 font-mono text-2xl text-white">
           Legends of Gelehk
         </h2>
-        <p
-          style={{
-            margin: 0,
-            color: '#aaa',
-            fontSize: 14,
-            fontFamily: 'monospace',
-          }}
-        >
+        <p className="m-0 font-mono text-sm text-[#aaa]">
           Enter your nickname to begin
         </p>
         <input
@@ -96,46 +61,14 @@ export function NicknameModal() {
           placeholder="Nickname"
           maxLength={MAX_NICKNAME_LENGTH}
           autoFocus
-          style={{
-            width: 200,
-            padding: '10px 14px',
-            fontSize: 16,
-            fontFamily: 'monospace',
-            border: '2px solid #4a4a6a',
-            borderRadius: 6,
-            background: '#0d0d1a',
-            color: '#fff',
-            outline: 'none',
-          }}
+          className="w-[200px] rounded-md border-2 border-[#4a4a6a] bg-[#0d0d1a] px-3.5 py-2.5 font-mono text-base text-white outline-none placeholder:text-[rgba(255,255,255,0.35)] focus:border-[#6a6a9a]"
         />
         {error && (
-          <p
-            style={{
-              margin: 0,
-              color: '#ff6666',
-              fontSize: 12,
-              fontFamily: 'monospace',
-            }}
-          >
-            {error}
-          </p>
+          <p className="m-0 font-mono text-xs text-[#ff6666]">{error}</p>
         )}
         <button
           type="submit"
-          style={{
-            padding: '10px 32px',
-            fontSize: 16,
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-            border: 'none',
-            borderRadius: 6,
-            background: '#44aa44',
-            color: '#fff',
-            cursor: 'pointer',
-            transition: 'background 0.2s',
-          }}
-          onMouseOver={(e) => (e.currentTarget.style.background = '#55bb55')}
-          onMouseOut={(e) => (e.currentTarget.style.background = '#44aa44')}
+          className="cursor-pointer rounded-md bg-[#44aa44] px-8 py-2.5 font-mono text-base font-bold text-white transition-colors hover:bg-[#55bb55]"
         >
           Play
         </button>

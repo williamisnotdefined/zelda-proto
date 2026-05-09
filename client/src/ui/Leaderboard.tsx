@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import classNames from 'classnames';
 import { useGameStore } from './store';
 
 export function Leaderboard() {
@@ -32,55 +33,18 @@ export function Leaderboard() {
   if (!visible) return null;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        pointerEvents: 'none',
-        fontFamily: 'monospace',
-      }}
-    >
-      <div
-        style={{
-          background: 'rgba(0,0,0,0.78)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          borderRadius: 6,
-          minWidth: 460,
-          padding: '16px 0 12px',
-        }}
-      >
-        <div
-          style={{
-            textAlign: 'center',
-            fontSize: '13px',
-            fontWeight: 'bold',
-            color: '#aaddff',
-            marginBottom: 10,
-            letterSpacing: 2,
-          }}
-        >
+    <div className="pointer-events-none absolute inset-0 flex items-center justify-center font-mono">
+      <div className="min-w-[460px] rounded-md border border-white/20 bg-[rgba(0,0,0,0.78)] px-0 pt-4 pb-3">
+        <div className="mb-2.5 text-center text-[13px] font-bold tracking-[0.125rem] text-[#aaddff]">
           PLAYERS
         </div>
 
         {/* Header */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 100px 110px 70px',
-            padding: '0 16px 6px',
-            borderBottom: '1px solid rgba(255,255,255,0.15)',
-            fontSize: '10px',
-            color: 'rgba(255,255,255,0.5)',
-            textTransform: 'uppercase',
-          }}
-        >
+        <div className="grid grid-cols-[1fr_100px_110px_70px] border-b border-white/15 px-4 pb-1.5 text-[10px] text-white/50 uppercase">
           <span>Nickname</span>
-          <span style={{ textAlign: 'center' }}>Players Killed</span>
-          <span style={{ textAlign: 'center' }}>Monsters Killed</span>
-          <span style={{ textAlign: 'center' }}>Deaths</span>
+          <span className="text-center">Players Killed</span>
+          <span className="text-center">Monsters Killed</span>
+          <span className="text-center">Deaths</span>
         </div>
 
         {/* Rows */}
@@ -89,40 +53,23 @@ export function Leaderboard() {
           return (
             <div
               key={p.id}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 100px 110px 70px',
-                padding: '5px 16px',
-                fontSize: '12px',
-                color: isLocal ? '#ffee88' : '#fff',
-                background: isLocal ? 'rgba(255,230,80,0.07)' : 'transparent',
-              }}
+              className={classNames('grid grid-cols-[1fr_100px_110px_70px] px-4 py-[5px] text-xs', {
+                'bg-[rgba(255,230,80,0.07)] text-[#ffee88]': isLocal,
+                'bg-transparent text-white': !isLocal,
+              })}
             >
-              <span
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                 {isLocal ? '▶ ' : ''}
                 {p.nickname}
               </span>
-              <span style={{ textAlign: 'center', color: '#ff9999' }}>{p.playerKills}</span>
-              <span style={{ textAlign: 'center', color: '#88ff88' }}>{p.monsterKills}</span>
-              <span style={{ textAlign: 'center', color: '#aaaaaa' }}>{p.deaths}</span>
+              <span className="text-center text-[#ff9999]">{p.playerKills}</span>
+              <span className="text-center text-[#88ff88]">{p.monsterKills}</span>
+              <span className="text-center text-[#aaaaaa]">{p.deaths}</span>
             </div>
           );
         })}
 
-        <div
-          style={{
-            textAlign: 'center',
-            fontSize: '9px',
-            color: 'rgba(255,255,255,0.25)',
-            marginTop: 10,
-          }}
-        >
+        <div className="mt-2.5 text-center text-[9px] text-white/25">
           Hold TAB to view
         </div>
       </div>

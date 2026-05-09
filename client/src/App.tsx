@@ -48,14 +48,8 @@ export function App() {
   }, []);
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100vw',
-        height: '100vh',
-      }}
-    >
-      <div id="game-container" style={{ width: '100%', height: '100%' }} />
+    <div className="relative h-screen w-screen overflow-hidden">
+      <div id="game-container" className="h-full w-full" />
       <HUD />
     </div>
   );
