@@ -295,10 +295,14 @@ export class BootScene extends Phaser.Scene {
       frameWidth: PORTAL_LARGE_FRAME_SIZE,
       frameHeight: PORTAL_LARGE_FRAME_SIZE,
     });
-    this.load.spritesheet('portal_return', 'assets/sprites/generated/magic_forcefield_blue_strip.png', {
-      frameWidth: PORTAL_RETURN_FRAME_SIZE,
-      frameHeight: PORTAL_RETURN_FRAME_SIZE,
-    });
+    this.load.spritesheet(
+      'portal_return',
+      'assets/sprites/generated/magic_forcefield_blue_strip.png',
+      {
+        frameWidth: PORTAL_RETURN_FRAME_SIZE,
+        frameHeight: PORTAL_RETURN_FRAME_SIZE,
+      }
+    );
     this.load.spritesheet('portal_earth', 'assets/sprites/generated/earth_portal_strip.png', {
       frameWidth: PORTAL_LARGE_FRAME_SIZE,
       frameHeight: PORTAL_LARGE_FRAME_SIZE,
@@ -306,6 +310,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('grenade', 'assets/sprites/attacks/grenade_48x48.png');
     this.load.image('molotov', 'assets/sprites/attacks/molotov.png');
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');
+    this.load.image('spiked_ball', 'assets/sprites/attacks/mace_ball.png');
     this.load.spritesheet('shuriken', 'assets/sprites/attacks/shuriken.png', {
       frameWidth: 99,
       frameHeight: 99,

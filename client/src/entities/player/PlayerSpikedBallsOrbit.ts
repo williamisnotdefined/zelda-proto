@@ -1,19 +1,13 @@
 import Phaser from 'phaser';
 
 const SPIKED_BALL_COUNT = 8;
-const SPIKES_PER_BALL = 8;
 const ORBIT_RADIUS = 240;
 const ORBIT_Y_SCALE = 0.66;
-const BALL_RADIUS = 13;
-const SPIKE_RADIUS = 4;
-const GLOW_RADIUS = 28;
+const DISPLAY_SIZE = 52;
+const GLOW_RADIUS = 34;
 const ORBIT_SPEED_RAD_PER_MS = 0.00125;
 const SPIN_SPEED_RAD_PER_MS = 0.0048;
-const IRON_COLOR = 0x59565c;
-const IRON_DARK_COLOR = 0x252329;
-const IRON_HIGHLIGHT_COLOR = 0xc7c2ba;
 const BLOOD_COLOR = 0x8a0710;
-const BLOOD_HIGHLIGHT_COLOR = 0xff3a38;
 
 function blendColor(from: number, to: number, amount: number): number {
   const t = Math.max(0, Math.min(1, amount));
@@ -30,10 +24,8 @@ function blendColor(from: number, to: number, amount: number): number {
 }
 
 export class PlayerSpikedBallsOrbit {
-  private readonly balls: Phaser.GameObjects.Arc[] = [];
+  private readonly balls: Phaser.GameObjects.Sprite[] = [];
   private readonly glows: Phaser.GameObjects.Arc[] = [];
-  private readonly highlights: Phaser.GameObjects.Arc[] = [];
-  private readonly spikes: Phaser.GameObjects.Arc[][] = [];
   private elapsedMs = 0;
   private active = false;
 
@@ -45,24 +37,11 @@ export class PlayerSpikedBallsOrbit {
       glow.setVisible(false);
       this.glows.push(glow);
 
-      const ballSpikes: Phaser.GameObjects.Arc[] = [];
-      for (let j = 0; j < SPIKES_PER_BALL; j++) {
-        const spike = scene.add.circle(0, 0, SPIKE_RADIUS, IRON_DARK_COLOR, 0.95);
-        spike.setDepth(10.34);
-        spike.setVisible(false);
-        ballSpikes.push(spike);
-      }
-      this.spikes.push(ballSpikes);
-
-      const ball = scene.add.circle(0, 0, BALL_RADIUS, IRON_COLOR, 0.95);
+      const ball = scene.add.sprite(0, 0, 'spiked_ball');
+      ball.setDisplaySize(DISPLAY_SIZE, DISPLAY_SIZE);
       ball.setDepth(10.36);
       ball.setVisible(false);
       this.balls.push(ball);
-
-      const highlight = scene.add.circle(0, 0, BALL_RADIUS * 0.35, IRON_HIGHLIGHT_COLOR, 0.7);
-      highlight.setDepth(10.38);
-      highlight.setVisible(false);
-      this.highlights.push(highlight);
     }
   }
 
@@ -86,9 +65,7 @@ export class PlayerSpikedBallsOrbit {
     const spinAngle = this.elapsedMs * SPIN_SPEED_RAD_PER_MS;
     const bloodFade = (Math.sin(this.elapsedMs * 0.0042) + 1) / 2;
     const bloodTint = bloodFade * bloodFade;
-    const coreColor = blendColor(IRON_COLOR, BLOOD_COLOR, bloodTint);
-    const spikeColor = blendColor(IRON_DARK_COLOR, BLOOD_COLOR, bloodTint);
-    const highlightColor = blendColor(IRON_HIGHLIGHT_COLOR, BLOOD_HIGHLIGHT_COLOR, bloodTint);
+    const spriteTint = blendColor(0xffffff, BLOOD_COLOR, bloodTint);
 
     for (let i = 0; i < SPIKED_BALL_COUNT; i++) {
       const angle = orbitAngle + (i / SPIKED_BALL_COUNT) * Math.PI * 2;
@@ -103,44 +80,20 @@ export class PlayerSpikedBallsOrbit {
 
       const ball = this.balls[i];
       ball.setPosition(sx, sy);
-      ball.setFillStyle(coreColor, 0.95);
-      ball.setScale(pulse);
-
-      const highlight = this.highlights[i];
-      highlight.setPosition(sx - 4 * pulse, sy - 5 * pulse);
-      highlight.setFillStyle(highlightColor, 0.42 + bloodFade * 0.22);
-      highlight.setScale(pulse);
-
-      const ballSpikes = this.spikes[i];
-      for (let j = 0; j < SPIKES_PER_BALL; j++) {
-        const spikeAngle = spinAngle + i * 0.45 + (j / SPIKES_PER_BALL) * Math.PI * 2;
-        const spikeDistance = BALL_RADIUS + 4;
-        const spike = ballSpikes[j];
-        spike.setPosition(
-          sx + Math.cos(spikeAngle) * spikeDistance * pulse,
-          sy + Math.sin(spikeAngle) * spikeDistance * pulse
-        );
-        spike.setFillStyle(spikeColor, 0.9);
-        spike.setScale(0.9 + bloodFade * 0.25);
-      }
+      ball.setRotation(-spinAngle + i * 0.35);
+      ball.setTint(spriteTint);
+      ball.setAlpha(0.9 + bloodFade * 0.1);
+      ball.setDisplaySize(DISPLAY_SIZE * pulse, DISPLAY_SIZE * pulse);
     }
   }
 
   destroy(): void {
     for (const glow of this.glows) glow.destroy();
     for (const ball of this.balls) ball.destroy();
-    for (const highlight of this.highlights) highlight.destroy();
-    for (const ballSpikes of this.spikes) {
-      for (const spike of ballSpikes) spike.destroy();
-    }
   }
 
   private setVisible(visible: boolean): void {
     for (const glow of this.glows) glow.setVisible(visible);
     for (const ball of this.balls) ball.setVisible(visible);
-    for (const highlight of this.highlights) highlight.setVisible(visible);
-    for (const ballSpikes of this.spikes) {
-      for (const spike of ballSpikes) spike.setVisible(visible);
-    }
   }
 }
