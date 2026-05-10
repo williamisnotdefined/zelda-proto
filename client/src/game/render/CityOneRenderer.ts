@@ -212,7 +212,7 @@ export class CityOneRenderer {
     this.addRectCells(waterCells, -16, -7, 1, 10);
     this.addRectCells(waterCells, -10, -4, 5, 12);
     this.addRectCells(waterCells, -13, -5, 8, 12);
-    for (let gy = 5; gy <= 10; gy += 1) {
+    for (let gy = 5; gy <= 12; gy += 1) {
       waterCells.delete(this.cellKey(-4, gy));
     }
     for (let gy = 5; gy <= 12; gy += 1) {
