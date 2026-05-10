@@ -23,7 +23,7 @@ func TestEnemyContactDamageRepeatsEverySecondWhileTouching(t *testing.T) {
 	x, y := 1000.0, 1000.0
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0
-	e := enemy.New("e1", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.Tick(20 * time.Millisecond)
@@ -46,8 +46,8 @@ func TestOverlappingEnemiesAreSeparated(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
-	e1 := enemy.New("e1", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindHeartSmall)
-	e2 := enemy.New("e2", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindHeartSmall)
+	e1 := enemy.New("e1", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindFoodSmall)
+	e2 := enemy.New("e2", 1000, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindFoodSmall)
 	w.SpawnEnemy(e1)
 	w.SpawnEnemy(e2)
 
@@ -100,7 +100,7 @@ func TestPlayerDoesNotPassThroughEnemyBody(t *testing.T) {
 	p := w.AddPlayer("p1", "Link", &px, &py)
 	p.SafeZoneTimer = 0
 	ex := 1060.0
-	e := enemy.New("e1", ex, py, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindHeartSmall)
+	e := enemy.New("e1", ex, py, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true})
 
@@ -131,7 +131,7 @@ func TestGelehkChargeStopsOnSolidCollision(t *testing.T) {
 	g.HP = g.MaxHP / 2
 	w.SpawnGelehk(g)
 
-	blocker := enemy.New("e1", 1065, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindHeartSmall)
+	blocker := enemy.New("e1", 1065, 1000, "0,0", stationaryEnemyConfig(enemy.BlobConfig), drop.KindFoodSmall)
 	w.SpawnEnemy(blocker)
 
 	for i := 0; i < 26; i++ {

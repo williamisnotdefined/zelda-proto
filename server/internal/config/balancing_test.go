@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestDefaultBalancingSanity(t *testing.T) {
 	b := DefaultBalancing
@@ -27,11 +30,14 @@ func TestDefaultBalancingSanity(t *testing.T) {
 		{"PlayerRespawnTime > 0", b.PlayerRespawnTime > 0},
 		{"SafeZoneDuration > 0", b.SafeZoneDuration > 0},
 		{"SpawnSafeZoneRadius > 0", b.SpawnSafeZoneRadius > 0},
-		{"HeartDropLifetime > 0", b.HeartDropLifetime > 0},
+		{"FoodDropLifetime > 0", b.FoodDropLifetime > 0},
 	}
 	for _, c := range checks {
 		if !c.ok {
 			t.Errorf("balancing default invalid: %s", c.name)
 		}
+	}
+	if b.FoodDropLifetime != 10*time.Second {
+		t.Fatalf("FoodDropLifetime=%s, want 10s", b.FoodDropLifetime)
 	}
 }

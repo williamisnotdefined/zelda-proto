@@ -40,6 +40,18 @@ func newWorldAt(t *testing.T, now *time.Time) *World {
 	})
 }
 
+func randForFoodDrop(t *testing.T) *rand.Rand {
+	t.Helper()
+	for seed := int64(1); seed < 10_000; seed++ {
+		r := rand.New(rand.NewSource(seed))
+		if r.Float64() < drop.FoodDropChance {
+			return rand.New(rand.NewSource(seed))
+		}
+	}
+	t.Fatal("could not find deterministic food drop seed")
+	return nil
+}
+
 func TestAddRemovePlayer(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +87,7 @@ func TestEnemyContactDamagesPlayerOutsideSafeZone(t *testing.T) {
 	x, y := 1000.0, 1000.0
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0
-	e := enemy.New("e1", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 	w.Tick(20 * time.Millisecond)
 	if p.HP >= player.MaxHP {
@@ -171,7 +183,7 @@ func TestSnapshotIncludesEntities(t *testing.T) {
 
 	w := newWorld(t)
 	w.AddPlayer("p1", "Link", nil, nil)
-	w.SpawnEnemy(enemy.New("e1", 0, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall))
+	w.SpawnEnemy(enemy.New("e1", 0, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall))
 	w.SpawnDragon(boss.NewDragonLord("d1", 100, 100))
 	w.SpawnGelehk(boss.NewGelehk("g1", 200, 200))
 	w.Tick(10 * time.Millisecond)
@@ -186,13 +198,13 @@ func TestDropsDespawnAfterConfiguredLifetime(t *testing.T) {
 
 	now := time.Unix(1_700_000_000, 0)
 	w := newWorldAt(t, &now)
-	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: 1000, Y: 1000, Kind: drop.KindHeartSmall, SpawnedAt: now}
+	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: 1000, Y: 1000, Kind: drop.KindFoodSmall, SpawnedAt: now}
 	w.dropIndex.Upsert("drop_1", 1000, 1000)
 	if len(w.drops) != 1 {
 		t.Fatalf("expected one spawned drop, got %d", len(w.drops))
 	}
 
-	now = now.Add(config.DefaultBalancing.HeartDropLifetime - time.Millisecond)
+	now = now.Add(config.DefaultBalancing.FoodDropLifetime - time.Millisecond)
 	w.Tick(20 * time.Millisecond)
 	if len(w.drops) != 1 {
 		t.Fatalf("expected drop to remain before ttl, got %d", len(w.drops))
@@ -216,7 +228,7 @@ func TestPlayerPicksUpNearbyDrop(t *testing.T) {
 	x, y := 1000.0, 1000.0
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.HP = 50
-	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: x, Y: y, Kind: drop.KindHeartSmall, SpawnedAt: now}
+	w.drops["drop_1"] = &drop.Drop{ID: "drop_1", X: x, Y: y, Kind: drop.KindFoodSmall, SpawnedAt: now}
 	w.dropIndex.Upsert("drop_1", x, y)
 
 	w.Tick(20 * time.Millisecond)
@@ -225,6 +237,50 @@ func TestPlayerPicksUpNearbyDrop(t *testing.T) {
 	}
 	if p.HP <= 50 {
 		t.Fatalf("expected player to heal from drop, hp=%d", p.HP)
+	}
+}
+
+func TestNormalEnemyDropsFoodWhenRollSucceeds(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.cfg.Rand = randForFoodDrop(t)
+	e := enemy.New("e1", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
+	e.TakeDamage(e.HP)
+	w.SpawnEnemy(e)
+
+	w.Tick(20 * time.Millisecond)
+
+	if len(w.drops) != 1 {
+		t.Fatalf("expected normal enemy to drop one food, got %d", len(w.drops))
+	}
+	for _, d := range w.drops {
+		if d.Kind != drop.KindFoodSmall {
+			t.Fatalf("expected food_small drop, got %s", d.Kind)
+		}
+	}
+}
+
+func TestEliteAndMinionDoNotDropFood(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	w.cfg.Rand = randForFoodDrop(t)
+	elite := enemy.NewElite("elite1", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
+	minion := enemy.New("minion1", 1100, 1000, "minion", enemy.BlobConfig, drop.KindFoodSmall)
+	minion.RespawnEnabled = false
+	elite.TakeDamage(elite.HP)
+	minion.TakeDamage(minion.HP)
+	w.SpawnEnemy(elite)
+	w.SpawnEnemy(minion)
+
+	w.Tick(20 * time.Millisecond)
+
+	if len(w.drops) != 0 {
+		t.Fatalf("expected elite and minion to drop no food, got %d", len(w.drops))
+	}
+	if !elite.HasDropped || !minion.HasDropped {
+		t.Fatalf("expected elite and minion death drops to be processed, elite=%v minion=%v", elite.HasDropped, minion.HasDropped)
 	}
 }
 
@@ -241,7 +297,7 @@ func TestPlayerDashMovesCasterOnlyAndSpawnsBlueTrail(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", 1040, 1000, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1040, 1000, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Dash: true})
@@ -282,7 +338,7 @@ func TestPlayerDashCanEndOnEnemyAndStillTakeContactDamage(t *testing.T) {
 
 	contactConfig := enemy.BlobConfig
 	contactConfig.Damage = 7
-	e := enemy.New("e1", px+player.DashDistance, py, "0,0", contactConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", px+player.DashDistance, py, "0,0", contactConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Dash: true})
@@ -307,7 +363,7 @@ func TestPlayerGrenadeExplodesOnLandingAndSkipsOwner(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Grenade: true})
@@ -377,7 +433,7 @@ func TestPlayerMolotovExplodesOnLandingAndSkipsOwner(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 	d := boss.NewDragonLord("d1", tx+80, ty)
 	d.Speed = 0
@@ -487,7 +543,7 @@ func TestPlayerLandmineExplodesOnContactAndSkipsOwner(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Landmine: true})
@@ -530,7 +586,7 @@ func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Landmine: true})
@@ -560,7 +616,7 @@ func TestProtectedCasterGrenadeSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Grenade: true})
@@ -593,7 +649,7 @@ func TestProtectedCasterMolotovSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Molotov: true})
@@ -628,7 +684,7 @@ func TestPlayerShurikenDamagesNearbyActorsStealsLifeAndAbsorbsDamage(t *testing.
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", ax, ay+120, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", ax, ay+120, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 	d := boss.NewDragonLord("d1", ax-120, ay)
 	d.Speed = 0
@@ -680,7 +736,7 @@ func TestPlayerSpikedBallsDamagesNearbyActorsStealsLifeAndBuffsHP(t *testing.T) 
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", ax, ay+220, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", ax, ay+220, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 	d := boss.NewDragonLord("d1", ax-220, ay)
 	d.Speed = 0
@@ -769,7 +825,7 @@ func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	target.SafeZoneTimer = 0
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
-	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1090, "0,0", passiveConfig, drop.KindFoodSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
@@ -835,7 +891,7 @@ func TestPlayerNumbDamagesPushesAndKeepsTargetsFrozen(t *testing.T) {
 	target.SafeZoneTimer = 0
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 7
-	e := enemy.New("e1", 1000, 1049, "0,0", passiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1049, "0,0", passiveConfig, drop.KindFoodSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
@@ -901,7 +957,7 @@ func TestPlayerPullClustersHostilesAndKeepsThemFrozenForTwoSeconds(t *testing.T)
 	attacker.SafeZoneTimer = 0
 	aggressiveConfig := enemy.BlobConfig
 	aggressiveConfig.Damage = 7
-	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindFoodSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
@@ -991,7 +1047,7 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 	aggressiveConfig := enemy.BlobConfig
 	aggressiveConfig.Damage = 0
 	aggressiveConfig.MaxHP = 80
-	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 1000, 1090, "0,0", aggressiveConfig, drop.KindFoodSmall)
 	e.TargetID = attacker.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)
@@ -1072,10 +1128,10 @@ func TestPlayerConfusionMarksOnlyNormalEnemiesAndRedirectsMonsterAggro(t *testin
 	eliteConfig := enemy.BlobConfig
 	eliteConfig.Damage = 0
 	eliteConfig.Speed = 0
-	confused := enemy.New("e1", 1000, 1000, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	confused := enemy.New("e1", 1000, 1000, "0,0", aggressiveConfig, drop.KindFoodSmall)
 	confused.TargetID = attacker.ID
-	unaffected := enemy.New("e2", 1000, 1180, "0,0", aggressiveConfig, drop.KindHeartSmall)
-	elite := enemy.NewElite("elite1", 1090, 1000, "0,0", eliteConfig, drop.KindHeartSmall)
+	unaffected := enemy.New("e2", 1000, 1180, "0,0", aggressiveConfig, drop.KindFoodSmall)
+	elite := enemy.NewElite("elite1", 1090, 1000, "0,0", eliteConfig, drop.KindFoodSmall)
 	dragon := boss.NewDragonLord("d1", 1000, 1140)
 	w.SpawnEnemy(confused)
 	w.SpawnEnemy(unaffected)
@@ -1172,7 +1228,7 @@ func TestAdoptPlayer(t *testing.T) {
 	w := newWorld(t)
 	p := player.New("p1", "Link", 0, 0)
 	p.SafeZoneTimer = 0
-	e := enemy.New("e1", 200, 200, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 200, 200, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	e.TargetID = p.ID
 	e.State = enemy.StateChasing
 	w.SpawnEnemy(e)

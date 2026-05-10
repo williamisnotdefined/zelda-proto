@@ -1,4 +1,4 @@
-// Package drop defines pickup items that grant healing to players.
+// Package drop defines pickup food that grants healing to players.
 package drop
 
 import "time"
@@ -6,21 +6,21 @@ import "time"
 // Kind identifies a drop variant.
 type Kind string
 
-// Drop kind identifiers.
+// Food drop kind identifiers.
 const (
-	KindHeartSmall  Kind = "heart_small"
-	KindHeartLarge  Kind = "heart_large"
-	KindHeartPacman Kind = "heart_pacman"
+	KindFoodSmall  Kind = "food_small"
+	KindFoodLarge  Kind = "food_large"
+	KindFoodPacman Kind = "food_pacman"
 )
 
 // HealAmount returns the HP healed by the kind. Unknown kinds return 0.
 func (k Kind) HealAmount() int {
 	switch k {
-	case KindHeartSmall:
+	case KindFoodSmall:
 		return 25
-	case KindHeartLarge:
+	case KindFoodLarge:
 		return 50
-	case KindHeartPacman:
+	case KindFoodPacman:
 		return 25
 	}
 	return 0
@@ -29,8 +29,8 @@ func (k Kind) HealAmount() int {
 // PickupRadius is the world-space distance at which a player picks up a drop.
 const PickupRadius float64 = 24
 
-// DropChance is the probability that a slain enemy drops an item.
-const DropChance float64 = 0.5
+// FoodDropChance is the probability that a slain normal monster drops food.
+const FoodDropChance float64 = 0.1
 
 // Drop is the runtime entity stored by the world.
 type Drop struct {

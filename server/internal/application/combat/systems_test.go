@@ -75,8 +75,8 @@ func TestContactDamageRespectsSafezone(t *testing.T) {
 		"p2": unprotected,
 	}
 	enemies := map[string]*enemy.Enemy{
-		"e1": enemy.New("e1", 100, 100, "0,0", enemy.BlobConfig, drop.KindHeartSmall),
-		"e2": enemy.New("e2", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindHeartSmall),
+		"e1": enemy.New("e1", 100, 100, "0,0", enemy.BlobConfig, drop.KindFoodSmall),
+		"e2": enemy.New("e2", 1000, 1000, "0,0", enemy.BlobConfig, drop.KindFoodSmall),
 	}
 
 	ContactDamageSystem{}.Resolve(players, enemies, nil, nil, nil, zone)
@@ -152,7 +152,7 @@ func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	caster := newPlayerOutsideSafezone("att", 0, 0)
 	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
-	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
@@ -213,8 +213,8 @@ func TestPlayerWaveLifeStealUsesActualDamageAndRoundsUp(t *testing.T) {
 	caster.TakeDamage(60)
 	weakConfig := enemy.BlobConfig
 	weakConfig.MaxHP = 1
-	e1 := enemy.New("e1", 40, 0, "0,0", weakConfig, drop.KindHeartSmall)
-	e2 := enemy.New("e2", -40, 0, "0,0", weakConfig, drop.KindHeartSmall)
+	e1 := enemy.New("e1", 40, 0, "0,0", weakConfig, drop.KindFoodSmall)
+	e2 := enemy.New("e2", -40, 0, "0,0", weakConfig, drop.KindFoodSmall)
 	target1 := newPlayerOutsideSafezone("tgt1", 0, 40)
 	target1.TakeDamage(player.MaxHP - 1)
 	target2 := newPlayerOutsideSafezone("tgt2", 0, -40)
@@ -242,7 +242,7 @@ func TestPlayerNumbDamagesTargetsWithoutKnockback(t *testing.T) {
 	caster := newPlayerOutsideSafezone("att", 0, 0)
 	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
-	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
@@ -316,7 +316,7 @@ func TestPlayerPullDamagesTargetsAndClustersThem(t *testing.T) {
 	caster := newPlayerOutsideSafezone("att", 0, 0)
 	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
-	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
@@ -400,7 +400,7 @@ func TestPlayerVenomDamagesAndMarksOnlyPveTargets(t *testing.T) {
 	caster := newPlayerOutsideSafezone("att", 0, 0)
 	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
-	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
@@ -457,8 +457,8 @@ func TestPlayerConfusionDamagesPveAndMarksOnlyNormalEnemies(t *testing.T) {
 	caster := newPlayerOutsideSafezone("att", 0, 0)
 	caster.TakeDamage(20)
 	target := newPlayerOutsideSafezone("tgt", 70, 40)
-	normal := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
-	elite := enemy.NewElite("elite1", 45, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	normal := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
+	elite := enemy.NewElite("elite1", 45, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 0, 50)
 	g := boss.NewGelehk("g1", -60, 0)
 	v := boss.NewVanessaTheRuthless("v1", 0, -70)
@@ -555,7 +555,7 @@ func TestPlayerDashMovesCasterOnlyAndSpawnsTrail(t *testing.T) {
 	caster.ApplyInput(player.Input{Seq: 1, Right: true, Dash: true})
 	caster.Update(10_000_000, 1)
 	target := newPlayerOutsideSafezone("tgt", 80, 0)
-	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindFoodSmall)
 	d := boss.NewDragonLord("d1", 60, 10)
 	g := boss.NewGelehk("g1", 90, -10)
 	v := boss.NewVanessaTheRuthless("v1", 120, 0)

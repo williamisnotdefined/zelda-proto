@@ -15,7 +15,7 @@ func aliveTarget(id string, x, y float64) PlayerView {
 func TestNewBlobDefaults(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	if e.HP != BlobConfig.MaxHP || e.State != StateIdle || e.Kind != KindBlob {
 		t.Fatalf("unexpected init: %+v", e)
 	}
@@ -24,7 +24,7 @@ func TestNewBlobDefaults(t *testing.T) {
 func TestNewEliteAppliesMultipliers(t *testing.T) {
 	t.Parallel()
 
-	e := NewElite("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := NewElite("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	if !e.Elite {
 		t.Fatal("expected enemy to be marked elite")
 	}
@@ -45,7 +45,7 @@ func TestNewEliteAppliesMultipliers(t *testing.T) {
 func TestUpdateMovesTowardTarget(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	players := []PlayerView{aliveTarget("p1", 100, 0)}
 	e.Update(time.Second, players, false, 0, 0, 0, nil)
 	if e.X <= 0 {
@@ -62,7 +62,7 @@ func TestUpdateMovesTowardTarget(t *testing.T) {
 func TestFaceMonsterTargetSetsFacingWithoutMovement(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	e.TargetID = "p1"
 	e.FaceMonsterTarget(&MonsterView{ID: "e2", X: -25, Y: 5, Alive: true, Radius: 12})
 
@@ -80,7 +80,7 @@ func TestFaceMonsterTargetSetsFacingWithoutMovement(t *testing.T) {
 func TestUpdateAcquiresViaCallback(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	called := false
 	find := func(x, y, r float64, pred func(PlayerView) bool) *PlayerView {
 		called = true
@@ -99,7 +99,7 @@ func TestUpdateAcquiresViaCallback(t *testing.T) {
 func TestUpdateDeflectsFromSafeZone(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 200, 50, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 200, 50, "0,0", BlobConfig, drop.KindFoodSmall)
 	players := []PlayerView{aliveTarget("p1", 200, 200)}
 	for i := 0; i < 10; i++ {
 		e.Update(50*time.Millisecond, players, true, 200, 200, 150, nil)
@@ -114,7 +114,7 @@ func TestUpdateDeflectsFromSafeZone(t *testing.T) {
 func TestTakeDamageKillsAndStartsRespawn(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	e.TakeDamage(BlobConfig.MaxHP + 5)
 	if e.State != StateDead {
 		t.Fatalf("expected dead, got %s", e.State)
@@ -128,7 +128,7 @@ func TestTakeDamageKillsAndStartsRespawn(t *testing.T) {
 func TestTryRespawnRestoresState(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 10, 10, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 10, 10, "0,0", BlobConfig, drop.KindFoodSmall)
 	e.X, e.Y = 99, 99
 	e.TakeDamage(BlobConfig.MaxHP)
 	if e.TryRespawn(BlobConfig.RespawnTime - time.Millisecond) {
@@ -145,7 +145,7 @@ func TestTryRespawnRestoresState(t *testing.T) {
 func TestTryRespawnSkippedWhenDisabled(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindFoodSmall)
 	e.RespawnEnabled = false
 	e.TakeDamage(BlobConfig.MaxHP)
 	if e.TryRespawn(2 * BlobConfig.RespawnTime) {
@@ -156,7 +156,7 @@ func TestTryRespawnSkippedWhenDisabled(t *testing.T) {
 func TestPacmanGhostVariantPropagated(t *testing.T) {
 	t.Parallel()
 
-	e := NewPacmanGhost("g1", 0, 0, "0,0", PacmanRed, drop.KindHeartPacman)
+	e := NewPacmanGhost("g1", 0, 0, "0,0", PacmanRed, drop.KindFoodPacman)
 	snap := e.Snapshot()
 	if snap.Variant != PacmanRed {
 		t.Fatalf("expected variant %s, got %s", PacmanRed, snap.Variant)
@@ -169,7 +169,7 @@ func TestPacmanGhostVariantPropagated(t *testing.T) {
 func TestKnightQueuesBladeWaveAtRange(t *testing.T) {
 	t.Parallel()
 
-	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindHeartLarge)
+	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindFoodLarge)
 	e.Update(50*time.Millisecond, []PlayerView{aliveTarget("p1", 320, 0)}, false, 0, 0, 0, nil)
 	if e.State != StateCasting {
 		t.Fatalf("expected knight casting, got %s", e.State)
@@ -186,7 +186,7 @@ func TestKnightQueuesBladeWaveAtRange(t *testing.T) {
 func TestKnightShieldReducesDamage(t *testing.T) {
 	t.Parallel()
 
-	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindHeartLarge)
+	e := New("k1", 0, 0, "0,0", KnightConfig, drop.KindFoodLarge)
 	e.State = StateShielding
 	e.TakeDamage(10)
 	if got, want := e.HP, KnightConfig.MaxHP-5; got != want {
@@ -197,7 +197,7 @@ func TestKnightShieldReducesDamage(t *testing.T) {
 func TestEliteSnapshotPropagated(t *testing.T) {
 	t.Parallel()
 
-	e := NewElitePacmanGhost("g1", 0, 0, "0,0", PacmanBlue, drop.KindHeartPacman)
+	e := NewElitePacmanGhost("g1", 0, 0, "0,0", PacmanBlue, drop.KindFoodPacman)
 	snap := e.Snapshot()
 	if !snap.Elite {
 		t.Fatal("expected elite flag on snapshot")
@@ -210,7 +210,7 @@ func TestEliteSnapshotPropagated(t *testing.T) {
 func TestSnapshotQuantization(t *testing.T) {
 	t.Parallel()
 
-	e := New("e1", 12.34, 56.78, "0,0", BlobConfig, drop.KindHeartSmall)
+	e := New("e1", 12.34, 56.78, "0,0", BlobConfig, drop.KindFoodSmall)
 	snap := e.Snapshot()
 	if snap.X != 12.3 || snap.Y != 56.8 {
 		t.Fatalf("expected quantized (12.3, 56.8), got (%v, %v)", snap.X, snap.Y)

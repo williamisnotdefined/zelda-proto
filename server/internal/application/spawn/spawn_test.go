@@ -28,7 +28,7 @@ func cfgPhase1() registries.SpawnSystemConfig {
 		EnemyPrefix:     "blob",
 		EnemyKind:       enemy.KindBlob,
 		EnemyConfig:     enemy.BlobConfig,
-		DefaultDropKind: drop.KindHeartSmall,
+		DefaultDropKind: drop.KindFoodSmall,
 	}
 }
 

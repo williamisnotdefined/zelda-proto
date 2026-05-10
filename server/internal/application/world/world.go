@@ -975,7 +975,7 @@ func (w *World) tickDrops() {
 		if d.SpawnedAt.IsZero() {
 			d.SpawnedAt = w.now
 		}
-		if w.now.Sub(d.SpawnedAt) < config.DefaultBalancing.HeartDropLifetime {
+		if w.now.Sub(d.SpawnedAt) < config.DefaultBalancing.FoodDropLifetime {
 			continue
 		}
 		delete(w.drops, id)
@@ -996,13 +996,16 @@ func (w *World) tickDrops() {
 			w.dropIndex.Remove(id)
 		})
 	}
-	// Drop chance on enemy death
+	// Food drop chance on normal monster death.
 	for _, e := range w.enemies {
 		if e.State != enemy.StateDead || e.HasDropped {
 			continue
 		}
 		e.HasDropped = true
-		if w.cfg.Rand.Float64() < drop.DropChance {
+		if e.Elite || e.ChunkKey == "minion" {
+			continue
+		}
+		if w.cfg.Rand.Float64() < drop.FoodDropChance {
 			id := w.cfg.IDs.NewID("drop")
 			d := &drop.Drop{ID: id, X: e.X, Y: e.Y, Kind: e.DropKind, SpawnedAt: w.now}
 			w.drops[id] = d

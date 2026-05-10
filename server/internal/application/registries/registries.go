@@ -153,7 +153,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "blob",
 				EnemyKind:   enemy.KindBlob, EnemyConfig: enemy.BlobConfig,
-				DefaultDropKind: drop.KindHeartSmall,
+				DefaultDropKind: drop.KindFoodSmall,
 			},
 			BossRegion: BossRegionConfig{
 				Enabled: true, RegionSize: b.Phase1BossRegionSize, ActiveRange: b.Phase1BossActiveRange,
@@ -178,7 +178,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "skeleton",
 				EnemyKind:   enemy.KindSkeleton, EnemyConfig: enemy.SkeletonConfig,
-				DefaultDropKind: drop.KindHeartLarge,
+				DefaultDropKind: drop.KindFoodLarge,
 			},
 			BossRegion: BossRegionConfig{
 				Enabled: true, RegionSize: b.Phase2BossRegionSize, ActiveRange: b.Phase2BossActiveRange,
@@ -212,7 +212,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				EnemyPrefix: "phase3_enemy",
 				EnemyKind:   enemy.KindKnight, EnemyConfig: enemy.KnightConfig,
 				MixedEnemyConfigs: []enemy.Config{enemy.KnightConfig, enemy.SkeletonConfig},
-				DefaultDropKind:   drop.KindHeartLarge,
+				DefaultDropKind:   drop.KindFoodLarge,
 			},
 			BossRegion: BossRegionConfig{
 				Enabled: false, RegionSize: 2600, ActiveRange: 2200,
@@ -244,7 +244,7 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "pacman_ghost",
 				EnemyKind:   enemy.KindPacmanGhost, EnemyConfig: enemy.PacmanGhostConfig,
-				DefaultDropKind: drop.KindHeartPacman,
+				DefaultDropKind: drop.KindFoodPacman,
 				PacmanVariants:  true,
 			},
 			BossRegion: BossRegionConfig{

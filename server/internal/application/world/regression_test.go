@@ -100,7 +100,7 @@ func TestDashBlueFlameDamagesAllActorKindsAndAwardsKills(t *testing.T) {
 
 	weakConfig := enemy.BlobConfig
 	weakConfig.MaxHP = hazard.BurningTickDamage
-	e := enemy.New("e1", 450, 300, "0,0", weakConfig, drop.KindHeartSmall)
+	e := enemy.New("e1", 450, 300, "0,0", weakConfig, drop.KindFoodSmall)
 	e.HP = hazard.BurningTickDamage
 	w.SpawnEnemy(e)
 

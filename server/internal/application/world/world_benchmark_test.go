@@ -33,7 +33,7 @@ func populateBenchmarkWorld(w *World, players int, enemies int) {
 	for i := 0; i < enemies; i++ {
 		x := 900.0 + float64(i%25)*44
 		y := 900.0 + float64(i/25)*44
-		w.SpawnEnemy(enemy.New("e"+strconv.Itoa(i), x, y, "bench", enemy.BlobConfig, drop.KindHeartSmall))
+		w.SpawnEnemy(enemy.New("e"+strconv.Itoa(i), x, y, "bench", enemy.BlobConfig, drop.KindFoodSmall))
 	}
 }
 
