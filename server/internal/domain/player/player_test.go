@@ -272,6 +272,56 @@ func TestVenomTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	}
 }
 
+func TestConfusionTriggerQueuesSingleCastAndCooldown(t *testing.T) {
+	t.Parallel()
+
+	p := New("p1", "Link", 10, 20)
+	p.ApplyInput(Input{Seq: 1, Confusion: true})
+	p.Update(20*time.Millisecond, 1)
+	if p.ConfusionCooldown != ConfusionCooldown {
+		t.Fatalf("expected confusion cooldown %s, got %s", ConfusionCooldown, p.ConfusionCooldown)
+	}
+	cx, cy, ok := p.ConsumeConfusionStart()
+	if !ok {
+		t.Fatal("expected queued confusion start")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected confusion center at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if _, _, ok := p.ConsumeConfusionStart(); ok {
+		t.Fatal("expected confusion start to be consumed once")
+	}
+	wave := p.WaveIndicator()
+	if wave == nil || wave.Radius <= 0 || wave.State != WaveStateWindup {
+		t.Fatalf("expected active confusion indicator, got %#v", wave)
+	}
+	if wave.Kind != WaveKindConfusion {
+		t.Fatalf("expected confusion indicator kind %q, got %q", WaveKindConfusion, wave.Kind)
+	}
+
+	releaseAfter := WaveWindup + WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+	cx, cy, targets, castID, ok := p.ConsumeConfusionRelease()
+	if !ok {
+		t.Fatal("expected queued confusion release")
+	}
+	if castID == 0 {
+		t.Fatal("expected cast id for confusion release")
+	}
+	if cx != 10 || cy != 20 {
+		t.Fatalf("expected confusion release at player position, got (%.1f, %.1f)", cx, cy)
+	}
+	if len(targets.EnemyIDs)+len(targets.DragonIDs)+len(targets.GelehkIDs)+len(targets.VanessaIDs) != 0 {
+		t.Fatalf("expected no prelocked targets in unit test, got %#v", targets)
+	}
+
+	p.ApplyInput(Input{Seq: 2, Confusion: true})
+	p.Update(10*time.Millisecond, 1)
+	if _, _, ok := p.ConsumeConfusionStart(); ok {
+		t.Fatal("expected cooldown to block second confusion cast")
+	}
+}
+
 func TestDashTriggerQueuesSingleCastAndCooldown(t *testing.T) {
 	t.Parallel()
 

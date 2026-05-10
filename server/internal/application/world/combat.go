@@ -11,6 +11,8 @@ import (
 	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
+const enemyConfusionTouchMargin = 2.0
+
 func filterFrozenMap[T any](items map[string]T, frozen map[string]time.Duration) map[string]T {
 	if len(frozen) == 0 {
 		return items
@@ -19,6 +21,25 @@ func filterFrozenMap[T any](items map[string]T, frozen map[string]time.Duration)
 	for id, item := range items {
 		if _, locked := frozen[id]; locked {
 			continue
+		}
+		out[id] = item
+	}
+	return out
+}
+
+func filterConfusionFocusedEnemies(items map[string]*enemy.Enemy, confused map[string]confusionStatus) map[string]*enemy.Enemy {
+	if len(confused) == 0 {
+		return items
+	}
+	out := make(map[string]*enemy.Enemy, len(items))
+	for id, item := range items {
+		if _, locked := confused[id]; locked {
+			continue
+		}
+		if item != nil {
+			if _, focused := confused[item.TargetID]; focused {
+				continue
+			}
 		}
 		out[id] = item
 	}
@@ -45,6 +66,42 @@ func (w *World) advanceVenomDebuffs(dt time.Duration) {
 		}
 		w.venomDebuffs[key] = debuff
 	}
+}
+
+func (w *World) advanceConfusionStatuses(dt time.Duration) {
+	for id, status := range w.confusedEnemies {
+		e := w.enemies[id]
+		if e == nil || e.State == enemy.StateDead || e.Elite {
+			delete(w.confusedEnemies, id)
+			continue
+		}
+		status.Remaining -= dt
+		if status.Remaining <= 0 {
+			delete(w.confusedEnemies, id)
+			continue
+		}
+		w.confusedEnemies[id] = status
+	}
+}
+
+func (w *World) armConfusion(id, sourcePlayerID string, duration time.Duration) {
+	if id == "" || sourcePlayerID == "" || duration <= 0 {
+		return
+	}
+	e := w.enemies[id]
+	if e == nil || e.State == enemy.StateDead || e.Elite {
+		return
+	}
+	current := w.confusedEnemies[id]
+	if current.SourcePlayerID == sourcePlayerID && current.Remaining >= duration {
+		return
+	}
+	w.confusedEnemies[id] = confusionStatus{SourcePlayerID: sourcePlayerID, Remaining: duration}
+	e.TargetID = ""
+	e.State = enemy.StateIdle
+	e.FaceMonsterTarget(w.nearestEnemyTarget(e, func(candidate *enemy.Enemy) bool {
+		return !w.isEnemyConfused(candidate.ID)
+	}))
 }
 
 func (w *World) armVenomDebuff(kind, id, sourcePlayerID string, duration time.Duration) {
@@ -253,6 +310,55 @@ func (w *World) resolvePlayerShurikenTick(caster *player.Player, castID uint64) 
 	caster.HealFromShuriken(totalDamage)
 }
 
+func (w *World) resolveEnemyConfusionCombat() {
+	for _, attacker := range w.enemies {
+		if attacker.State != enemy.StateAttacking || attacker.DamageCooldown > 0 || attacker.TargetID == "" {
+			continue
+		}
+		if attacker.State == enemy.StateDead {
+			continue
+		}
+		target := w.enemies[attacker.TargetID]
+		if target == nil || target.ID == attacker.ID || target.State == enemy.StateDead {
+			continue
+		}
+
+		attackerConfused := w.isEnemyConfused(attacker.ID)
+		targetConfused := w.isEnemyConfused(target.ID)
+		if attackerConfused == targetConfused {
+			continue
+		}
+		if !enemyTouchesEnemyBody(attacker, target) {
+			continue
+		}
+
+		beforeHP := target.HP
+		target.TakeDamage(attacker.Config.Damage)
+		dealt := beforeHP - target.HP
+		attacker.MarkContactDamageDealt()
+		if dealt <= 0 || target.State != enemy.StateDead {
+			continue
+		}
+
+		sourcePlayerID := ""
+		if attackerConfused {
+			sourcePlayerID = w.confusedEnemies[attacker.ID].SourcePlayerID
+		} else if targetConfused {
+			sourcePlayerID = w.confusedEnemies[target.ID].SourcePlayerID
+		}
+		delete(w.confusedEnemies, target.ID)
+		delete(w.venomDebuffs, dynamicBodyKey("enemy", target.ID))
+		delete(w.molotovBurns, dynamicBodyKey("enemy", target.ID))
+		delete(w.waveFrozenEnemies, target.ID)
+		w.awardHazardMonsterKill(sourcePlayerID, 0)
+	}
+}
+
+func enemyTouchesEnemyBody(a, b *enemy.Enemy) bool {
+	r := a.CollisionRadius() + b.CollisionRadius() + enemyConfusionTouchMargin
+	return physics.DistanceSquared(a.X, a.Y, b.X, b.Y) <= r*r
+}
+
 func (w *World) armPullOverlap(kind, id string, duration time.Duration) {
 	if duration <= 0 {
 		return
@@ -270,9 +376,10 @@ func withinShurikenRadius(cx, cy, x, y, bodyRadius float64) bool {
 
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
-	// PlayerWave -> PlayerNumb -> PlayerPull -> PlayerLandmine -> PlayerGrenade ->
-	// PlayerMolotov -> PlayerDash -> PlayerShuriken -> ContactDamage. Each system is
-	// stateless and reads/mutates only the slices it needs.
+	// PlayerWave -> PlayerNumb -> PlayerPull -> PlayerVenom -> PlayerConfusion ->
+	// PlayerLandmine -> PlayerGrenade -> PlayerMolotov -> PlayerDash ->
+	// PlayerShuriken -> ContactDamage. Each system is stateless and reads/mutates
+	// only the slices it needs.
 	if (appcombat.PlayerWaveSystem{}).Resolve(
 		w.players,
 		w.enemies,
@@ -316,6 +423,16 @@ func (w *World) resolveCombat() {
 			w.armVenomDebuff(kind, id, sourcePlayerID, duration)
 		},
 	)
+	(appcombat.PlayerConfusionSystem{}).Resolve(
+		w.players,
+		w.enemies,
+		w.dragons,
+		w.gelehks,
+		w.vanessas,
+		func(id, sourcePlayerID string, duration time.Duration) {
+			w.armConfusion(id, sourcePlayerID, duration)
+		},
+	)
 	(appcombat.PlayerLandmineSystem{}).Resolve(
 		w.players,
 		w.safeZone(),
@@ -350,9 +467,10 @@ func (w *World) resolveCombat() {
 		w.syncDynamicIndexesLocked()
 	}
 	w.resolvePlayerShurikens()
+	w.resolveEnemyConfusionCombat()
 	appcombat.ContactDamageSystem{}.Resolve(
 		w.players,
-		filterFrozenMap(w.enemies, w.waveFrozenEnemies),
+		filterConfusionFocusedEnemies(filterFrozenMap(w.enemies, w.waveFrozenEnemies), w.confusedEnemies),
 		filterFrozenMap(w.dragons, w.waveFrozenDragons),
 		filterFrozenMap(w.gelehks, w.waveFrozenGelehks),
 		filterFrozenMap(w.vanessas, w.waveFrozenVanessas),

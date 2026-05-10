@@ -1,4 +1,5 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
+import type { Direction } from '@/shared';
 import Phaser from 'phaser';
 import { EnemyHealthBar } from './EnemyHealthBar';
 
@@ -11,6 +12,7 @@ const HP_BAR_OFFSET_Y = 24;
 const ELITE_SCALE_MULTIPLIER = 1.3;
 const ELITE_TINT = 0xff6b6b;
 const VENOM_TINT = 0x6dff8c;
+const CONFUSION_TINT = 0xff42d6;
 
 type FacingDirection = 'left' | 'right';
 type EnemyVisualLod = {
@@ -46,9 +48,11 @@ export class SkeletonEntity {
   serverState: string;
   elite: boolean;
   venomMarked: boolean;
+  confused: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
+  private serverFacing: Direction | null;
   private currentAnimKey: string;
   private oneShotAnimKey: string | null;
   private deathPlayed: boolean;
@@ -68,11 +72,13 @@ export class SkeletonEntity {
     this.prevX = x;
     this.prevY = y;
     this.facing = 'right';
+    this.serverFacing = null;
     this.currentAnimKey = '';
     this.oneShotAnimKey = null;
     this.deathPlayed = false;
     this.isUsingStaticFrame = false;
     this.venomMarked = false;
+    this.confused = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
     this.animationTimeScale = 1;
@@ -101,7 +107,9 @@ export class SkeletonEntity {
     maxHp: number,
     state: string,
     elite = false,
-    venomMarked = false
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
   ): void {
     const previousHp = this.hp;
     const previousState = this.serverState;
@@ -114,9 +122,13 @@ export class SkeletonEntity {
     this.serverState = state;
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
 
     const dx = this.targetX - this.prevX;
-    this.updateFacing(dx, 0.4);
+    this.serverFacing = facing ?? null;
+    if (!this.applyServerFacing(facing)) {
+      this.updateFacing(dx, 0.4);
+    }
 
     if (state === 'dead') {
       return;
@@ -143,7 +155,9 @@ export class SkeletonEntity {
     maxHp: number,
     state: string,
     elite = false,
-    venomMarked = false
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
   ): void {
     this.prevX = x;
     this.prevY = y;
@@ -155,6 +169,9 @@ export class SkeletonEntity {
     this.resetVisualState();
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
+    this.serverFacing = facing ?? null;
+    this.applyServerFacing(facing);
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
@@ -184,7 +201,9 @@ export class SkeletonEntity {
     }
 
     const logicalDx = this.targetX - this.sprite.x;
-    this.updateFacing(logicalDx, 0.6);
+    if (!this.applyServerFacing(this.serverFacing ?? undefined)) {
+      this.updateFacing(logicalDx, 0.6);
+    }
 
     const dtMs = Math.min(dt, MAX_LERP_DT_MS);
     const factor = getExponentialInterpolationFactor(LERP_BASE, dtMs);
@@ -299,8 +318,17 @@ export class SkeletonEntity {
     }
   }
 
+  private applyServerFacing(facing?: Direction): boolean {
+    if (facing !== 'left' && facing !== 'right') {
+      return false;
+    }
+    this.facing = facing;
+    return true;
+  }
+
   private resetVisualState(): void {
     this.facing = 'right';
+    this.serverFacing = null;
     this.currentAnimKey = '';
     this.oneShotAnimKey = null;
     this.deathPlayed = false;
@@ -320,7 +348,16 @@ export class SkeletonEntity {
     this.applyStatusTint();
   }
 
+  private applyConfused(confused: boolean): void {
+    this.confused = confused;
+    this.applyStatusTint();
+  }
+
   private applyStatusTint(): void {
+    if (this.confused) {
+      this.sprite.setTint(CONFUSION_TINT);
+      return;
+    }
     if (this.venomMarked) {
       this.sprite.setTint(VENOM_TINT);
       return;

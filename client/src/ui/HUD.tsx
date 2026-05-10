@@ -1,5 +1,6 @@
 import {
   PLAYER_DASH_COOLDOWN,
+  PLAYER_CONFUSION_COOLDOWN,
   PLAYER_GRENADE_COOLDOWN,
   PLAYER_LANDMINE_COOLDOWN,
   PLAYER_MOLOTOV_COOLDOWN,
@@ -90,6 +91,7 @@ export function HUD() {
   const numbCooldownEndsAt = useGameStore((s) => s.numbCooldownEndsAt);
   const pullCooldownEndsAt = useGameStore((s) => s.pullCooldownEndsAt);
   const venomCooldownEndsAt = useGameStore((s) => s.venomCooldownEndsAt);
+  const confusionCooldownEndsAt = useGameStore((s) => s.confusionCooldownEndsAt);
   const dashCooldownEndsAt = useGameStore((s) => s.dashCooldownEndsAt);
   const grenadeCooldownEndsAt = useGameStore((s) => s.grenadeCooldownEndsAt);
   const molotovCooldownEndsAt = useGameStore((s) => s.molotovCooldownEndsAt);
@@ -112,6 +114,7 @@ export function HUD() {
       !numbCooldownEndsAt &&
       !pullCooldownEndsAt &&
       !venomCooldownEndsAt &&
+      !confusionCooldownEndsAt &&
       !dashCooldownEndsAt &&
       !grenadeCooldownEndsAt &&
       !molotovCooldownEndsAt &&
@@ -131,6 +134,7 @@ export function HUD() {
         now >= (numbCooldownEndsAt ?? 0) &&
         now >= (pullCooldownEndsAt ?? 0) &&
         now >= (venomCooldownEndsAt ?? 0) &&
+        now >= (confusionCooldownEndsAt ?? 0) &&
         now >= (dashCooldownEndsAt ?? 0) &&
         now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (molotovCooldownEndsAt ?? 0) &&
@@ -144,6 +148,7 @@ export function HUD() {
     return () => window.clearInterval(intervalId);
   }, [
     dashCooldownEndsAt,
+    confusionCooldownEndsAt,
     grenadeCooldownEndsAt,
     landmineCooldownEndsAt,
     molotovCooldownEndsAt,
@@ -180,6 +185,11 @@ export function HUD() {
   const venomCooldownProgress = venomReady
     ? 1
     : 1 - venomCooldownRemainingMs / PLAYER_VENOM_COOLDOWN;
+  const confusionCooldownRemainingMs = Math.max(0, (confusionCooldownEndsAt ?? 0) - cooldownNowMs);
+  const confusionReady = !confusionCooldownEndsAt || confusionCooldownRemainingMs <= 0;
+  const confusionCooldownProgress = confusionReady
+    ? 1
+    : 1 - confusionCooldownRemainingMs / PLAYER_CONFUSION_COOLDOWN;
   const dashCooldownRemainingMs = Math.max(0, (dashCooldownEndsAt ?? 0) - cooldownNowMs);
   const dashReady = !dashCooldownEndsAt || dashCooldownRemainingMs <= 0;
   const dashCooldownProgress = dashReady ? 1 : 1 - dashCooldownRemainingMs / PLAYER_DASH_COOLDOWN;
@@ -336,6 +346,20 @@ export function HUD() {
       fillReadyClassName: 'bg-[linear-gradient(90deg,#4fd26a_0%,#a3f7ae_100%)]',
       fillCooldownClassName: 'bg-[linear-gradient(90deg,#287a39_0%,#5fd375_100%)]',
       glowClassName: 'shadow-[0_0_12px_rgba(122,241,133,0.45)]',
+    },
+    {
+      label: 'Confusion (T)',
+      ready: confusionReady,
+      remainingMs: confusionCooldownRemainingMs,
+      progress: confusionCooldownProgress,
+      widthClassName: 'w-[180px]',
+      valueReadyClassName: 'text-[#ff9cff]',
+      valueCooldownClassName: 'text-[#ffd4ff]',
+      trackClassName:
+        'bg-[rgba(35,8,38,0.92)] border-[rgba(255,72,223,0.34)] shadow-[inset_0_0_14px_rgba(255,0,214,0.16)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#ff2bd6_0%,#72f7ff_52%,#fff14f_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#8c2384_0%,#1b9ab0_52%,#a38c22_100%)]',
+      glowClassName: 'shadow-[0_0_16px_rgba(255,38,215,0.62)]',
     },
   ];
 

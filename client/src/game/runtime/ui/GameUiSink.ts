@@ -14,6 +14,7 @@ export interface GameUiSink {
   setNumbCooldownEndsAt(time: number | null): void;
   setPullCooldownEndsAt(time: number | null): void;
   setVenomCooldownEndsAt(time: number | null): void;
+  setConfusionCooldownEndsAt(time: number | null): void;
   setDashCooldownEndsAt(time: number | null): void;
   setGrenadeCooldownEndsAt(time: number | null): void;
   setMolotovCooldownEndsAt(time: number | null): void;

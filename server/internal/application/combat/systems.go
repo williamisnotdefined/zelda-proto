@@ -73,6 +73,12 @@ type PlayerPullSystem struct{}
 // follow-up bonus damage and lifesteal.
 type PlayerVenomSystem struct{}
 
+// PlayerConfusionSystem resolves the neon confusion wave. The wave damages all
+// PvE hostiles it captured, but only normal non-elite enemies receive the
+// 20-second confusion status; players, bosses and elite enemies are never
+// confused.
+type PlayerConfusionSystem struct{}
+
 // Resolve applies player wave damage and knockback. Returns true when any
 // entity position changed and body collisions should be re-resolved.
 func (PlayerWaveSystem) Resolve(
@@ -151,6 +157,9 @@ func (PlayerPullSystem) Resolve(
 
 // PlayerVenomMarker arms the post-hit venom debuff for the given hostile.
 type PlayerVenomMarker func(kind, id, sourcePlayerID string, duration time.Duration)
+
+// PlayerConfusionMarker arms the confusion status on a normal enemy.
+type PlayerConfusionMarker func(id, sourcePlayerID string, duration time.Duration)
 
 // Resolve applies venom damage to PvE targets only and marks surviving
 // hostiles for follow-up amplified damage.
@@ -242,6 +251,90 @@ func (PlayerVenomSystem) Resolve(
 		}
 		if totalDamage > 0 {
 			caster.Heal(int(math.Ceil(float64(totalDamage) * player.VenomLifeStealRatio)))
+		}
+		caster.FinishCast(castID)
+	}
+	return false
+}
+
+// Resolve applies confusion wave damage to monsters/bosses and marks surviving
+// normal non-elite enemies to temporarily fight other monsters.
+func (PlayerConfusionSystem) Resolve(
+	players map[string]*player.Player,
+	enemies map[string]*enemy.Enemy,
+	dragons map[string]*boss.DragonLord,
+	gelehks map[string]*boss.Gelehk,
+	vanessas map[string]*boss.VanessaTheRuthless,
+	markConfusion PlayerConfusionMarker,
+) bool {
+	for _, caster := range players {
+		_, _, targets, castID, ok := caster.ConsumeConfusionRelease()
+		if !ok {
+			continue
+		}
+		totalDamage := 0
+		for _, id := range targets.EnemyIDs {
+			e := enemies[id]
+			if e == nil || e.State == enemy.StateDead {
+				continue
+			}
+			beforeHP := e.HP
+			e.TakeDamage(player.ConfusionDamage)
+			dealt := beforeHP - e.HP
+			totalDamage += dealt
+			if e.State == enemy.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+				continue
+			}
+			if dealt > 0 && !e.Elite && markConfusion != nil {
+				markConfusion(e.ID, caster.ID, player.ConfusionDuration)
+			}
+		}
+		for _, id := range targets.DragonIDs {
+			d := dragons[id]
+			if d == nil || d.State == boss.StateDead {
+				continue
+			}
+			beforeHP := d.HP
+			d.TakeDamage(player.ConfusionDamage)
+			dealt := beforeHP - d.HP
+			totalDamage += dealt
+			if d.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+			}
+		}
+		for _, id := range targets.GelehkIDs {
+			g := gelehks[id]
+			if g == nil || g.State == boss.StateDead {
+				continue
+			}
+			beforeHP := g.HP
+			g.TakeDamage(player.ConfusionDamage)
+			dealt := beforeHP - g.HP
+			totalDamage += dealt
+			if g.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+			}
+		}
+		for _, id := range targets.VanessaIDs {
+			v := vanessas[id]
+			if v == nil || v.State == boss.StateDead {
+				continue
+			}
+			beforeHP := v.HP
+			v.TakeDamage(player.ConfusionDamage)
+			dealt := beforeHP - v.HP
+			totalDamage += dealt
+			if v.State == boss.StateDead {
+				caster.MonsterKills++
+				caster.RecordMonsterKillInCast(castID)
+			}
+		}
+		if totalDamage > 0 {
+			caster.Heal(int(math.Ceil(float64(totalDamage) * player.ConfusionLifeStealRatio)))
 		}
 		caster.FinishCast(castID)
 	}

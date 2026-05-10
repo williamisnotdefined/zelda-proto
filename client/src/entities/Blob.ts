@@ -1,4 +1,5 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
+import type { Direction } from '@/shared';
 import Phaser from 'phaser';
 import { EnemyHealthBar } from './EnemyHealthBar';
 
@@ -12,6 +13,7 @@ const BLOB_SCALE = 2;
 const ELITE_SCALE_MULTIPLIER = 1.3;
 const ELITE_TINT = 0xff6b6b;
 const VENOM_TINT = 0x6dff8c;
+const CONFUSION_TINT = 0xff42d6;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -35,6 +37,7 @@ export class BlobEntity {
   serverState: string;
   elite: boolean;
   venomMarked: boolean;
+  confused: boolean;
 
   private prevX: number;
   private prevY: number;
@@ -60,6 +63,7 @@ export class BlobEntity {
     this.deathPlayed = false;
     this.facing = 'down';
     this.venomMarked = false;
+    this.confused = false;
     this.isUsingStaticFrame = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
@@ -82,7 +86,17 @@ export class BlobEntity {
     return this.sprite.y;
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
+  updateFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite = false,
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
+  ): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -92,10 +106,13 @@ export class BlobEntity {
     this.serverState = state;
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
 
     const dx = x - this.prevX;
     const dy = y - this.prevY;
-    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+    if (facing) {
+      this.facing = facing;
+    } else if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
       if (Math.abs(dx) > Math.abs(dy)) {
         this.facing = dx > 0 ? 'right' : 'left';
       } else {
@@ -104,7 +121,17 @@ export class BlobEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
+  restoreFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite = false,
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
+  ): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -115,11 +142,21 @@ export class BlobEntity {
     this.resetVisualState();
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
+    if (facing) {
+      this.facing = facing;
+    }
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
     this.animationTimeScale = 1;
-    this.healthBar.sync(this.sprite.x, this.sprite.y, this.hp, this.maxHp, this.serverState !== 'dead');
+    this.healthBar.sync(
+      this.sprite.x,
+      this.sprite.y,
+      this.hp,
+      this.maxHp,
+      this.serverState !== 'dead'
+    );
   }
 
   setDormant(): void {
@@ -245,7 +282,16 @@ export class BlobEntity {
     this.applyStatusTint();
   }
 
+  private applyConfused(confused: boolean): void {
+    this.confused = confused;
+    this.applyStatusTint();
+  }
+
   private applyStatusTint(): void {
+    if (this.confused) {
+      this.sprite.setTint(CONFUSION_TINT);
+      return;
+    }
     if (this.venomMarked) {
       this.sprite.setTint(VENOM_TINT);
       return;

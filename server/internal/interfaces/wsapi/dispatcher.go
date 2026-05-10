@@ -228,20 +228,21 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		return ErrNotJoined
 	}
 	d.manager.HandleInput(state.playerID, player.Input{
-		Seq:      msg.Seq,
-		Up:       msg.Up,
-		Down:     msg.Down,
-		Left:     msg.Left,
-		Right:    msg.Right,
-		Wave:     msg.Wave,
-		Numb:     msg.Numb,
-		Pull:     msg.Pull,
-		Venom:    msg.Venom,
-		Dash:     msg.Dash,
-		Grenade:  msg.Grenade,
-		Molotov:  msg.Molotov,
-		Landmine: msg.Landmine,
-		Shuriken: msg.Shuriken,
+		Seq:       msg.Seq,
+		Up:        msg.Up,
+		Down:      msg.Down,
+		Left:      msg.Left,
+		Right:     msg.Right,
+		Wave:      msg.Wave,
+		Numb:      msg.Numb,
+		Pull:      msg.Pull,
+		Venom:     msg.Venom,
+		Confusion: msg.Confusion,
+		Dash:      msg.Dash,
+		Grenade:   msg.Grenade,
+		Molotov:   msg.Molotov,
+		Landmine:  msg.Landmine,
+		Shuriken:  msg.Shuriken,
 	})
 	return nil
 }
@@ -541,6 +542,12 @@ func enemyObj(e enemy.Snapshot) codec.Object {
 	if e.VenomMarked {
 		obj = append(obj, codec.Field{Key: "venomMarked", Value: true})
 	}
+	if e.Confused {
+		obj = append(obj, codec.Field{Key: "confused", Value: true})
+	}
+	if e.Facing != "" {
+		obj = append(obj, codec.Field{Key: "facing", Value: string(e.Facing)})
+	}
 	return obj
 }
 
@@ -553,13 +560,18 @@ func enemyTransformObj(t appsnap.EnemyTransform) codec.Object {
 }
 
 func enemyStateObj(s appsnap.EnemyState) codec.Object {
-	return codec.Object{
+	obj := codec.Object{
 		{Key: "id", Value: s.ID},
 		{Key: "hp", Value: s.HP},
 		{Key: "maxHp", Value: s.MaxHP},
 		{Key: "state", Value: string(s.State)},
+		{Key: "confused", Value: s.Confused},
 		{Key: "statusEffects", Value: burningStatusEffectsObj(s.BurningTicksRemaining)},
 	}
+	if s.Facing != "" {
+		obj = append(obj, codec.Field{Key: "facing", Value: string(s.Facing)})
+	}
+	return obj
 }
 
 func bossObj(b appworld.BossSnapshot) codec.Object {

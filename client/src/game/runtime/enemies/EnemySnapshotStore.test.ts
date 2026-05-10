@@ -29,13 +29,19 @@ describe('EnemySnapshotStore', () => {
     const result = store.syncDelta(
       [],
       [{ id: 'enemy-1', x: 14, y: 28 }],
-      [{ id: 'enemy-1', hp: 20, maxHp: 30, state: 'chasing' }],
+      [{ id: 'enemy-1', hp: 20, maxHp: 30, state: 'chasing', facing: 'left' }],
       ['enemy-2']
     );
 
     expect(Array.from(result.dirtyIds)).toEqual(['enemy-1']);
     expect(result.releasedVisuals).toEqual([{ id: 'enemy-2', kind: 'blob' }]);
-    expect(store.get('enemy-1')).toMatchObject({ x: 14, y: 28, hp: 20, state: 'chasing' });
+    expect(store.get('enemy-1')).toMatchObject({
+      x: 14,
+      y: 28,
+      hp: 20,
+      state: 'chasing',
+      facing: 'left',
+    });
     expect(store.get('enemy-2')).toBeUndefined();
   });
 });

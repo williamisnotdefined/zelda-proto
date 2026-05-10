@@ -198,3 +198,35 @@ func TestDiffEnemyBurningChangeBecomesStateDelta(t *testing.T) {
 		t.Fatalf("expected only state delta, got upsert=%v transforms=%v remove=%v", upsert, transforms, remove)
 	}
 }
+
+func TestDiffEnemyConfusionChangeBecomesStateDelta(t *testing.T) {
+	t.Parallel()
+
+	upsert, transforms, states, remove := diffEnemiesDetailed(
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle}},
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle, Confused: true}},
+	)
+
+	if len(states) != 1 || !states[0].Confused {
+		t.Fatalf("expected confused state delta, got %v", states)
+	}
+	if len(upsert) != 0 || len(transforms) != 0 || len(remove) != 0 {
+		t.Fatalf("expected only state delta, got upsert=%v transforms=%v remove=%v", upsert, transforms, remove)
+	}
+}
+
+func TestDiffEnemyFacingChangeBecomesStateDelta(t *testing.T) {
+	t.Parallel()
+
+	upsert, transforms, states, remove := diffEnemiesDetailed(
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle, Facing: domworld.DirectionLeft}},
+		[]enemy.Snapshot{{ID: "e1", Kind: enemy.KindBlob, X: 10, Y: 10, HP: 30, MaxHP: 30, State: enemy.StateIdle, Facing: domworld.DirectionRight}},
+	)
+
+	if len(states) != 1 || states[0].Facing != domworld.DirectionRight {
+		t.Fatalf("expected facing state delta, got %v", states)
+	}
+	if len(upsert) != 0 || len(transforms) != 0 || len(remove) != 0 {
+		t.Fatalf("expected only state delta, got upsert=%v transforms=%v remove=%v", upsert, transforms, remove)
+	}
+}

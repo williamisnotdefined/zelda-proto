@@ -54,6 +54,15 @@ func queuePlayerVenomRelease(p *player.Player, targets player.WaveTargets) {
 	p.Update(releaseAfter, 1)
 }
 
+func queuePlayerConfusionRelease(p *player.Player, targets player.WaveTargets) {
+	p.ApplyInput(player.Input{Seq: 1, Confusion: true})
+	p.Update(10*time.Millisecond, 1)
+	p.ConsumeConfusionStart()
+	p.SetConfusionTargets(targets)
+	releaseAfter := player.WaveWindup + player.WaveExpandDuration()
+	p.Update(releaseAfter, 1)
+}
+
 func TestContactDamageRespectsSafezone(t *testing.T) {
 	t.Parallel()
 	zone := safezone.Zone{X: 100, Y: 100, Radius: 200}
@@ -439,6 +448,68 @@ func TestPlayerVenomDamagesAndMarksOnlyPveTargets(t *testing.T) {
 		if marked[key] != player.VenomDebuffDuration {
 			t.Fatalf("expected venom mark %s for %s, got %s", key, player.VenomDebuffDuration, marked[key])
 		}
+	}
+}
+
+func TestPlayerConfusionDamagesPveAndMarksOnlyNormalEnemies(t *testing.T) {
+	t.Parallel()
+
+	caster := newPlayerOutsideSafezone("att", 0, 0)
+	caster.TakeDamage(20)
+	target := newPlayerOutsideSafezone("tgt", 70, 40)
+	normal := enemy.New("e1", 40, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	elite := enemy.NewElite("elite1", 45, 0, "0,0", enemy.BlobConfig, drop.KindHeartSmall)
+	d := boss.NewDragonLord("d1", 0, 50)
+	g := boss.NewGelehk("g1", -60, 0)
+	v := boss.NewVanessaTheRuthless("v1", 0, -70)
+	marked := map[string]time.Duration{}
+
+	queuePlayerConfusionRelease(caster, player.WaveTargets{
+		EnemyIDs:   []string{"e1", "elite1"},
+		DragonIDs:  []string{"d1"},
+		GelehkIDs:  []string{"g1"},
+		VanessaIDs: []string{"v1"},
+	})
+
+	moved := PlayerConfusionSystem{}.Resolve(
+		map[string]*player.Player{"att": caster, "tgt": target},
+		map[string]*enemy.Enemy{"e1": normal, "elite1": elite},
+		map[string]*boss.DragonLord{"d1": d},
+		map[string]*boss.Gelehk{"g1": g},
+		map[string]*boss.VanessaTheRuthless{"v1": v},
+		func(id, sourcePlayerID string, duration time.Duration) {
+			marked[sourcePlayerID+":"+id] = duration
+		},
+	)
+	if moved {
+		t.Fatal("expected confusion wave to avoid knockback")
+	}
+	if target.HP != player.MaxHP {
+		t.Fatalf("expected confusion to skip player damage, got %d", target.HP)
+	}
+	if normal.HP != enemy.BlobConfig.MaxHP-player.ConfusionDamage {
+		t.Fatalf("expected normal enemy HP=%d, got %d", enemy.BlobConfig.MaxHP-player.ConfusionDamage, normal.HP)
+	}
+	if elite.HP != elite.Config.MaxHP-player.ConfusionDamage {
+		t.Fatalf("expected elite enemy HP=%d, got %d", elite.Config.MaxHP-player.ConfusionDamage, elite.HP)
+	}
+	if d.HP != boss.DragonLordMaxHP-player.ConfusionDamage {
+		t.Fatalf("expected dragon HP=%d, got %d", boss.DragonLordMaxHP-player.ConfusionDamage, d.HP)
+	}
+	if g.HP != boss.GelehkMaxHP-player.ConfusionDamage {
+		t.Fatalf("expected gelehk HP=%d, got %d", boss.GelehkMaxHP-player.ConfusionDamage, g.HP)
+	}
+	if v.HP != boss.VanessaMaxHP-player.ConfusionDamage {
+		t.Fatalf("expected vanessa HP=%d, got %d", boss.VanessaMaxHP-player.ConfusionDamage, v.HP)
+	}
+	if got, want := caster.HP, player.MaxHP-17; got != want {
+		t.Fatalf("expected caster HP=%d after confusion life steal, got %d", want, got)
+	}
+	if marked["att:e1"] != player.ConfusionDuration {
+		t.Fatalf("expected normal enemy confusion mark for %s, got %s", player.ConfusionDuration, marked["att:e1"])
+	}
+	if _, ok := marked["att:elite1"]; ok {
+		t.Fatal("expected elite enemy to avoid confusion status")
 	}
 }
 

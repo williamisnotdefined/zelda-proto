@@ -33,10 +33,12 @@ const (
 	NumbDamage                        = WaveDamage
 	PullDamage                        = WaveDamage
 	VenomDamage                       = WaveDamage
+	ConfusionDamage                   = 5
 	WaveLifeStealRatio        float64 = 1.20
 	NumbLifeStealRatio        float64 = WaveLifeStealRatio
 	PullLifeStealRatio        float64 = WaveLifeStealRatio
 	VenomLifeStealRatio       float64 = WaveLifeStealRatio
+	ConfusionLifeStealRatio   float64 = 0.10
 	WaveWindup                        = 80 * time.Millisecond
 	WaveWindupRadius          float64 = 44
 	DashDistance              float64 = 300
@@ -47,6 +49,8 @@ const (
 	NumbCooldown                      = WaveCooldown
 	PullCooldown                      = WaveCooldown
 	VenomCooldown                     = WaveCooldown
+	ConfusionCooldown                 = 40 * time.Second
+	ConfusionDuration                 = 20 * time.Second
 	NumbFreezeDuration                = 2 * time.Second
 	VenomDebuffDuration               = 10 * time.Second
 	PullClusterHoldDuration           = 2 * time.Second
@@ -87,20 +91,21 @@ const (
 
 // Input is one client input frame (movement + attack).
 type Input struct {
-	Seq      int64
-	Up       bool
-	Down     bool
-	Left     bool
-	Right    bool
-	Wave     bool
-	Numb     bool
-	Pull     bool
-	Venom    bool
-	Dash     bool
-	Grenade  bool
-	Molotov  bool
-	Landmine bool
-	Shuriken bool
+	Seq       int64
+	Up        bool
+	Down      bool
+	Left      bool
+	Right     bool
+	Wave      bool
+	Numb      bool
+	Pull      bool
+	Venom     bool
+	Confusion bool
+	Dash      bool
+	Grenade   bool
+	Molotov   bool
+	Landmine  bool
+	Shuriken  bool
 }
 
 // WaveExpandDuration returns how long the player wave spends expanding from
@@ -201,10 +206,11 @@ type WaveKind string
 
 // Wave-like skill identifiers mirrored by the client indicator styling.
 const (
-	WaveKindWave  WaveKind = "wave"
-	WaveKindNumb  WaveKind = "numb"
-	WaveKindPull  WaveKind = "pull"
-	WaveKindVenom WaveKind = "venom"
+	WaveKindWave      WaveKind = "wave"
+	WaveKindNumb      WaveKind = "numb"
+	WaveKindPull      WaveKind = "pull"
+	WaveKindVenom     WaveKind = "venom"
+	WaveKindConfusion WaveKind = "confusion"
 )
 
 // WaveIndicator is the active player wave visual state.
@@ -256,6 +262,7 @@ type Player struct {
 	NumbCooldown          time.Duration
 	PullCooldown          time.Duration
 	VenomCooldown         time.Duration
+	ConfusionCooldown     time.Duration
 	DashCooldown          time.Duration
 	GrenadeCooldown       time.Duration
 	MolotovCooldown       time.Duration
@@ -273,71 +280,80 @@ type Player struct {
 	RespawnTimer          time.Duration
 	PhaseTransferCooldown time.Duration
 
-	LastProcessedInputSeq int64
-	lastReceivedInputSeq  int64
-	pendingInput          *Input
-	waveActive            bool
-	waveStartQueued       bool
-	waveReleaseQueued     bool
-	waveWindupRemaining   time.Duration
-	waveRadius            float64
-	waveCenterX           float64
-	waveCenterY           float64
-	waveTargets           WaveTargets
-	numbActive            bool
-	numbStartQueued       bool
-	numbReleaseQueued     bool
-	numbWindupRemaining   time.Duration
-	numbRadius            float64
-	numbCenterX           float64
-	numbCenterY           float64
-	numbTargets           WaveTargets
-	pullActive            bool
-	pullStartQueued       bool
-	pullReleaseQueued     bool
-	pullWindupRemaining   time.Duration
-	pullRadius            float64
-	pullCenterX           float64
-	pullCenterY           float64
-	pullTargets           WaveTargets
-	venomActive           bool
-	venomStartQueued      bool
-	venomReleaseQueued    bool
-	venomWindupRemaining  time.Duration
-	venomRadius           float64
-	venomCenterX          float64
-	venomCenterY          float64
-	venomTargets          WaveTargets
-	dashCastQueued        bool
-	dashStartX            float64
-	dashStartY            float64
-	dashDirection         world.Direction
-	grenadeCastQueued     bool
-	grenadeStartX         float64
-	grenadeStartY         float64
-	grenadeDirection      world.Direction
-	molotovCastQueued     bool
-	molotovStartX         float64
-	molotovStartY         float64
-	molotovDirection      world.Direction
-	landmineCastQueued    bool
-	landmineStartX        float64
-	landmineStartY        float64
-	landmineDirection     world.Direction
-	shurikenRemaining     time.Duration
-	shurikenTickTimer     time.Duration
-	shurikenPendingTicks  int
-	shurikenLifeStealBank float64
-	nextCastID            uint64
-	waveCastID            uint64
-	numbCastID            uint64
-	pullCastID            uint64
-	venomCastID           uint64
-	grenadeCastID         uint64
-	molotovCastID         uint64
-	landmineCastID        uint64
-	shurikenCastID        uint64
-	castMonsterKills      map[uint64]int
+	LastProcessedInputSeq    int64
+	lastReceivedInputSeq     int64
+	pendingInput             *Input
+	waveActive               bool
+	waveStartQueued          bool
+	waveReleaseQueued        bool
+	waveWindupRemaining      time.Duration
+	waveRadius               float64
+	waveCenterX              float64
+	waveCenterY              float64
+	waveTargets              WaveTargets
+	numbActive               bool
+	numbStartQueued          bool
+	numbReleaseQueued        bool
+	numbWindupRemaining      time.Duration
+	numbRadius               float64
+	numbCenterX              float64
+	numbCenterY              float64
+	numbTargets              WaveTargets
+	pullActive               bool
+	pullStartQueued          bool
+	pullReleaseQueued        bool
+	pullWindupRemaining      time.Duration
+	pullRadius               float64
+	pullCenterX              float64
+	pullCenterY              float64
+	pullTargets              WaveTargets
+	venomActive              bool
+	venomStartQueued         bool
+	venomReleaseQueued       bool
+	venomWindupRemaining     time.Duration
+	venomRadius              float64
+	venomCenterX             float64
+	venomCenterY             float64
+	venomTargets             WaveTargets
+	confusionActive          bool
+	confusionStartQueued     bool
+	confusionReleaseQueued   bool
+	confusionWindupRemaining time.Duration
+	confusionRadius          float64
+	confusionCenterX         float64
+	confusionCenterY         float64
+	confusionTargets         WaveTargets
+	dashCastQueued           bool
+	dashStartX               float64
+	dashStartY               float64
+	dashDirection            world.Direction
+	grenadeCastQueued        bool
+	grenadeStartX            float64
+	grenadeStartY            float64
+	grenadeDirection         world.Direction
+	molotovCastQueued        bool
+	molotovStartX            float64
+	molotovStartY            float64
+	molotovDirection         world.Direction
+	landmineCastQueued       bool
+	landmineStartX           float64
+	landmineStartY           float64
+	landmineDirection        world.Direction
+	shurikenRemaining        time.Duration
+	shurikenTickTimer        time.Duration
+	shurikenPendingTicks     int
+	shurikenLifeStealBank    float64
+	nextCastID               uint64
+	waveCastID               uint64
+	numbCastID               uint64
+	pullCastID               uint64
+	venomCastID              uint64
+	confusionCastID          uint64
+	grenadeCastID            uint64
+	molotovCastID            uint64
+	landmineCastID           uint64
+	shurikenCastID           uint64
+	castMonsterKills         map[uint64]int
 
 	burning       BurningStatus
 	purpleBurning BurningStatus
@@ -462,6 +478,18 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.venomTargets = WaveTargets{}
 		p.venomCastID = p.beginCast()
 	}
+	if input.Confusion && p.ConfusionCooldown <= 0 && !p.waveLikeActive() {
+		p.ConfusionCooldown = ConfusionCooldown
+		p.confusionActive = true
+		p.confusionStartQueued = true
+		p.confusionReleaseQueued = false
+		p.confusionWindupRemaining = WaveWindup
+		p.confusionRadius = 0
+		p.confusionCenterX = p.X
+		p.confusionCenterY = p.Y
+		p.confusionTargets = WaveTargets{}
+		p.confusionCastID = p.beginCast()
+	}
 	if input.Grenade && p.GrenadeCooldown <= 0 {
 		if grenadeDirection := dashDirectionFromInput(input, p.Direction); grenadeDirection != "" {
 			p.GrenadeCooldown = GrenadeCooldown
@@ -574,6 +602,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetNumb()
 		p.resetPull()
 		p.resetVenom()
+		p.resetConfusion()
 		p.resetDash()
 		p.resetGrenade()
 		p.resetMolotov()
@@ -620,6 +649,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetNumb()
 	p.resetPull()
 	p.resetVenom()
+	p.resetConfusion()
 	p.resetDash()
 	p.resetGrenade()
 	p.resetMolotov()
@@ -637,6 +667,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetNumb()
 	p.resetPull()
 	p.resetVenom()
+	p.resetConfusion()
 	p.resetDash()
 	p.resetGrenade()
 	p.resetMolotov()
@@ -746,6 +777,16 @@ func (p *Player) ConsumeVenomStart() (float64, float64, bool) {
 	return p.venomCenterX, p.venomCenterY, true
 }
 
+// ConsumeConfusionStart returns the center of a newly triggered confusion wave
+// once so the world can lock the normal monsters that will receive the status.
+func (p *Player) ConsumeConfusionStart() (float64, float64, bool) {
+	if !p.confusionStartQueued {
+		return 0, 0, false
+	}
+	p.confusionStartQueued = false
+	return p.confusionCenterX, p.confusionCenterY, true
+}
+
 // SetWaveTargets stores the hostile IDs captured when the wave started.
 func (p *Player) SetWaveTargets(targets WaveTargets) {
 	p.waveTargets = targets
@@ -764,6 +805,11 @@ func (p *Player) SetPullTargets(targets WaveTargets) {
 // SetVenomTargets stores the hostile IDs captured when venom started.
 func (p *Player) SetVenomTargets(targets WaveTargets) {
 	p.venomTargets = targets
+}
+
+// SetConfusionTargets stores the hostile IDs captured when confusion started.
+func (p *Player) SetConfusionTargets(targets WaveTargets) {
+	p.confusionTargets = targets
 }
 
 // ConsumeWaveRelease returns the center and captured hostiles of a completed
@@ -822,6 +868,20 @@ func (p *Player) ConsumeVenomRelease() (float64, float64, WaveTargets, uint64, b
 	return p.venomCenterX, p.venomCenterY, targets, castID, true
 }
 
+// ConsumeConfusionRelease returns the center and captured hostiles of a
+// completed confusion wave once.
+func (p *Player) ConsumeConfusionRelease() (float64, float64, WaveTargets, uint64, bool) {
+	if !p.confusionReleaseQueued {
+		return 0, 0, WaveTargets{}, 0, false
+	}
+	p.confusionReleaseQueued = false
+	targets := p.confusionTargets
+	castID := p.confusionCastID
+	p.confusionTargets = WaveTargets{}
+	p.confusionCastID = 0
+	return p.confusionCenterX, p.confusionCenterY, targets, castID, true
+}
+
 // WaveRemainingDuration returns how long the current wave will keep hostiles
 // frozen before it releases.
 func (p *Player) WaveRemainingDuration() time.Duration {
@@ -856,6 +916,15 @@ func (p *Player) VenomRemainingDuration() time.Duration {
 		return 0
 	}
 	return remainingWaveLikeDuration(p.venomWindupRemaining, p.venomRadius)
+}
+
+// ConfusionRemainingDuration returns how long the current confusion wave visual
+// needs before the status and damage resolve.
+func (p *Player) ConfusionRemainingDuration() time.Duration {
+	if !p.confusionActive {
+		return 0
+	}
+	return remainingWaveLikeDuration(p.confusionWindupRemaining, p.confusionRadius)
 }
 
 // ConsumeDashCast returns a newly triggered dash once.
@@ -949,7 +1018,13 @@ func (p *Player) WaveIndicator() *WaveIndicator {
 	if !p.numbActive {
 		if !p.pullActive {
 			if !p.venomActive {
-				return nil
+				if !p.confusionActive {
+					return nil
+				}
+				if p.confusionWindupRemaining > 0 {
+					return &WaveIndicator{X: p.confusionCenterX, Y: p.confusionCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindConfusion}
+				}
+				return &WaveIndicator{X: p.confusionCenterX, Y: p.confusionCenterY, Radius: p.confusionRadius, State: WaveStateExpanding, Kind: WaveKindConfusion}
 			}
 			if p.venomWindupRemaining > 0 {
 				return &WaveIndicator{X: p.venomCenterX, Y: p.venomCenterY, Radius: WaveWindupRadius, State: WaveStateWindup, Kind: WaveKindVenom}
@@ -1045,6 +1120,7 @@ func (p *Player) advanceCooldowns(dt time.Duration) {
 	advanceCooldown(&p.NumbCooldown, dt)
 	advanceCooldown(&p.PullCooldown, dt)
 	advanceCooldown(&p.VenomCooldown, dt)
+	advanceCooldown(&p.ConfusionCooldown, dt)
 	advanceCooldown(&p.DashCooldown, dt)
 	advanceCooldown(&p.GrenadeCooldown, dt)
 	advanceCooldown(&p.MolotovCooldown, dt)
@@ -1067,6 +1143,7 @@ func (p *Player) advanceWaveLikeCasts(dt time.Duration) {
 	advanceWaveLikeCast(&p.numbActive, &p.numbReleaseQueued, &p.numbWindupRemaining, &p.numbRadius, dt)
 	advanceCollapsingWaveLikeCast(&p.pullActive, &p.pullReleaseQueued, &p.pullWindupRemaining, &p.pullRadius, dt)
 	advanceWaveLikeCast(&p.venomActive, &p.venomReleaseQueued, &p.venomWindupRemaining, &p.venomRadius, dt)
+	advanceWaveLikeCast(&p.confusionActive, &p.confusionReleaseQueued, &p.confusionWindupRemaining, &p.confusionRadius, dt)
 }
 
 func (p *Player) resetWave() {
@@ -1119,6 +1196,19 @@ func (p *Player) resetVenom() {
 	p.venomCenterY = 0
 	p.venomTargets = WaveTargets{}
 	p.venomCastID = 0
+}
+
+func (p *Player) resetConfusion() {
+	p.ConfusionCooldown = 0
+	p.confusionActive = false
+	p.confusionStartQueued = false
+	p.confusionReleaseQueued = false
+	p.confusionWindupRemaining = 0
+	p.confusionRadius = 0
+	p.confusionCenterX = 0
+	p.confusionCenterY = 0
+	p.confusionTargets = WaveTargets{}
+	p.confusionCastID = 0
 }
 
 func (p *Player) resetDash() {
@@ -1178,6 +1268,7 @@ func (p *Player) resetCastTracking() {
 	p.numbCastID = 0
 	p.pullCastID = 0
 	p.venomCastID = 0
+	p.confusionCastID = 0
 	p.grenadeCastID = 0
 	p.molotovCastID = 0
 	p.landmineCastID = 0
@@ -1217,7 +1308,7 @@ func dashDirectionFromInput(input *Input, fallback world.Direction) world.Direct
 }
 
 func (p *Player) waveLikeActive() bool {
-	return p.waveActive || p.numbActive || p.pullActive || p.venomActive
+	return p.waveActive || p.numbActive || p.pullActive || p.venomActive || p.confusionActive
 }
 
 func remainingWaveLikeDuration(windupRemaining time.Duration, radius float64) time.Duration {

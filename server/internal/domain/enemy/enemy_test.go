@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/drop"
+	domworld "github.com/williamisnotdefined/zelda-proto/server/internal/domain/world"
 )
 
 func aliveTarget(id string, x, y float64) PlayerView {
@@ -52,6 +53,27 @@ func TestUpdateMovesTowardTarget(t *testing.T) {
 	}
 	if e.State != StateChasing && e.State != StateAttacking {
 		t.Fatalf("expected chasing/attacking, got %s", e.State)
+	}
+	if e.Facing != domworld.DirectionRight {
+		t.Fatalf("expected facing right, got %s", e.Facing)
+	}
+}
+
+func TestFaceMonsterTargetSetsFacingWithoutMovement(t *testing.T) {
+	t.Parallel()
+
+	e := New("e1", 0, 0, "0,0", BlobConfig, drop.KindHeartSmall)
+	e.TargetID = "p1"
+	e.FaceMonsterTarget(&MonsterView{ID: "e2", X: -25, Y: 5, Alive: true, Radius: 12})
+
+	if e.TargetID != "e2" {
+		t.Fatalf("expected monster target, got %q", e.TargetID)
+	}
+	if e.Facing != domworld.DirectionLeft {
+		t.Fatalf("expected facing left, got %s", e.Facing)
+	}
+	if e.X != 0 || e.Y != 0 {
+		t.Fatalf("expected no movement, got (%.1f, %.1f)", e.X, e.Y)
 	}
 }
 

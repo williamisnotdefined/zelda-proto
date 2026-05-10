@@ -1,4 +1,4 @@
-import type { EnemyKind, EnemySnapshot, PacmanGhostVariant } from '@/shared';
+import type { Direction, EnemyKind, EnemySnapshot, PacmanGhostVariant } from '@/shared';
 import { ENEMY_KINDS, PACMAN_GHOST_VARIANTS } from '@/shared';
 import type Phaser from 'phaser';
 import { BlobEntity } from '../../../entities/Blob';
@@ -36,7 +36,9 @@ export interface EnemyVisualEntity {
     maxHp: number,
     state: string,
     elite?: boolean,
-    venomMarked?: boolean
+    venomMarked?: boolean,
+    confused?: boolean,
+    facing?: Direction
   ): void;
   restoreFromServer(
     x: number,
@@ -45,7 +47,9 @@ export interface EnemyVisualEntity {
     maxHp: number,
     state: string,
     elite?: boolean,
-    venomMarked?: boolean
+    venomMarked?: boolean,
+    confused?: boolean,
+    facing?: Direction
   ): void;
   setDormant(): void;
   destroy(): void;
@@ -98,7 +102,9 @@ function createCommonEntry(
         snapshot.maxHp,
         snapshot.state,
         snapshot.elite,
-        snapshot.venomMarked
+        snapshot.venomMarked,
+        snapshot.confused,
+        snapshot.facing
       );
     },
     update: (entity, snapshot) => {
@@ -109,7 +115,9 @@ function createCommonEntry(
         snapshot.maxHp,
         snapshot.state,
         snapshot.elite,
-        snapshot.venomMarked
+        snapshot.venomMarked,
+        snapshot.confused,
+        snapshot.facing
       );
     },
     matches: () => true,
@@ -151,8 +159,7 @@ export function createEnemyVisualRegistry(
       entities: pacmanGhostEntities,
       maxPoolSize: maxPacmanGhostEntityPoolSize,
       getAcquirePool: (snapshot) => pacmanGhostPools[snapshot.variant ?? PACMAN_GHOST_VARIANTS.RED],
-      getReleasePool: (entity) =>
-        pacmanGhostPools[entity.variant ?? PACMAN_GHOST_VARIANTS.RED],
+      getReleasePool: (entity) => pacmanGhostPools[entity.variant ?? PACMAN_GHOST_VARIANTS.RED],
       create: (scene, snapshot) =>
         new PacmanGhostEntity(
           scene,
@@ -168,7 +175,9 @@ export function createEnemyVisualRegistry(
           snapshot.maxHp,
           snapshot.state,
           snapshot.elite,
-          snapshot.venomMarked
+          snapshot.venomMarked,
+          snapshot.confused,
+          snapshot.facing
         );
       },
       update: (entity, snapshot) => {
@@ -179,7 +188,9 @@ export function createEnemyVisualRegistry(
           snapshot.maxHp,
           snapshot.state,
           snapshot.elite,
-          snapshot.venomMarked
+          snapshot.venomMarked,
+          snapshot.confused,
+          snapshot.facing
         );
       },
       matches: (entity, snapshot) =>

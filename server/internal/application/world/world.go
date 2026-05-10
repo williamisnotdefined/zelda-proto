@@ -94,6 +94,7 @@ type World struct {
 	waveFrozenVanessas     map[string]time.Duration
 	pullOverlapBodies      map[string]time.Duration
 	venomDebuffs           map[string]venomDebuff
+	confusedEnemies        map[string]confusionStatus
 	molotovBurns           map[string]molotovBurn
 }
 
@@ -107,6 +108,11 @@ type pendingFireLine struct {
 }
 
 type venomDebuff struct {
+	SourcePlayerID string
+	Remaining      time.Duration
+}
+
+type confusionStatus struct {
 	SourcePlayerID string
 	Remaining      time.Duration
 }
@@ -152,6 +158,7 @@ func New(cfg Config) *World {
 		waveFrozenVanessas:     make(map[string]time.Duration),
 		pullOverlapBodies:      make(map[string]time.Duration),
 		venomDebuffs:           make(map[string]venomDebuff),
+		confusedEnemies:        make(map[string]confusionStatus),
 		molotovBurns:           make(map[string]molotovBurn),
 	}
 	if cfg.Definition != nil {
@@ -491,6 +498,7 @@ func (w *World) Tick(dt time.Duration) {
 		)
 	}
 	w.advanceMolotovBurns(dt)
+	w.advanceConfusionStatuses(dt)
 	playerViews := w.playerViews()
 	w.tickEnemies(dt, safeZoneActive, playerViews)
 	w.tickBosses(dt, playerViews)
@@ -615,20 +623,24 @@ func (w *World) preparePlayerWaves() {
 		}
 
 		cx, cy, ok = p.ConsumeNumbStart()
-		if !ok {
-			cx, cy, ok = p.ConsumePullStart()
-			if !ok {
-				cx, cy, ok = p.ConsumeVenomStart()
-				if !ok {
-					continue
-				}
-				p.SetVenomTargets(w.capturePlayerWaveTargets(cx, cy, p.VenomRemainingDuration()))
-				continue
-			}
-			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()+player.PullClusterHoldDuration))
-			continue
+		if ok {
+			p.SetNumbTargets(w.capturePlayerWaveTargets(cx, cy, p.NumbRemainingDuration()+player.NumbFreezeDuration))
 		}
-		p.SetNumbTargets(w.capturePlayerWaveTargets(cx, cy, p.NumbRemainingDuration()+player.NumbFreezeDuration))
+
+		cx, cy, ok = p.ConsumePullStart()
+		if ok {
+			p.SetPullTargets(w.capturePlayerWaveTargets(cx, cy, p.PullRemainingDuration()+player.PullClusterHoldDuration))
+		}
+
+		cx, cy, ok = p.ConsumeVenomStart()
+		if ok {
+			p.SetVenomTargets(w.capturePlayerWaveTargets(cx, cy, p.VenomRemainingDuration()))
+		}
+
+		cx, cy, ok = p.ConsumeConfusionStart()
+		if ok {
+			p.SetConfusionTargets(w.capturePlayerConfusionTargets(cx, cy, p.ConfusionRemainingDuration()))
+		}
 	}
 }
 
@@ -677,6 +689,45 @@ func (w *World) capturePlayerWaveTargets(cx, cy float64, freezeFor time.Duration
 	return targets
 }
 
+func (w *World) capturePlayerConfusionTargets(cx, cy float64, freezeFor time.Duration) player.WaveTargets {
+	targets := player.WaveTargets{}
+
+	w.enemyIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
+		e := w.enemies[id]
+		if e == nil || e.State == enemy.StateDead || !withinPlayerWave(cx, cy, e.X, e.Y, e.CollisionRadius()) {
+			return
+		}
+		targets.EnemyIDs = append(targets.EnemyIDs, e.ID)
+		// Only normal enemies are pre-locked for the incoming confusion status;
+		// elites still take the wave's damage but never receive the control effect.
+		if !e.Elite {
+			armFreeze(w.waveFrozenEnemies, e.ID, freezeFor)
+			e.TargetID = ""
+			e.State = enemy.StateIdle
+		}
+	})
+
+	w.bossIndex.ForEachInRadius(cx, cy, player.WaveMaxRadius+64, func(id spatial.EntityID) {
+		if d := w.dragons[id]; d != nil {
+			if d.State != boss.StateDead && withinPlayerWave(cx, cy, d.X, d.Y, d.ContactRadius()) {
+				targets.DragonIDs = append(targets.DragonIDs, d.ID)
+			}
+			return
+		}
+		if g := w.gelehks[id]; g != nil {
+			if g.State != boss.StateDead && withinPlayerWave(cx, cy, g.X, g.Y, g.ContactRadius()) {
+				targets.GelehkIDs = append(targets.GelehkIDs, g.ID)
+			}
+			return
+		}
+		if v := w.vanessas[id]; v != nil && v.State != boss.StateDead && withinPlayerWave(cx, cy, v.X, v.Y, v.ContactRadius()) {
+			targets.VanessaIDs = append(targets.VanessaIDs, v.ID)
+		}
+	})
+
+	return targets
+}
+
 func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemyView) {
 	find := w.findNearestPlayerFunc()
 	for id, e := range w.enemies {
@@ -690,12 +741,67 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemy
 			w.enemyIndex.Upsert(id, e.X, e.Y)
 			continue
 		}
+		if w.updateEnemyConfusionAI(e, dt, safeZoneActive) {
+			w.enemyIndex.Upsert(id, e.X, e.Y)
+			continue
+		}
 		e.Update(dt, views, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius, find)
 		if direction, ok := e.ConsumeKnightBladeWave(); ok {
 			w.spawnKnightBladeWave(e, direction)
 		}
 		w.enemyIndex.Upsert(id, e.X, e.Y)
 	}
+}
+
+func (w *World) updateEnemyConfusionAI(e *enemy.Enemy, dt time.Duration, safeZoneActive bool) bool {
+	if w.isEnemyConfused(e.ID) {
+		target := w.nearestEnemyTarget(e, func(candidate *enemy.Enemy) bool {
+			return !w.isEnemyConfused(candidate.ID)
+		})
+		e.UpdateAgainstMonster(dt, target, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius)
+		return true
+	}
+
+	target := w.nearestEnemyTarget(e, func(candidate *enemy.Enemy) bool {
+		return w.isEnemyConfused(candidate.ID)
+	})
+	if target == nil {
+		return false
+	}
+	e.UpdateAgainstMonster(dt, target, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius)
+	return true
+}
+
+func (w *World) nearestEnemyTarget(e *enemy.Enemy, predicate func(*enemy.Enemy) bool) *enemy.MonsterView {
+	var best *enemy.MonsterView
+	bestSq := e.Config.AggroRadius * e.Config.AggroRadius
+	w.enemyIndex.ForEachInRadius(e.X, e.Y, e.Config.AggroRadius, func(id spatial.EntityID) {
+		candidate := w.enemies[id]
+		if candidate == nil || candidate.ID == e.ID || candidate.State == enemy.StateDead {
+			return
+		}
+		if predicate != nil && !predicate(candidate) {
+			return
+		}
+		dsq := physics.DistanceSquared(e.X, e.Y, candidate.X, candidate.Y)
+		if dsq > bestSq {
+			return
+		}
+		bestSq = dsq
+		best = &enemy.MonsterView{
+			ID:     candidate.ID,
+			X:      candidate.X,
+			Y:      candidate.Y,
+			Alive:  true,
+			Radius: candidate.CollisionRadius(),
+		}
+	})
+	return best
+}
+
+func (w *World) isEnemyConfused(id string) bool {
+	status, ok := w.confusedEnemies[id]
+	return ok && status.Remaining > 0
 }
 
 func (w *World) tickBosses(dt time.Duration, views []enemyView) {
@@ -1003,6 +1109,7 @@ func (w *World) Snapshot() SnapshotView {
 	for _, e := range w.enemies {
 		snapshot := e.Snapshot()
 		snapshot.VenomMarked = w.venomDebuffs[dynamicBodyKey("enemy", e.ID)].Remaining > 0
+		snapshot.Confused = e.State != enemy.StateDead && !e.Elite && w.isEnemyConfused(e.ID)
 		snapshot.BurningTicksRemaining = w.molotovBurns[dynamicBodyKey("enemy", e.ID)].TicksRemaining
 		view.Enemies = append(view.Enemies, snapshot)
 	}

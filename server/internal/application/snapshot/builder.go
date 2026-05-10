@@ -70,12 +70,14 @@ type EnemyTransform struct {
 	X, Y float64
 }
 
-// EnemyState is an HP/state-only enemy delta.
+// EnemyState is an HP/state/facing-only enemy delta.
 type EnemyState struct {
 	ID                    string
 	HP                    int
 	MaxHP                 int
 	State                 enemy.State
+	Confused              bool
+	Facing                domworld.Direction
 	BurningTicksRemaining int
 }
 
@@ -363,12 +365,12 @@ func diffEnemiesDetailed(prev, curr []enemy.Snapshot) (
 				continue
 			}
 			transformChanged := old.X != s.X || old.Y != s.Y
-			stateChanged := old.HP != s.HP || old.MaxHP != s.MaxHP || old.State != s.State || old.BurningTicksRemaining != s.BurningTicksRemaining
+			stateChanged := old.HP != s.HP || old.MaxHP != s.MaxHP || old.State != s.State || old.Confused != s.Confused || old.Facing != s.Facing || old.BurningTicksRemaining != s.BurningTicksRemaining
 			if transformChanged {
 				transforms = append(transforms, EnemyTransform{ID: s.ID, X: s.X, Y: s.Y})
 			}
 			if stateChanged {
-				states = append(states, EnemyState{ID: s.ID, HP: s.HP, MaxHP: s.MaxHP, State: s.State, BurningTicksRemaining: s.BurningTicksRemaining})
+				states = append(states, EnemyState{ID: s.ID, HP: s.HP, MaxHP: s.MaxHP, State: s.State, Confused: s.Confused, Facing: s.Facing, BurningTicksRemaining: s.BurningTicksRemaining})
 			}
 			i++
 			j++

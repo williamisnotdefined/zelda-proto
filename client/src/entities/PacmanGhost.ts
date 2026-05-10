@@ -1,5 +1,5 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
-import type { PacmanGhostVariant } from '@/shared';
+import type { Direction, PacmanGhostVariant } from '@/shared';
 import Phaser from 'phaser';
 import { EnemyHealthBar } from './EnemyHealthBar';
 
@@ -13,6 +13,7 @@ const HP_BAR_OFFSET_Y = 16;
 const ELITE_SCALE_MULTIPLIER = 1.3;
 const ELITE_TINT = 0xff6b6b;
 const VENOM_TINT = 0x6dff8c;
+const CONFUSION_TINT = 0xff42d6;
 
 type FacingDirection = 'up' | 'down' | 'left' | 'right';
 type EnemyVisualLod = {
@@ -38,9 +39,11 @@ export class PacmanGhostEntity {
   readonly variant: PacmanGhostVariant;
   elite: boolean;
   venomMarked: boolean;
+  confused: boolean;
   private prevX: number;
   private prevY: number;
   private facing: FacingDirection;
+  private serverFacing: Direction | null;
   private currentAnimKey: string;
   private readonly animPrefix: string;
   private isUsingStaticFrame: boolean;
@@ -60,10 +63,12 @@ export class PacmanGhostEntity {
     this.prevX = x;
     this.prevY = y;
     this.facing = 'down';
+    this.serverFacing = null;
     this.currentAnimKey = '';
     this.animPrefix = `pacman_ghost_${variant}`;
     this.isUsingStaticFrame = false;
     this.venomMarked = false;
+    this.confused = false;
     this.staticFrameFacing = null;
     this.spriteVisible = true;
     this.animationTimeScale = 1;
@@ -85,7 +90,17 @@ export class PacmanGhostEntity {
     return this.sprite.y;
   }
 
-  updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
+  updateFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite = false,
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
+  ): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;
     this.targetX = x;
@@ -95,10 +110,15 @@ export class PacmanGhostEntity {
     this.serverState = state;
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
 
     const dx = this.targetX - this.prevX;
     const dy = this.targetY - this.prevY;
-    if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
+    if (facing) {
+      this.serverFacing = facing;
+      this.facing = facing;
+    } else if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
+      this.serverFacing = null;
       if (Math.abs(dx) >= Math.abs(dy)) {
         this.facing = dx < 0 ? 'left' : 'right';
       } else {
@@ -107,7 +127,17 @@ export class PacmanGhostEntity {
     }
   }
 
-  restoreFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
+  restoreFromServer(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    state: string,
+    elite = false,
+    venomMarked = false,
+    confused = false,
+    facing?: Direction
+  ): void {
     this.prevX = x;
     this.prevY = y;
     this.targetX = x;
@@ -118,6 +148,11 @@ export class PacmanGhostEntity {
     this.resetVisualState();
     this.applyElite(elite);
     this.applyVenomMarked(venomMarked);
+    this.applyConfused(confused);
+    if (facing) {
+      this.serverFacing = facing;
+      this.facing = facing;
+    }
     this.sprite.x = x;
     this.sprite.y = y;
     this.setSpriteVisible(true);
@@ -146,7 +181,9 @@ export class PacmanGhostEntity {
       this.sprite.y = this.targetY;
     }
 
-    if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
+    if (this.serverFacing) {
+      this.facing = this.serverFacing;
+    } else if (Math.abs(dx) > 0.6 || Math.abs(dy) > 0.6) {
       if (Math.abs(dx) >= Math.abs(dy)) {
         this.facing = dx < 0 ? 'left' : 'right';
       } else {
@@ -210,6 +247,7 @@ export class PacmanGhostEntity {
 
   private resetVisualState(): void {
     this.facing = 'down';
+    this.serverFacing = null;
     this.currentAnimKey = '';
     this.isUsingStaticFrame = false;
     this.staticFrameFacing = null;
@@ -226,7 +264,16 @@ export class PacmanGhostEntity {
     this.applyStatusTint();
   }
 
+  private applyConfused(confused: boolean): void {
+    this.confused = confused;
+    this.applyStatusTint();
+  }
+
   private applyStatusTint(): void {
+    if (this.confused) {
+      this.sprite.setTint(CONFUSION_TINT);
+      return;
+    }
     if (this.venomMarked) {
       this.sprite.setTint(VENOM_TINT);
       return;

@@ -967,6 +967,114 @@ func TestPlayerVenomMarksHostilesAndAmplifiesFollowUpDamage(t *testing.T) {
 	}
 }
 
+func TestPlayerConfusionMarksOnlyNormalEnemiesAndRedirectsMonsterAggro(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	attacker.TakeDamage(30)
+	attacker.SafeZoneTimer = 0
+
+	aggressiveConfig := enemy.BlobConfig
+	aggressiveConfig.Damage = 20
+	eliteConfig := enemy.BlobConfig
+	eliteConfig.Damage = 0
+	eliteConfig.Speed = 0
+	confused := enemy.New("e1", 1000, 1000, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	confused.TargetID = attacker.ID
+	unaffected := enemy.New("e2", 1000, 1180, "0,0", aggressiveConfig, drop.KindHeartSmall)
+	elite := enemy.NewElite("elite1", 1090, 1000, "0,0", eliteConfig, drop.KindHeartSmall)
+	dragon := boss.NewDragonLord("d1", 1000, 1140)
+	w.SpawnEnemy(confused)
+	w.SpawnEnemy(unaffected)
+	w.SpawnEnemy(elite)
+	w.SpawnDragon(dragon)
+
+	w.HandleInput("p1", player.Input{Seq: 1, Confusion: true})
+	w.Tick(20 * time.Millisecond)
+	windupSnap := w.Snapshot()
+	if len(windupSnap.WaveIndicators) == 0 || windupSnap.WaveIndicators[0].Kind != "confusion" {
+		t.Fatalf("expected confusion wave windup indicator, got %#v", windupSnap.WaveIndicators)
+	}
+	if confused.TargetID != "" {
+		t.Fatalf("expected confusion windup to clear player target, got %q", confused.TargetID)
+	}
+
+	w.Tick(player.WaveWindup)
+	expandingSnap := w.Snapshot()
+	if len(expandingSnap.WaveIndicators) == 0 || expandingSnap.WaveIndicators[0].State != boss.WaveExpanding || expandingSnap.WaveIndicators[0].Kind != "confusion" {
+		t.Fatalf("expected expanding confusion wave indicator, got %#v", expandingSnap.WaveIndicators)
+	}
+
+	w.Tick(player.WaveExpandDuration() + 20*time.Millisecond)
+	if got, want := confused.HP, aggressiveConfig.MaxHP-player.ConfusionDamage; got != want {
+		t.Fatalf("expected confused enemy HP=%d after confusion wave, got %d", want, got)
+	}
+	if got, want := unaffected.HP, aggressiveConfig.MaxHP; got != want {
+		t.Fatalf("expected outside enemy HP=%d after confusion wave, got %d", want, got)
+	}
+	if got, want := elite.HP, elite.Config.MaxHP-player.ConfusionDamage; got != want {
+		t.Fatalf("expected elite HP=%d after confusion wave, got %d", want, got)
+	}
+	if got, want := dragon.HP, boss.DragonLordMaxHP-player.ConfusionDamage; got != want {
+		t.Fatalf("expected dragon HP=%d after confusion wave, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-28; got != want {
+		t.Fatalf("expected attacker HP=%d after 10%% confusion lifesteal and no contact damage, got %d", want, got)
+	}
+
+	postHitSnap := w.Snapshot()
+	confusedSnapshot := enemy.Snapshot{}
+	eliteSnapshot := enemy.Snapshot{}
+	for _, snap := range postHitSnap.Enemies {
+		if snap.ID == confused.ID {
+			confusedSnapshot = snap
+		}
+		if snap.ID == elite.ID {
+			eliteSnapshot = snap
+		}
+	}
+	if !confusedSnapshot.Confused {
+		t.Fatalf("expected normal enemy snapshot to be confused, got %#v", confusedSnapshot)
+	}
+	if confusedSnapshot.Facing == "" {
+		t.Fatalf("expected confused enemy snapshot to include facing, got %#v", confusedSnapshot)
+	}
+	if eliteSnapshot.Confused {
+		t.Fatalf("expected elite snapshot to avoid confusion status, got %#v", eliteSnapshot)
+	}
+
+	w.HandleInput("p1", player.Input{Seq: 2})
+	w.Tick(120 * time.Millisecond)
+	if confused.TargetID != unaffected.ID && confused.TargetID != elite.ID {
+		t.Fatalf("expected confused enemy to target another monster, got %q", confused.TargetID)
+	}
+	if confused.Facing == "" {
+		t.Fatal("expected confused enemy to face its monster target")
+	}
+	if confused.TargetID == elite.ID && confused.Facing != domworld.DirectionRight {
+		t.Fatalf("expected confused enemy to face elite on the right, got %q", confused.Facing)
+	}
+	if confused.TargetID == unaffected.ID && confused.Facing != domworld.DirectionDown {
+		t.Fatalf("expected confused enemy to face unaffected monster below, got %q", confused.Facing)
+	}
+	if unaffected.TargetID != confused.ID {
+		t.Fatalf("expected normal enemy to target confused monster, got %q", unaffected.TargetID)
+	}
+	if unaffected.Facing != domworld.DirectionUp {
+		t.Fatalf("expected normal enemy to face confused monster above, got %q", unaffected.Facing)
+	}
+
+	w.Tick(player.ConfusionDuration)
+	expiredSnap := w.Snapshot()
+	for _, snap := range expiredSnap.Enemies {
+		if snap.ID == confused.ID && snap.Confused {
+			t.Fatalf("expected confusion status to expire after %s", player.ConfusionDuration)
+		}
+	}
+}
+
 func TestAdoptPlayer(t *testing.T) {
 	t.Parallel()
 

@@ -37,6 +37,7 @@ export type ClientInputState = Pick<
   | 'numb'
   | 'pull'
   | 'venom'
+  | 'confusion'
   | 'dash'
   | 'grenade'
   | 'molotov'
@@ -130,6 +131,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     numb: input.numb,
     pull: input.pull,
     venom: input.venom,
+    confusion: input.confusion,
     dash: input.dash,
     grenade: input.grenade,
     molotov: input.molotov,
@@ -205,6 +207,7 @@ export function parseClientMessage(
         'numb',
         'pull',
         'venom',
+        'confusion',
         'dash',
         'grenade',
         'molotov',
@@ -228,6 +231,7 @@ export function parseClientMessage(
         numb: input.numb,
         pull: input.pull,
         venom: input.venom,
+        confusion: input.confusion,
         dash: input.dash,
         grenade: input.grenade,
         molotov: input.molotov,

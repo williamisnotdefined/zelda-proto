@@ -109,6 +109,12 @@ export class EnemySnapshotStore {
         maxHp: state.maxHp,
         state: state.state,
       };
+      if (state.confused !== undefined) {
+        nextSnapshot.confused = state.confused;
+      }
+      if (state.facing !== undefined) {
+        nextSnapshot.facing = state.facing;
+      }
       if (state.statusEffects !== undefined) {
         nextSnapshot.statusEffects = { ...state.statusEffects };
       }
@@ -232,6 +238,8 @@ export class EnemySnapshotStore {
       previous.elite !== next.elite ||
       previous.variant !== next.variant ||
       previous.venomMarked !== next.venomMarked ||
+      previous.confused !== next.confused ||
+      previous.facing !== next.facing ||
       previous.statusEffects?.burning?.ticksRemaining !==
         next.statusEffects?.burning?.ticksRemaining ||
       previous.x !== next.x ||

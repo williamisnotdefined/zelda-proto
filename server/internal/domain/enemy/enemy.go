@@ -125,6 +125,16 @@ type PlayerView struct {
 	Protected bool
 }
 
+// MonsterView is the read-only enemy target consumed by the confusion AI.
+// Confusion never retargets players or bosses; it only redirects monsters to
+// fight other monsters.
+type MonsterView struct {
+	ID     string
+	X, Y   float64
+	Alive  bool
+	Radius float64
+}
+
 // Enemy is the AI aggregate.
 type Enemy struct {
 	ID             string
@@ -137,6 +147,7 @@ type Enemy struct {
 	ChunkKey       string
 	HP             int
 	State          State
+	Facing         domworld.Direction
 	TargetID       string
 	DamageCooldown time.Duration
 	RespawnTimer   time.Duration
@@ -257,6 +268,7 @@ func (e *Enemy) Update(dt time.Duration, players []PlayerView, spawnSafeZoneActi
 	if dist == 0 {
 		return
 	}
+	e.Facing = cardinalDirection(dx, dy)
 	step := e.Config.Speed * dt.Seconds()
 	nx := e.X + (dx/dist)*step
 	ny := e.Y + (dy/dist)*step
@@ -271,6 +283,64 @@ func (e *Enemy) Update(dt time.Duration, players []PlayerView, spawnSafeZoneActi
 	e.State = StateChasing
 
 	if e.overlapsTarget(target) && e.DamageCooldown <= 0 {
+		e.State = StateAttacking
+	}
+}
+
+// UpdateAgainstMonster advances the enemy while targeting another monster. It
+// is used only by the confusion status, so it intentionally bypasses player AI
+// acquisition and prevents confused monsters from choosing players as targets.
+func (e *Enemy) UpdateAgainstMonster(dt time.Duration, target *MonsterView, spawnSafeZoneActive bool, spawnX, spawnY, safeRadius float64) {
+	if e.DamageCooldown > 0 {
+		e.DamageCooldown -= dt
+		if e.DamageCooldown < 0 {
+			e.DamageCooldown = 0
+		}
+	}
+	if e.State == StateDead {
+		return
+	}
+	if e.knightAbilityCooldown > 0 {
+		e.knightAbilityCooldown -= dt
+		if e.knightAbilityCooldown < 0 {
+			e.knightAbilityCooldown = 0
+		}
+	}
+
+	if target == nil || !target.Alive || target.ID == e.ID {
+		e.TargetID = ""
+		e.State = StateIdle
+		e.knightAbilityTimer = 0
+		return
+	}
+
+	e.TargetID = target.ID
+	dx := target.X - e.X
+	dy := target.Y - e.Y
+	dist := math.Hypot(dx, dy)
+	if dist == 0 {
+		if e.DamageCooldown <= 0 {
+			e.State = StateAttacking
+		}
+		return
+	}
+	e.Facing = cardinalDirection(dx, dy)
+
+	if e.overlapsMonsterTarget(target) && e.DamageCooldown <= 0 {
+		e.State = StateAttacking
+		return
+	}
+
+	step := e.Config.Speed * dt.Seconds()
+	nx := e.X + (dx/dist)*step
+	ny := e.Y + (dy/dist)*step
+	if spawnSafeZoneActive && physics.IsInSafeZone(nx, ny, spawnX, spawnY, safeRadius) {
+		nx = e.X + (-dy/dist)*step
+		ny = e.Y + (dx/dist)*step
+	}
+	e.X, e.Y = nx, ny
+	e.State = StateChasing
+	if e.overlapsMonsterTarget(target) && e.DamageCooldown <= 0 {
 		e.State = StateAttacking
 	}
 }
@@ -296,6 +366,7 @@ func (e *Enemy) updateKnight(dt time.Duration, players []PlayerView, spawnSafeZo
 	if dist == 0 {
 		dx, dist = 1, 1
 	}
+	e.Facing = cardinalDirection(dx, dy)
 	dirX := dx / dist
 	dirY := dy / dist
 
@@ -406,6 +477,26 @@ func (e *Enemy) knightCooldown(base time.Duration) time.Duration {
 	return base
 }
 
+// FaceMonsterTarget switches the enemy's visual/AI intent away from players and
+// toward a monster target without advancing movement. Confusion uses this at the
+// moment the status lands so clients see the turn immediately.
+func (e *Enemy) FaceMonsterTarget(target *MonsterView) {
+	if target == nil || !target.Alive || target.ID == e.ID || e.State == StateDead {
+		return
+	}
+	e.TargetID = target.ID
+	e.faceToward(target.X, target.Y)
+}
+
+func (e *Enemy) faceToward(x, y float64) {
+	dx := x - e.X
+	dy := y - e.Y
+	if dx == 0 && dy == 0 {
+		return
+	}
+	e.Facing = cardinalDirection(dx, dy)
+}
+
 func cardinalDirection(dx, dy float64) domworld.Direction {
 	if math.Abs(dx) >= math.Abs(dy) {
 		if dx < 0 {
@@ -478,6 +569,11 @@ func (e *Enemy) overlapsTarget(target *PlayerView) bool {
 	return physics.DistanceSquared(e.X, e.Y, target.X, target.Y) <= r*r
 }
 
+func (e *Enemy) overlapsMonsterTarget(target *MonsterView) bool {
+	r := e.CollisionRadius() + target.Radius
+	return physics.DistanceSquared(e.X, e.Y, target.X, target.Y) <= r*r
+}
+
 // CollisionRadius returns the solid body radius used for actor-vs-actor
 // blocking. This is intentionally wider than some contact-damage radii so the
 // visual sprite body cannot pass through other solid actors.
@@ -538,6 +634,8 @@ type Snapshot struct {
 	Elite                 bool
 	Variant               PacmanVariant
 	VenomMarked           bool
+	Confused              bool
+	Facing                domworld.Direction
 	BurningTicksRemaining int
 	X, Y                  float64
 	HP                    int
@@ -551,5 +649,6 @@ func (e *Enemy) Snapshot() Snapshot {
 		ID: e.ID, Kind: e.Kind, Elite: e.Elite, Variant: e.Variant,
 		X: physics.QuantizePosition(e.X), Y: physics.QuantizePosition(e.Y),
 		HP: e.HP, MaxHP: e.Config.MaxHP, State: e.State,
+		Facing: e.Facing,
 	}
 }

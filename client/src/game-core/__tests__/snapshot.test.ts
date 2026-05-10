@@ -112,7 +112,7 @@ function createIncrementalDelta(
     removedPlayerIds: [],
     enemies: [],
     enemyTransforms: [{ id: 'enemy-1', x: 420, y: 520 }],
-    enemyStates: [{ id: 'enemy-1', hp: 4, maxHp: 5, state: 'chasing' }],
+    enemyStates: [{ id: 'enemy-1', hp: 4, maxHp: 5, state: 'chasing', facing: 'left' }],
     bosses: [],
     drops: [],
     portals: [],
@@ -178,7 +178,14 @@ describe('normalizeServerMessage', () => {
       instanceId: INSTANCE_IDS.PHASE1,
       players: [expect.objectContaining({ id: 'player-1', x: 120 })],
       enemies: [
-        expect.objectContaining({ id: 'enemy-1', x: 420, y: 520, hp: 4, state: 'chasing' }),
+        expect.objectContaining({
+          id: 'enemy-1',
+          x: 420,
+          y: 520,
+          hp: 4,
+          state: 'chasing',
+          facing: 'left',
+        }),
       ],
     });
   });

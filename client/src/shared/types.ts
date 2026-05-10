@@ -87,7 +87,7 @@ export const HAZARD_KINDS = {
 
 export type HazardKind = (typeof HAZARD_KINDS)[keyof typeof HAZARD_KINDS];
 
-export const PROTOCOL_VERSION = 15 as const;
+export const PROTOCOL_VERSION = 17 as const;
 
 export type ProtocolVersion = typeof PROTOCOL_VERSION;
 
@@ -145,7 +145,7 @@ export type BossState =
   | 'dead';
 
 export type WaveState = 'windup' | 'expanding' | 'collapsing';
-export type PlayerWaveKind = 'wave' | 'numb' | 'pull' | 'venom';
+export type PlayerWaveKind = 'wave' | 'numb' | 'pull' | 'venom' | 'confusion';
 
 export interface BurningStatus {
   ticksRemaining: number;
@@ -193,6 +193,8 @@ export interface EnemySnapshot {
   elite?: boolean;
   variant?: PacmanGhostVariant;
   venomMarked?: boolean;
+  confused?: boolean;
+  facing?: Direction;
   statusEffects?: PlayerStatusSnapshot;
   x: number;
   y: number;
@@ -214,6 +216,8 @@ export interface EnemyStateDelta {
   hp: number;
   maxHp: number;
   state: EnemyState;
+  confused?: boolean;
+  facing?: Direction;
   statusEffects?: PlayerStatusSnapshot;
 }
 
@@ -371,6 +375,7 @@ export interface InputMessage {
   numb: boolean;
   pull: boolean;
   venom: boolean;
+  confusion: boolean;
   dash: boolean;
   grenade: boolean;
   molotov: boolean;

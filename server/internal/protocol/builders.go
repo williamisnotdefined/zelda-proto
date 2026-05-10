@@ -29,6 +29,7 @@ func NewInputMessage(seq int64, input ClientInputState) InputMessage {
 		Numb:            input.Numb,
 		Pull:            input.Pull,
 		Venom:           input.Venom,
+		Confusion:       input.Confusion,
 		Dash:            input.Dash,
 		Grenade:         input.Grenade,
 		Molotov:         input.Molotov,

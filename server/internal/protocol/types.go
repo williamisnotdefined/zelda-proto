@@ -5,19 +5,20 @@ type ClientMessage interface {
 }
 
 type ClientInputState struct {
-	Up       bool
-	Down     bool
-	Left     bool
-	Right    bool
-	Wave     bool
-	Numb     bool
-	Pull     bool
-	Venom    bool
-	Dash     bool
-	Grenade  bool
-	Molotov  bool
-	Landmine bool
-	Shuriken bool
+	Up        bool
+	Down      bool
+	Left      bool
+	Right     bool
+	Wave      bool
+	Numb      bool
+	Pull      bool
+	Venom     bool
+	Confusion bool
+	Dash      bool
+	Grenade   bool
+	Molotov   bool
+	Landmine  bool
+	Shuriken  bool
 }
 
 type JoinMessage struct {
@@ -52,6 +53,7 @@ type InputMessage struct {
 	Numb            bool              `json:"numb" msgpack:"numb"`
 	Pull            bool              `json:"pull" msgpack:"pull"`
 	Venom           bool              `json:"venom" msgpack:"venom"`
+	Confusion       bool              `json:"confusion" msgpack:"confusion"`
 	Dash            bool              `json:"dash" msgpack:"dash"`
 	Grenade         bool              `json:"grenade" msgpack:"grenade"`
 	Molotov         bool              `json:"molotov" msgpack:"molotov"`
