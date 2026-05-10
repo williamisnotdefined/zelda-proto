@@ -146,27 +146,29 @@ func ParseClientMessage(raw any) ClientMessageParseResult {
 		molotov, okMolotov := getBool(record, "molotov")
 		landmine, okLandmine := getBool(record, "landmine")
 		shuriken, okShuriken := getBool(record, "shuriken")
-		if !okUp || !okDown || !okLeft || !okRight || !okWave || !okNumb || !okPull || !okVenom || !okConfusion || !okDash || !okGrenade || !okMolotov || !okLandmine || !okShuriken {
+		spikedBalls, okSpikedBalls := getBool(record, "spikedBalls")
+		if !okUp || !okDown || !okLeft || !okRight || !okWave || !okNumb || !okPull || !okVenom || !okConfusion || !okDash || !okGrenade || !okMolotov || !okLandmine || !okShuriken || !okSpikedBalls {
 			return ClientMessageParseResult{Reason: ClientMessageParseFailureInvalidMessage}
 		}
 
 		return ClientMessageParseResult{
 			OK: true,
 			Value: NewInputMessage(seq, ClientInputState{
-				Up:        up,
-				Down:      down,
-				Left:      left,
-				Right:     right,
-				Wave:      wave,
-				Numb:      numb,
-				Pull:      pull,
-				Venom:     venom,
-				Confusion: confusion,
-				Dash:      dash,
-				Grenade:   grenade,
-				Molotov:   molotov,
-				Landmine:  landmine,
-				Shuriken:  shuriken,
+				Up:          up,
+				Down:        down,
+				Left:        left,
+				Right:       right,
+				Wave:        wave,
+				Numb:        numb,
+				Pull:        pull,
+				Venom:       venom,
+				Confusion:   confusion,
+				Dash:        dash,
+				Grenade:     grenade,
+				Molotov:     molotov,
+				Landmine:    landmine,
+				Shuriken:    shuriken,
+				SpikedBalls: spikedBalls,
 			}),
 		}
 	case ClientMessageTypeSnapshotResync:

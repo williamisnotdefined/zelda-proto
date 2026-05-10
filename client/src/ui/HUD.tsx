@@ -7,6 +7,7 @@ import {
   PLAYER_NUMB_COOLDOWN,
   PLAYER_PULL_COOLDOWN,
   PLAYER_SHURIKEN_COOLDOWN,
+  PLAYER_SPIKED_BALLS_COOLDOWN,
   PLAYER_VENOM_COOLDOWN,
   PLAYER_WAVE_COOLDOWN,
 } from '@/game-core';
@@ -97,6 +98,7 @@ export function HUD() {
   const molotovCooldownEndsAt = useGameStore((s) => s.molotovCooldownEndsAt);
   const landmineCooldownEndsAt = useGameStore((s) => s.landmineCooldownEndsAt);
   const shurikenCooldownEndsAt = useGameStore((s) => s.shurikenCooldownEndsAt);
+  const spikedBallsCooldownEndsAt = useGameStore((s) => s.spikedBallsCooldownEndsAt);
   const connectionError = useGameStore((s) => s.connectionError);
   const lastConnectionAttempt = useGameStore((s) => s.lastConnectionAttempt);
   const setConnectionError = useGameStore((s) => s.setConnectionError);
@@ -119,7 +121,8 @@ export function HUD() {
       !grenadeCooldownEndsAt &&
       !molotovCooldownEndsAt &&
       !landmineCooldownEndsAt &&
-      !shurikenCooldownEndsAt
+      !shurikenCooldownEndsAt &&
+      !spikedBallsCooldownEndsAt
     ) {
       setCooldownNowMs(Date.now());
       return;
@@ -139,7 +142,8 @@ export function HUD() {
         now >= (grenadeCooldownEndsAt ?? 0) &&
         now >= (molotovCooldownEndsAt ?? 0) &&
         now >= (landmineCooldownEndsAt ?? 0) &&
-        now >= (shurikenCooldownEndsAt ?? 0)
+        now >= (shurikenCooldownEndsAt ?? 0) &&
+        now >= (spikedBallsCooldownEndsAt ?? 0)
       ) {
         window.clearInterval(intervalId);
       }
@@ -155,6 +159,7 @@ export function HUD() {
     numbCooldownEndsAt,
     pullCooldownEndsAt,
     shurikenCooldownEndsAt,
+    spikedBallsCooldownEndsAt,
     venomCooldownEndsAt,
     waveCooldownEndsAt,
   ]);
@@ -213,6 +218,14 @@ export function HUD() {
   const shurikenCooldownProgress = shurikenReady
     ? 1
     : 1 - shurikenCooldownRemainingMs / PLAYER_SHURIKEN_COOLDOWN;
+  const spikedBallsCooldownRemainingMs = Math.max(
+    0,
+    (spikedBallsCooldownEndsAt ?? 0) - cooldownNowMs
+  );
+  const spikedBallsReady = !spikedBallsCooldownEndsAt || spikedBallsCooldownRemainingMs <= 0;
+  const spikedBallsCooldownProgress = spikedBallsReady
+    ? 1
+    : 1 - spikedBallsCooldownRemainingMs / PLAYER_SPIKED_BALLS_COOLDOWN;
   const hpRatio = localPlayerHud ? localPlayerHud.hp / localPlayerHud.maxHp : 0;
 
   const weaponAbilityMeters = [
@@ -287,6 +300,20 @@ export function HUD() {
       fillCooldownClassName:
         'bg-[linear-gradient(90deg,#7346d8_0%,#2b9fcc_45%,#6bbf55_72%,#c4972d_100%)]',
       glowClassName: 'shadow-[0_0_14px_rgba(183,129,255,0.55)]',
+    },
+    {
+      label: 'Spiked Balls (G)',
+      ready: spikedBallsReady,
+      remainingMs: spikedBallsCooldownRemainingMs,
+      progress: spikedBallsCooldownProgress,
+      widthClassName: 'w-[200px]',
+      valueReadyClassName: 'text-[#ffb7b7]',
+      valueCooldownClassName: 'text-[#ffe0e0]',
+      trackClassName:
+        'bg-[rgba(34,12,15,0.92)] border-[rgba(255,82,82,0.26)] shadow-[inset_0_0_12px_rgba(255,40,40,0.1)]',
+      fillReadyClassName: 'bg-[linear-gradient(90deg,#6f737c_0%,#b9b7b1_36%,#9b0712_100%)]',
+      fillCooldownClassName: 'bg-[linear-gradient(90deg,#3a3d43_0%,#7a7470_40%,#6d0710_100%)]',
+      glowClassName: 'shadow-[0_0_14px_rgba(170,16,26,0.55)]',
     },
   ];
 

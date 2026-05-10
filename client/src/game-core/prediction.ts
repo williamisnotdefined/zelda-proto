@@ -24,6 +24,7 @@ export interface InputState {
   molotov: boolean;
   landmine: boolean;
   shuriken: boolean;
+  spikedBalls: boolean;
 }
 
 export interface ReconcileOptions {

@@ -228,21 +228,22 @@ func (d *Dispatcher) HandleInput(connID string, msg protocol.InputMessage) error
 		return ErrNotJoined
 	}
 	d.manager.HandleInput(state.playerID, player.Input{
-		Seq:       msg.Seq,
-		Up:        msg.Up,
-		Down:      msg.Down,
-		Left:      msg.Left,
-		Right:     msg.Right,
-		Wave:      msg.Wave,
-		Numb:      msg.Numb,
-		Pull:      msg.Pull,
-		Venom:     msg.Venom,
-		Confusion: msg.Confusion,
-		Dash:      msg.Dash,
-		Grenade:   msg.Grenade,
-		Molotov:   msg.Molotov,
-		Landmine:  msg.Landmine,
-		Shuriken:  msg.Shuriken,
+		Seq:         msg.Seq,
+		Up:          msg.Up,
+		Down:        msg.Down,
+		Left:        msg.Left,
+		Right:       msg.Right,
+		Wave:        msg.Wave,
+		Numb:        msg.Numb,
+		Pull:        msg.Pull,
+		Venom:       msg.Venom,
+		Confusion:   msg.Confusion,
+		Dash:        msg.Dash,
+		Grenade:     msg.Grenade,
+		Molotov:     msg.Molotov,
+		Landmine:    msg.Landmine,
+		Shuriken:    msg.Shuriken,
+		SpikedBalls: msg.SpikedBalls,
 	})
 	return nil
 }
@@ -510,6 +511,7 @@ func playerObj(p player.Snapshot) codec.Object {
 		{Key: "lastProcessedInputSeq", Value: p.LastProcessedInputSeq},
 		{Key: "statusEffects", Value: statusEffects},
 		{Key: "shurikenActive", Value: p.ShurikenActive},
+		{Key: "spikedBallsActive", Value: p.SpikedBallsActive},
 	}
 }
 

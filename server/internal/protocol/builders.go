@@ -35,6 +35,7 @@ func NewInputMessage(seq int64, input ClientInputState) InputMessage {
 		Molotov:         input.Molotov,
 		Landmine:        input.Landmine,
 		Shuriken:        input.Shuriken,
+		SpikedBalls:     input.SpikedBalls,
 	}
 }
 

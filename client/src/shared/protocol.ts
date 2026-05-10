@@ -43,6 +43,7 @@ export type ClientInputState = Pick<
   | 'molotov'
   | 'landmine'
   | 'shuriken'
+  | 'spikedBalls'
 >;
 type ClientInputRecord = Record<keyof ClientInputState, boolean>;
 
@@ -137,6 +138,7 @@ export function createInputMessage(seq: number, input: ClientInputState): InputM
     molotov: input.molotov,
     landmine: input.landmine,
     shuriken: input.shuriken,
+    spikedBalls: input.spikedBalls,
   };
 }
 
@@ -213,6 +215,7 @@ export function parseClientMessage(
         'molotov',
         'landmine',
         'shuriken',
+        'spikedBalls',
       ])
     ) {
       return { ok: false, reason: 'invalid_message' };
@@ -237,6 +240,7 @@ export function parseClientMessage(
         molotov: input.molotov,
         landmine: input.landmine,
         shuriken: input.shuriken,
+        spikedBalls: input.spikedBalls,
       }),
     };
   }

@@ -75,6 +75,10 @@ class ZustandGameUiSink implements GameUiSink {
     useGameStore.getState().setShurikenCooldownEndsAt(time);
   }
 
+  setSpikedBallsCooldownEndsAt(time: number | null): void {
+    useGameStore.getState().setSpikedBallsCooldownEndsAt(time);
+  }
+
   setBoss(boss: BossData | null): void {
     useGameStore.getState().setBoss(boss);
   }

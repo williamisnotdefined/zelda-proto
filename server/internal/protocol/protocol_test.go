@@ -84,20 +84,21 @@ func TestMessageBuilders(t *testing.T) {
 	}
 
 	input := protocol.NewInputMessage(7, protocol.ClientInputState{
-		Up:        true,
-		Down:      false,
-		Left:      false,
-		Right:     true,
-		Wave:      false,
-		Numb:      true,
-		Pull:      false,
-		Venom:     false,
-		Confusion: false,
-		Dash:      false,
-		Grenade:   false,
-		Molotov:   false,
-		Landmine:  false,
-		Shuriken:  false,
+		Up:          true,
+		Down:        false,
+		Left:        false,
+		Right:       true,
+		Wave:        false,
+		Numb:        true,
+		Pull:        false,
+		Venom:       false,
+		Confusion:   false,
+		Dash:        false,
+		Grenade:     false,
+		Molotov:     false,
+		Landmine:    false,
+		Shuriken:    false,
+		SpikedBalls: false,
 	})
 	if !reflect.DeepEqual(input, protocol.InputMessage{
 		ProtocolVersion: protocol.ProtocolVersion,
@@ -117,6 +118,7 @@ func TestMessageBuilders(t *testing.T) {
 		Molotov:         false,
 		Landmine:        false,
 		Shuriken:        false,
+		SpikedBalls:     false,
 	}) {
 		t.Fatalf("unexpected input message: %#v", input)
 	}
@@ -186,22 +188,24 @@ func TestParseClientMessage(t *testing.T) {
 			"molotov":         false,
 			"landmine":        false,
 			"shuriken":        false,
+			"spikedBalls":     false,
 		})
 		assertParseResult(t, input, protocol.NewInputMessage(9, protocol.ClientInputState{
-			Up:        false,
-			Down:      false,
-			Left:      false,
-			Right:     true,
-			Wave:      false,
-			Numb:      true,
-			Pull:      false,
-			Venom:     false,
-			Confusion: false,
-			Dash:      false,
-			Grenade:   false,
-			Molotov:   false,
-			Landmine:  false,
-			Shuriken:  false,
+			Up:          false,
+			Down:        false,
+			Left:        false,
+			Right:       true,
+			Wave:        false,
+			Numb:        true,
+			Pull:        false,
+			Venom:       false,
+			Confusion:   false,
+			Dash:        false,
+			Grenade:     false,
+			Molotov:     false,
+			Landmine:    false,
+			Shuriken:    false,
+			SpikedBalls: false,
 		}), "")
 	})
 
@@ -235,6 +239,7 @@ func TestParseClientMessage(t *testing.T) {
 			"molotov":         false,
 			"landmine":        false,
 			"shuriken":        false,
+			"spikedBalls":     false,
 		}), protocol.ClientMessageParseFailureInvalidMessage)
 		assertParseFailure(t, protocol.ParseClientMessage(map[string]any{
 			"protocolVersion": int64(protocol.ProtocolVersion),
@@ -301,6 +306,7 @@ func TestValidateClientMessage(t *testing.T) {
 			"molotov":         false,
 			"landmine":        false,
 			"shuriken":        false,
+			"spikedBalls":     false,
 		}, false), protocol.ValidationFailureReasonJoinRequired)
 
 		assertValidationFailure(t, protocol.ValidateClientMessage(map[string]any{

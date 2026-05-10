@@ -5,20 +5,21 @@ type ClientMessage interface {
 }
 
 type ClientInputState struct {
-	Up        bool
-	Down      bool
-	Left      bool
-	Right     bool
-	Wave      bool
-	Numb      bool
-	Pull      bool
-	Venom     bool
-	Confusion bool
-	Dash      bool
-	Grenade   bool
-	Molotov   bool
-	Landmine  bool
-	Shuriken  bool
+	Up          bool
+	Down        bool
+	Left        bool
+	Right       bool
+	Wave        bool
+	Numb        bool
+	Pull        bool
+	Venom       bool
+	Confusion   bool
+	Dash        bool
+	Grenade     bool
+	Molotov     bool
+	Landmine    bool
+	Shuriken    bool
+	SpikedBalls bool
 }
 
 type JoinMessage struct {
@@ -59,6 +60,7 @@ type InputMessage struct {
 	Molotov         bool              `json:"molotov" msgpack:"molotov"`
 	Landmine        bool              `json:"landmine" msgpack:"landmine"`
 	Shuriken        bool              `json:"shuriken" msgpack:"shuriken"`
+	SpikedBalls     bool              `json:"spikedBalls" msgpack:"spikedBalls"`
 }
 
 func (InputMessage) MessageType() ClientMessageType {

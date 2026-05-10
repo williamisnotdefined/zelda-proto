@@ -1,3 +1,3 @@
+- cities and npcs
 - more kind of monsters per phase
-- net (?)
-- grid 8 cmds
+

@@ -310,6 +310,71 @@ func (w *World) resolvePlayerShurikenTick(caster *player.Player, castID uint64) 
 	caster.HealFromShuriken(totalDamage)
 }
 
+func (w *World) resolvePlayerSpikedBalls() {
+	for _, caster := range w.players {
+		ticks, castID := caster.ConsumeSpikedBallsTicks()
+		if ticks <= 0 || caster.State == player.StateDead {
+			continue
+		}
+		for i := 0; i < ticks; i++ {
+			w.resolvePlayerSpikedBallsTick(caster, castID)
+		}
+		caster.FinishExpiredSpikedBallsCast(castID)
+	}
+}
+
+func (w *World) resolvePlayerSpikedBallsTick(caster *player.Player, castID uint64) {
+	totalDamage := 0
+	for _, e := range w.enemies {
+		if e.State == enemy.StateDead || !withinSpikedBallsRadius(caster.X, caster.Y, e.X, e.Y, e.CollisionRadius()) {
+			continue
+		}
+		beforeHP := e.HP
+		e.TakeDamage(player.SpikedBallsDamage)
+		dealt := beforeHP - e.HP
+		totalDamage += dealt
+		if e.State == enemy.StateDead {
+			delete(w.venomDebuffs, dynamicBodyKey("enemy", e.ID))
+			delete(w.molotovBurns, dynamicBodyKey("enemy", e.ID))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	}
+	w.forEachBossTargetInRadius(caster.X, caster.Y, player.SpikedBallsRadius+64, func(target bossTarget) {
+		if target.dead() || !withinSpikedBallsRadius(caster.X, caster.Y, target.x, target.y, target.radius) {
+			return
+		}
+		beforeHP := target.hp()
+		target.takeDamage(player.SpikedBallsDamage)
+		dealt := beforeHP - target.hp()
+		totalDamage += dealt
+		if target.dead() {
+			delete(w.venomDebuffs, dynamicBodyKey("boss", target.id))
+			delete(w.molotovBurns, dynamicBodyKey("boss", target.id))
+			caster.MonsterKills++
+			caster.RecordMonsterKillInCast(castID)
+		}
+	})
+
+	casterProtected := w.isProtected(caster)
+	for _, target := range w.players {
+		if target.ID == caster.ID || target.State == player.StateDead || casterProtected || w.isProtected(target) {
+			continue
+		}
+		if !withinSpikedBallsRadius(caster.X, caster.Y, target.X, target.Y, player.Width/2) {
+			continue
+		}
+		beforeHP := target.HP
+		target.TakeDamage(player.SpikedBallsDamage)
+		dealt := beforeHP - target.HP
+		totalDamage += dealt
+		if target.State == player.StateDead {
+			caster.PlayerKills++
+		}
+	}
+	caster.HealFromSpikedBalls(totalDamage)
+}
+
 func (w *World) resolveEnemyConfusionCombat() {
 	for _, attacker := range w.enemies {
 		if attacker.State != enemy.StateAttacking || attacker.DamageCooldown > 0 || attacker.TargetID == "" {
@@ -374,11 +439,16 @@ func withinShurikenRadius(cx, cy, x, y, bodyRadius float64) bool {
 	return physics.DistanceSquared(cx, cy, x, y) <= reach*reach
 }
 
+func withinSpikedBallsRadius(cx, cy, x, y, bodyRadius float64) bool {
+	reach := player.SpikedBallsRadius + bodyRadius
+	return physics.DistanceSquared(cx, cy, x, y) <= reach*reach
+}
+
 func (w *World) resolveCombat() {
 	// Run focused sub-systems in a fixed order:
 	// PlayerWave -> PlayerNumb -> PlayerPull -> PlayerVenom -> PlayerConfusion ->
 	// PlayerLandmine -> PlayerGrenade -> PlayerMolotov -> PlayerDash ->
-	// PlayerShuriken -> ContactDamage. Each system is stateless and reads/mutates
+	// PlayerShuriken -> PlayerSpikedBalls -> ContactDamage. Each system is stateless and reads/mutates
 	// only the slices it needs.
 	if (appcombat.PlayerWaveSystem{}).Resolve(
 		w.players,
@@ -467,6 +537,7 @@ func (w *World) resolveCombat() {
 		w.syncDynamicIndexesLocked()
 	}
 	w.resolvePlayerShurikens()
+	w.resolvePlayerSpikedBalls()
 	w.resolveEnemyConfusionCombat()
 	appcombat.ContactDamageSystem{}.Resolve(
 		w.players,

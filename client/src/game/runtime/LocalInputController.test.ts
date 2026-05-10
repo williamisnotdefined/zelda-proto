@@ -9,6 +9,7 @@ vi.mock('phaser', () => ({
           D: 68,
           E: 69,
           F: 70,
+          G: 71,
           Q: 81,
           R: 82,
           S: 83,
@@ -54,6 +55,7 @@ function createController({
     setMolotovCooldownEndsAt: vi.fn(),
     setLandmineCooldownEndsAt: vi.fn(),
     setShurikenCooldownEndsAt: vi.fn(),
+    setSpikedBallsCooldownEndsAt: vi.fn(),
   };
   const connection = {
     canSend: vi.fn(() => canSendResult),
@@ -87,7 +89,8 @@ function createController({
     cooldownSetters.setGrenadeCooldownEndsAt,
     cooldownSetters.setMolotovCooldownEndsAt,
     cooldownSetters.setLandmineCooldownEndsAt,
-    cooldownSetters.setShurikenCooldownEndsAt
+    cooldownSetters.setShurikenCooldownEndsAt,
+    cooldownSetters.setSpikedBallsCooldownEndsAt
   );
 
   return {

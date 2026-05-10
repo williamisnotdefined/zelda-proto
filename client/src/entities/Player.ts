@@ -5,6 +5,7 @@ import { PlayerAnimationController } from './player/PlayerAnimationController';
 import { PlayerAttackTelegraph } from './player/PlayerAttackTelegraph';
 import { PlayerPresentation } from './player/PlayerPresentation';
 import { PlayerStatusOverlays } from './player/PlayerStatusOverlays';
+import { PlayerSpikedBallsOrbit } from './player/PlayerSpikedBallsOrbit';
 import { PlayerShurikenOrbit } from './player/PlayerShurikenOrbit';
 import { PlayerWaveIndicator } from './player/PlayerWaveIndicator';
 import {
@@ -30,11 +31,13 @@ export class PlayerEntity {
   nickname: string;
   statusEffects: PlayerStatusSnapshot;
   shurikenActive: boolean;
+  spikedBallsActive: boolean;
 
   private readonly presentation: PlayerPresentation;
   private readonly statusOverlays: PlayerStatusOverlays;
   private readonly attackTelegraph: PlayerAttackTelegraph;
   private readonly shurikenOrbit: PlayerShurikenOrbit;
+  private readonly spikedBallsOrbit: PlayerSpikedBallsOrbit;
   private readonly animationController: PlayerAnimationController;
   private readonly waveIndicator: PlayerWaveIndicator;
 
@@ -49,6 +52,7 @@ export class PlayerEntity {
     this.nickname = nickname;
     this.statusEffects = {};
     this.shurikenActive = false;
+    this.spikedBallsActive = false;
     this.animationController = new PlayerAnimationController();
     this.sprite = scene.add.sprite(x, y + SPRITE_Y_OFFSET, 'player');
     this.sprite.setScale(2);
@@ -57,6 +61,7 @@ export class PlayerEntity {
     this.statusOverlays = new PlayerStatusOverlays(scene, x, y);
     this.attackTelegraph = new PlayerAttackTelegraph(scene, x, y);
     this.shurikenOrbit = new PlayerShurikenOrbit(scene);
+    this.spikedBallsOrbit = new PlayerSpikedBallsOrbit(scene);
     this.waveIndicator = new PlayerWaveIndicator(scene);
     this.hpBar = this.presentation.hpBar;
     this.hpBarBg = this.presentation.hpBarBg;
@@ -75,7 +80,8 @@ export class PlayerEntity {
     state: string,
     direction: string,
     statusEffects: PlayerStatusSnapshot = {},
-    shurikenActive = false
+    shurikenActive = false,
+    spikedBallsActive = false
   ): void {
     const targetSpriteY = y + SPRITE_Y_OFFSET;
 
@@ -97,6 +103,7 @@ export class PlayerEntity {
     this.serverDirection = direction;
     this.statusEffects = statusEffects;
     this.shurikenActive = shurikenActive;
+    this.spikedBallsActive = spikedBallsActive;
   }
 
   update(dt: number): void {
@@ -127,6 +134,13 @@ export class PlayerEntity {
       this.sprite.y - SPRITE_Y_OFFSET,
       this.serverState !== 'dead'
     );
+    this.spikedBallsOrbit.sync(this.spikedBallsActive && this.serverState !== 'dead');
+    this.spikedBallsOrbit.update(
+      dt,
+      this.sprite.x,
+      this.sprite.y - SPRITE_Y_OFFSET,
+      this.serverState !== 'dead'
+    );
     this.waveIndicator.update(dt);
     this.animationController.update(this.sprite, this.serverState, this.serverDirection);
   }
@@ -149,6 +163,7 @@ export class PlayerEntity {
     this.attackTelegraph.destroy();
     this.statusOverlays.destroy();
     this.shurikenOrbit.destroy();
+    this.spikedBallsOrbit.destroy();
     this.waveIndicator.destroy();
   }
 }

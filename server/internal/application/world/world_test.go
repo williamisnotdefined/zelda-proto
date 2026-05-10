@@ -665,6 +665,97 @@ func TestPlayerShurikenDamagesNearbyActorsStealsLifeAndAbsorbsDamage(t *testing.
 	}
 }
 
+func TestPlayerSpikedBallsDamagesNearbyActorsStealsLifeAndBuffsHP(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	tx, ty := ax+220, ay
+	target := w.AddPlayer("p2", "Zelda", &tx, &ty)
+	attacker.SafeZoneTimer = 0
+	target.SafeZoneTimer = 0
+	attacker.TakeDamage(40)
+
+	passiveConfig := enemy.BlobConfig
+	passiveConfig.Damage = 0
+	passiveConfig.Speed = 0
+	e := enemy.New("e1", ax, ay+220, "0,0", passiveConfig, drop.KindHeartSmall)
+	w.SpawnEnemy(e)
+	d := boss.NewDragonLord("d1", ax-220, ay)
+	d.Speed = 0
+	d.Damage = 0
+	d.AttackCD = time.Hour
+	w.SpawnDragon(d)
+
+	w.HandleInput("p1", player.Input{Seq: 1, SpikedBalls: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2})
+	if !attacker.Snapshot().SpikedBallsActive {
+		t.Fatal("expected spiked balls to be active after cast")
+	}
+	if got, want := attacker.MaxHP, player.SpikedBallsMaxHP; got != want {
+		t.Fatalf("expected max HP=%d during spiked balls, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-40+player.SpikedBallsBonusHP; got != want {
+		t.Fatalf("expected HP=%d after spiked balls bonus, got %d", want, got)
+	}
+
+	attacker.TakeDamage(10)
+	if got, want := attacker.HP, player.MaxHP-50+player.SpikedBallsBonusHP; got != want {
+		t.Fatalf("expected spiked balls to avoid shuriken absorption, want HP=%d got %d", want, got)
+	}
+
+	for i := 0; i < 4; i++ {
+		w.Tick(player.SpikedBallsTickInterval)
+	}
+
+	if got, want := e.HP, passiveConfig.MaxHP-player.SpikedBallsDamage*4; got != want {
+		t.Fatalf("expected enemy HP=%d after spiked balls ticks, got %d", want, got)
+	}
+	if got, want := d.HP, boss.DragonLordMaxHP-player.SpikedBallsDamage*4; got != want {
+		t.Fatalf("expected boss HP=%d after spiked balls ticks, got %d", want, got)
+	}
+	if got, want := target.HP, player.MaxHP-player.SpikedBallsDamage*4; got != want {
+		t.Fatalf("expected target HP=%d after spiked balls ticks, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP-44+player.SpikedBallsBonusHP; got != want {
+		t.Fatalf("expected attacker HP=%d after spiked balls lifesteal, got %d", want, got)
+	}
+
+	attacker.HP = player.SpikedBallsMaxHP - 10
+	w.Tick(player.SpikedBallsDuration)
+	if got, want := attacker.MaxHP, player.MaxHP; got != want {
+		t.Fatalf("expected max HP=%d after spiked balls expires, got %d", want, got)
+	}
+	if got, want := attacker.HP, player.MaxHP; got != want {
+		t.Fatalf("expected HP=%d after spiked balls expires, got %d", want, got)
+	}
+}
+
+func TestPlayerSpikedBallsCanRunWithShuriken(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	ax, ay := 1000.0, 1000.0
+	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
+	attacker.SafeZoneTimer = 0
+
+	w.HandleInput("p1", player.Input{Seq: 1, SpikedBalls: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 2, Shuriken: true})
+	w.Tick(20 * time.Millisecond)
+	w.HandleInput("p1", player.Input{Seq: 3})
+
+	snapshot := attacker.Snapshot()
+	if !snapshot.SpikedBallsActive || !snapshot.ShurikenActive {
+		t.Fatalf("expected spiked balls and shuriken to be active, got spiked=%v shuriken=%v", snapshot.SpikedBallsActive, snapshot.ShurikenActive)
+	}
+	if got, want := attacker.MaxHP, player.SpikedBallsMaxHP; got != want {
+		t.Fatalf("expected max HP=%d while both auras are active, got %d", want, got)
+	}
+}
+
 func TestPlayerWaveDamagesAndPushesTargets(t *testing.T) {
 	t.Parallel()
 

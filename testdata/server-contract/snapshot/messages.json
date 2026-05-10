@@ -1,5 +1,5 @@
 {
-  "protocolVersion": 17,
+  "protocolVersion": 18,
   "inputs": {
     "initialBundle": {
       "instanceId": "phase1",
@@ -23,7 +23,8 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-2",
@@ -40,7 +41,8 @@
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
           "statusEffects": {},
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
       "enemies": [
@@ -156,7 +158,8 @@
               "ticksRemaining": 3
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-3",
@@ -177,7 +180,8 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
       "enemies": [
@@ -282,7 +286,7 @@
   },
   "messages": {
     "initialFullSnapshot": {
-      "protocolVersion": 17,
+      "protocolVersion": 18,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -305,7 +309,8 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-2",
@@ -322,7 +327,8 @@
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
           "statusEffects": {},
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
       "enemies": [
@@ -414,7 +420,7 @@
       ]
     },
     "initialFullDelta": {
-      "protocolVersion": 17,
+      "protocolVersion": 18,
       "type": "snapshot_delta",
       "tick": 4,
       "full": true,
@@ -439,7 +445,8 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-2",
@@ -456,7 +463,8 @@
           "toastyCount": 0,
           "lastProcessedInputSeq": 12,
           "statusEffects": {},
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
       "removedPlayerIds": [],
@@ -556,7 +564,7 @@
       ]
     },
     "updatedIncrementalDelta": {
-      "protocolVersion": 17,
+      "protocolVersion": 18,
       "type": "snapshot_delta",
       "tick": 5,
       "full": false,
@@ -584,7 +592,8 @@
               "ticksRemaining": 3
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-3",
@@ -605,12 +614,11 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
-      "removedPlayerIds": [
-        "player-2"
-      ],
+      "removedPlayerIds": ["player-2"],
       "enemies": [
         {
           "id": "enemy-3",
@@ -676,19 +684,11 @@
           "ttlMs": 2500
         }
       ],
-      "removedEnemyIds": [
-        "enemy-2"
-      ],
+      "removedEnemyIds": ["enemy-2"],
       "removedBossIds": [],
-      "removedDropIds": [
-        "drop-1"
-      ],
-      "removedPortalIds": [
-        "portal-1"
-      ],
-      "removedHazardIds": [
-        "hazard-1"
-      ],
+      "removedDropIds": ["drop-1"],
+      "removedPortalIds": ["portal-1"],
+      "removedHazardIds": ["hazard-1"],
       "iceZones": [
         {
           "x": 55,
@@ -718,7 +718,7 @@
       ]
     },
     "updatedFullSnapshot": {
-      "protocolVersion": 17,
+      "protocolVersion": 18,
       "type": "snapshot",
       "instanceId": "phase1",
       "players": [
@@ -744,7 +744,8 @@
               "ticksRemaining": 3
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         },
         {
           "id": "player-3",
@@ -765,7 +766,8 @@
               "ticksRemaining": 2
             }
           },
-          "shurikenActive": false
+          "shurikenActive": false,
+          "spikedBallsActive": false
         }
       ],
       "enemies": [

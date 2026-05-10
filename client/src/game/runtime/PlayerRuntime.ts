@@ -52,6 +52,9 @@ export class PlayerRuntime {
       },
       (time) => {
         this.ui.setShurikenCooldownEndsAt(time);
+      },
+      (time) => {
+        this.ui.setSpikedBallsCooldownEndsAt(time);
       }
     );
   }
@@ -233,7 +236,8 @@ export class PlayerRuntime {
       player.state,
       player.direction,
       player.statusEffects,
-      player.shurikenActive === true
+      player.shurikenActive === true,
+      player.spikedBallsActive === true
     );
     entity.syncWaveIndicator(waveIndicator);
     if (damageTaken > 0) {

@@ -76,6 +76,7 @@ describe('message builders', () => {
         molotov: false,
         landmine: false,
         shuriken: false,
+        spikedBalls: false,
       })
     ).toEqual({
       protocolVersion: PROTOCOL_VERSION,
@@ -95,6 +96,7 @@ describe('message builders', () => {
       molotov: false,
       landmine: false,
       shuriken: false,
+      spikedBalls: false,
     });
 
     expect(
@@ -185,6 +187,7 @@ describe('parseClientMessage', () => {
         molotov: false,
         landmine: false,
         shuriken: false,
+        spikedBalls: false,
       })
     ).toEqual({ ok: false, reason: 'invalid_message' });
     expect(

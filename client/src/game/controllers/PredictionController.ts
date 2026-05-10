@@ -56,7 +56,8 @@ export class PredictionController {
           serverPlayer.state,
           serverPlayer.direction,
           serverPlayer.statusEffects,
-          serverPlayer.shurikenActive === true
+          serverPlayer.shurikenActive === true,
+          serverPlayer.spikedBallsActive === true
         );
       }
       onResetAccumulator();
@@ -80,7 +81,8 @@ export class PredictionController {
         serverPlayer.state,
         serverPlayer.direction,
         serverPlayer.statusEffects,
-        serverPlayer.shurikenActive === true
+        serverPlayer.shurikenActive === true,
+        serverPlayer.spikedBallsActive === true
       );
 
       return reconciled.filteredPending;

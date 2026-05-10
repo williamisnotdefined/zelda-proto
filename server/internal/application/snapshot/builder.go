@@ -507,7 +507,7 @@ func playerSnapshotsEqual(a, b player.Snapshot) bool {
 	if a.ID != b.ID || a.Nickname != b.Nickname || a.X != b.X || a.Y != b.Y || a.HP != b.HP || a.MaxHP != b.MaxHP ||
 		a.State != b.State || a.Direction != b.Direction || a.PlayerKills != b.PlayerKills || a.MonsterKills != b.MonsterKills ||
 		a.Deaths != b.Deaths || a.ToastyCount != b.ToastyCount || a.LastProcessedInputSeq != b.LastProcessedInputSeq ||
-		a.ShurikenActive != b.ShurikenActive || len(a.StatusEffects) != len(b.StatusEffects) {
+		a.ShurikenActive != b.ShurikenActive || a.SpikedBallsActive != b.SpikedBallsActive || len(a.StatusEffects) != len(b.StatusEffects) {
 		return false
 	}
 	for kind, status := range a.StatusEffects {

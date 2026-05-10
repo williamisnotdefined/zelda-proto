@@ -29,6 +29,14 @@ const (
 	ShurikenTickInterval              = 1 * time.Second
 	ShurikenLifeStealRatio    float64 = 0.05
 	ShurikenDamageAbsorbRatio float64 = 0.20
+	SpikedBallsDamage                 = ShurikenDamage
+	SpikedBallsRadius         float64 = 240
+	SpikedBallsDuration               = ShurikenDuration
+	SpikedBallsCooldown               = ShurikenCooldown
+	SpikedBallsTickInterval           = ShurikenTickInterval
+	SpikedBallsLifeStealRatio float64 = 0.10
+	SpikedBallsBonusHP                = MaxHP
+	SpikedBallsMaxHP                  = MaxHP + SpikedBallsBonusHP
 	WaveDamage                        = 3
 	NumbDamage                        = WaveDamage
 	PullDamage                        = WaveDamage
@@ -91,21 +99,22 @@ const (
 
 // Input is one client input frame (movement + attack).
 type Input struct {
-	Seq       int64
-	Up        bool
-	Down      bool
-	Left      bool
-	Right     bool
-	Wave      bool
-	Numb      bool
-	Pull      bool
-	Venom     bool
-	Confusion bool
-	Dash      bool
-	Grenade   bool
-	Molotov   bool
-	Landmine  bool
-	Shuriken  bool
+	Seq         int64
+	Up          bool
+	Down        bool
+	Left        bool
+	Right       bool
+	Wave        bool
+	Numb        bool
+	Pull        bool
+	Venom       bool
+	Confusion   bool
+	Dash        bool
+	Grenade     bool
+	Molotov     bool
+	Landmine    bool
+	Shuriken    bool
+	SpikedBalls bool
 }
 
 // WaveExpandDuration returns how long the player wave spends expanding from
@@ -199,6 +208,7 @@ type Snapshot struct {
 	LastProcessedInputSeq int64
 	StatusEffects         map[StatusEffect]BurningSnapshot
 	ShurikenActive        bool
+	SpikedBallsActive     bool
 }
 
 // WaveKind identifies which wave-like player skill is currently visualized.
@@ -268,6 +278,7 @@ type Player struct {
 	MolotovCooldown       time.Duration
 	LandmineCooldown      time.Duration
 	ShurikenCooldown      time.Duration
+	SpikedBallsCooldown   time.Duration
 	AttackHitEnemyIDs     map[string]struct{}
 	AttackHitPlayerIDs    map[string]struct{}
 	AttackMonsterKills    int
@@ -343,6 +354,10 @@ type Player struct {
 	shurikenTickTimer        time.Duration
 	shurikenPendingTicks     int
 	shurikenLifeStealBank    float64
+	spikedBallsRemaining     time.Duration
+	spikedBallsTickTimer     time.Duration
+	spikedBallsPendingTicks  int
+	spikedBallsLifeStealBank float64
 	nextCastID               uint64
 	waveCastID               uint64
 	numbCastID               uint64
@@ -353,6 +368,7 @@ type Player struct {
 	molotovCastID            uint64
 	landmineCastID           uint64
 	shurikenCastID           uint64
+	spikedBallsCastID        uint64
 	castMonsterKills         map[uint64]int
 
 	burning       BurningStatus
@@ -422,6 +438,7 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 
 	p.advanceCooldowns(dt)
 	p.advanceShuriken(dt)
+	p.advanceSpikedBalls(dt)
 
 	input := p.pendingInput
 	if input == nil {
@@ -527,6 +544,15 @@ func (p *Player) Update(dt time.Duration, speedMultiplier float64) {
 		p.shurikenPendingTicks = 0
 		p.shurikenCastID = p.beginCast()
 	}
+	if input.SpikedBalls && p.SpikedBallsCooldown <= 0 && !p.SpikedBallsActive() {
+		p.SpikedBallsCooldown = SpikedBallsCooldown
+		p.spikedBallsRemaining = SpikedBallsDuration
+		p.spikedBallsTickTimer = SpikedBallsTickInterval
+		p.spikedBallsPendingTicks = 0
+		p.spikedBallsLifeStealBank = 0
+		p.spikedBallsCastID = p.beginCast()
+		p.applySpikedBallsHealthBuff()
+	}
 	triggeredDash := false
 	if input.Dash && p.DashCooldown <= 0 {
 		if dashDirection := dashDirectionFromInput(input, p.Direction); dashDirection != "" {
@@ -608,6 +634,7 @@ func (p *Player) TakeDamage(amount int) {
 		p.resetMolotov()
 		p.resetLandmine()
 		p.resetShuriken()
+		p.resetSpikedBalls()
 		p.transition(StateDead)
 		p.Deaths += 1
 	}
@@ -655,6 +682,7 @@ func (p *Player) Respawn(x, y float64) {
 	p.resetMolotov()
 	p.resetLandmine()
 	p.resetShuriken()
+	p.resetSpikedBalls()
 }
 
 // SuspendForDisconnect resets transient combat state when a player goes idle
@@ -673,6 +701,7 @@ func (p *Player) SuspendForDisconnect() {
 	p.resetMolotov()
 	p.resetLandmine()
 	p.resetShuriken()
+	p.resetSpikedBalls()
 	if p.State != StateDead {
 		p.AttackState = 0
 		p.resetAttackTracking()
@@ -1007,6 +1036,44 @@ func (p *Player) FinishExpiredShurikenCast(castID uint64) {
 	p.shurikenCastID = 0
 }
 
+// ConsumeSpikedBallsTicks returns queued spiked balls damage ticks once.
+func (p *Player) ConsumeSpikedBallsTicks() (int, uint64) {
+	if p.spikedBallsPendingTicks <= 0 {
+		return 0, p.spikedBallsCastID
+	}
+	ticks := p.spikedBallsPendingTicks
+	p.spikedBallsPendingTicks = 0
+	return ticks, p.spikedBallsCastID
+}
+
+// SpikedBallsActive reports whether the orbiting spiked balls aura is up.
+func (p *Player) SpikedBallsActive() bool {
+	return p.spikedBallsRemaining > 0
+}
+
+// HealFromSpikedBalls applies the 10% spiked balls lifesteal, preserving fractional HP.
+func (p *Player) HealFromSpikedBalls(dealt int) {
+	if dealt <= 0 {
+		return
+	}
+	p.spikedBallsLifeStealBank += float64(dealt) * SpikedBallsLifeStealRatio
+	heal := int(p.spikedBallsLifeStealBank)
+	if heal <= 0 {
+		return
+	}
+	p.spikedBallsLifeStealBank -= float64(heal)
+	p.Heal(heal)
+}
+
+// FinishExpiredSpikedBallsCast clears cast bookkeeping after the final queued tick.
+func (p *Player) FinishExpiredSpikedBallsCast(castID uint64) {
+	if castID == 0 || p.spikedBallsCastID != castID || p.SpikedBallsActive() || p.spikedBallsPendingTicks > 0 {
+		return
+	}
+	p.FinishCast(castID)
+	p.spikedBallsCastID = 0
+}
+
 // WaveIndicator returns the active player wave visual, if any.
 func (p *Player) WaveIndicator() *WaveIndicator {
 	if p.waveActive {
@@ -1071,6 +1138,7 @@ func (p *Player) Snapshot() Snapshot {
 		LastProcessedInputSeq: p.LastProcessedInputSeq,
 		StatusEffects:         effects,
 		ShurikenActive:        p.ShurikenActive(),
+		SpikedBallsActive:     p.SpikedBallsActive(),
 	}
 }
 
@@ -1126,6 +1194,7 @@ func (p *Player) advanceCooldowns(dt time.Duration) {
 	advanceCooldown(&p.MolotovCooldown, dt)
 	advanceCooldown(&p.LandmineCooldown, dt)
 	advanceCooldown(&p.ShurikenCooldown, dt)
+	advanceCooldown(&p.SpikedBallsCooldown, dt)
 }
 
 func advanceCooldown(cooldown *time.Duration, dt time.Duration) {
@@ -1255,6 +1324,16 @@ func (p *Player) resetShuriken() {
 	p.shurikenCastID = 0
 }
 
+func (p *Player) resetSpikedBalls() {
+	p.SpikedBallsCooldown = 0
+	p.spikedBallsRemaining = 0
+	p.spikedBallsTickTimer = 0
+	p.spikedBallsPendingTicks = 0
+	p.spikedBallsLifeStealBank = 0
+	p.spikedBallsCastID = 0
+	p.clearSpikedBallsHealthBuff()
+}
+
 func (p *Player) beginCast() uint64 {
 	p.nextCastID += 1
 	return p.nextCastID
@@ -1273,6 +1352,7 @@ func (p *Player) resetCastTracking() {
 	p.molotovCastID = 0
 	p.landmineCastID = 0
 	p.shurikenCastID = 0
+	p.spikedBallsCastID = 0
 }
 
 func (p *Player) advanceShuriken(dt time.Duration) {
@@ -1294,6 +1374,44 @@ func (p *Player) advanceShuriken(dt time.Duration) {
 	if p.shurikenRemaining <= 0 {
 		p.shurikenRemaining = 0
 		p.shurikenTickTimer = 0
+	}
+}
+
+func (p *Player) advanceSpikedBalls(dt time.Duration) {
+	if p.spikedBallsRemaining <= 0 || dt <= 0 {
+		return
+	}
+	activeDt := dt
+	if activeDt > p.spikedBallsRemaining {
+		activeDt = p.spikedBallsRemaining
+	}
+
+	p.spikedBallsRemaining -= activeDt
+	p.spikedBallsTickTimer -= activeDt
+	for p.spikedBallsTickTimer <= 0 {
+		p.spikedBallsPendingTicks++
+		p.spikedBallsTickTimer += SpikedBallsTickInterval
+	}
+
+	if p.spikedBallsRemaining <= 0 {
+		p.spikedBallsRemaining = 0
+		p.spikedBallsTickTimer = 0
+		p.clearSpikedBallsHealthBuff()
+	}
+}
+
+func (p *Player) applySpikedBallsHealthBuff() {
+	p.MaxHP = SpikedBallsMaxHP
+	p.HP += SpikedBallsBonusHP
+	if p.HP > p.MaxHP {
+		p.HP = p.MaxHP
+	}
+}
+
+func (p *Player) clearSpikedBallsHealthBuff() {
+	p.MaxHP = MaxHP
+	if p.HP > p.MaxHP {
+		p.HP = p.MaxHP
 	}
 }
 
