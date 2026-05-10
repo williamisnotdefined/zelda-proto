@@ -1,4 +1,4 @@
-import type { InstanceId, SnapshotMessage, WelcomeMessage } from '@/shared';
+import type { InstanceId, SnapshotDeltaMessage, SnapshotMessage, WelcomeMessage } from '@/shared';
 import Phaser from 'phaser';
 import { gameConnection } from '../../network/gameConnection';
 import { BossRuntime } from '../runtime/bosses/BossRuntime';
@@ -43,6 +43,7 @@ export class WorldScene extends Phaser.Scene {
     this.networkSession = new WorldNetworkSession(gameConnection, zustandGameUiSink, {
       onWelcome: (message) => this.handleWelcome(message),
       onSnapshot: (message) => this.handleSnapshot(message),
+      onSnapshotDelta: (message) => this.handleSnapshotDelta(message),
     });
 
     this.scale.on(Phaser.Scale.Events.RESIZE, this.handleScaleResize, this);
@@ -125,6 +126,35 @@ export class WorldScene extends Phaser.Scene {
     this.staticEntityRuntime.syncDrops(message.drops);
     this.staticEntityRuntime.syncPortals(message.portals);
     this.staticEntityRuntime.syncHazards(message.hazards);
+  }
+
+  private handleSnapshotDelta(message: SnapshotDeltaMessage): void {
+    if (message.full || this.currentInstanceId !== message.instanceId) {
+      return;
+    }
+
+    this.playerRuntime.syncPlayerDelta(
+      message.players,
+      message.removedPlayerIds,
+      message.waveIndicators ?? []
+    );
+    this.enemyRuntime.syncSnapshotDelta(
+      message.enemies,
+      message.enemyTransforms,
+      message.enemyStates,
+      message.removedEnemyIds
+    );
+    this.bossRuntime.syncSnapshotDelta(
+      message.bosses,
+      message.removedBossIds,
+      message.iceZones,
+      message.aoeIndicators,
+      message.waveIndicators ?? [],
+      this.playerRuntime.getLocalWorldPosition()
+    );
+    this.staticEntityRuntime.syncDropDelta(message.drops, message.removedDropIds);
+    this.staticEntityRuntime.syncPortalDelta(message.portals, message.removedPortalIds);
+    this.staticEntityRuntime.syncHazardDelta(message.hazards, message.removedHazardIds);
   }
 
   private handleInstanceChanged(nextInstanceId: InstanceId): void {

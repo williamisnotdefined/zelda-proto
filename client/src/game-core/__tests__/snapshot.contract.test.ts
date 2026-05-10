@@ -5,6 +5,7 @@ import {
   createSnapshotNormalizationState,
   filterSnapshotMessage,
   normalizeServerMessageResult,
+  toSnapshotMessage,
 } from '../snapshot';
 import { PROTOCOL_VERSION } from '@/shared';
 import type { ServerMessage, SnapshotDeltaMessage, SnapshotMessage } from '@/shared';
@@ -45,8 +46,9 @@ describe('snapshot contract fixtures', () => {
     expect(normalizeServerMessageResult(fixture.messages.updatedIncrementalDelta, state)).toEqual({
       kind: 'message',
       snapshotBaseApplied: false,
-      message: fixture.messages.updatedFullSnapshot,
+      message: fixture.messages.updatedIncrementalDelta,
     });
+    expect(toSnapshotMessage(state.snapshotCache!)).toEqual(fixture.messages.updatedFullSnapshot);
   });
 
   it('treats the frozen full delta as a new baseline before applying the incremental delta', async () => {
@@ -62,8 +64,9 @@ describe('snapshot contract fixtures', () => {
     expect(normalizeServerMessageResult(fixture.messages.updatedIncrementalDelta, state)).toEqual({
       kind: 'message',
       snapshotBaseApplied: false,
-      message: fixture.messages.updatedFullSnapshot,
+      message: fixture.messages.updatedIncrementalDelta,
     });
+    expect(toSnapshotMessage(state.snapshotCache!)).toEqual(fixture.messages.updatedFullSnapshot);
   });
 
   it('keeps the snapshot filter aligned with the frozen full-delta sequence', async () => {

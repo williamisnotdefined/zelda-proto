@@ -25,6 +25,16 @@ export interface BossRegistryEntry {
 
 export type BossRegistry = Record<BossKind, BossRegistryEntry>;
 
+function createBossRegistryEntry<TEntity extends BossEntity>(
+  create: (scene: Phaser.Scene, snapshot: BossSnapshot) => TEntity,
+  update: (entity: TEntity, snapshot: BossSnapshot, context: BossUpdateContext) => void
+): BossRegistryEntry {
+  return {
+    create,
+    update: (entity, snapshot, context) => update(entity as TEntity, snapshot, context),
+  };
+}
+
 function getPhase3BossVisual(kind: BossSnapshot['kind']): {
   textureKey: string;
   animPrefix: string;
@@ -54,10 +64,10 @@ function getPhase3BossVisual(kind: BossSnapshot['kind']): {
 }
 
 export const bossRegistry: BossRegistry = {
-  [BOSS_KINDS.GELEHK]: {
-    create: (scene, snapshot) => new BossGelehkEntity(scene, snapshot.x, snapshot.y),
-    update: (entity, snapshot, context) => {
-      (entity as BossGelehkEntity).updateFromServer(
+  [BOSS_KINDS.GELEHK]: createBossRegistryEntry(
+    (scene, snapshot) => new BossGelehkEntity(scene, snapshot.x, snapshot.y),
+    (entity, snapshot, context) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -71,12 +81,12 @@ export const bossRegistry: BossRegistry = {
           (wave) => wave?.state === 'windup' && wave.ownerId === snapshot.id
         ) ?? null
       );
-    },
-  },
-  [BOSS_KINDS.DRAGON_LORD]: {
-    create: (scene, snapshot) => new BossDragonLordEntity(scene, snapshot.x, snapshot.y),
-    update: (entity, snapshot) => {
-      (entity as BossDragonLordEntity).updateFromServer(
+    }
+  ),
+  [BOSS_KINDS.DRAGON_LORD]: createBossRegistryEntry(
+    (scene, snapshot) => new BossDragonLordEntity(scene, snapshot.x, snapshot.y),
+    (entity, snapshot) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -85,10 +95,10 @@ export const bossRegistry: BossRegistry = {
         snapshot.phase,
         snapshot.venomMarked ?? false
       );
-    },
-  },
-  [BOSS_KINDS.SILVERBACK_WAINER]: {
-    create: (scene, snapshot) => {
+    }
+  ),
+  [BOSS_KINDS.SILVERBACK_WAINER]: createBossRegistryEntry(
+    (scene, snapshot) => {
       const visual = getPhase3BossVisual(snapshot.kind);
       return new BossPhase3Entity(
         scene,
@@ -99,8 +109,8 @@ export const bossRegistry: BossRegistry = {
         visual.label
       );
     },
-    update: (entity, snapshot) => {
-      (entity as BossPhase3Entity).updateFromServer(
+    (entity, snapshot) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -109,10 +119,10 @@ export const bossRegistry: BossRegistry = {
         snapshot.phase,
         snapshot.venomMarked ?? false
       );
-    },
-  },
-  [BOSS_KINDS.SLIM_MAIOLI]: {
-    create: (scene, snapshot) => {
+    }
+  ),
+  [BOSS_KINDS.SLIM_MAIOLI]: createBossRegistryEntry(
+    (scene, snapshot) => {
       const visual = getPhase3BossVisual(snapshot.kind);
       return new BossPhase3Entity(
         scene,
@@ -123,8 +133,8 @@ export const bossRegistry: BossRegistry = {
         visual.label
       );
     },
-    update: (entity, snapshot) => {
-      (entity as BossPhase3Entity).updateFromServer(
+    (entity, snapshot) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -133,10 +143,10 @@ export const bossRegistry: BossRegistry = {
         snapshot.phase,
         snapshot.venomMarked ?? false
       );
-    },
-  },
-  [BOSS_KINDS.FRANKLY_STEIN]: {
-    create: (scene, snapshot) => {
+    }
+  ),
+  [BOSS_KINDS.FRANKLY_STEIN]: createBossRegistryEntry(
+    (scene, snapshot) => {
       const visual = getPhase3BossVisual(snapshot.kind);
       return new BossPhase3Entity(
         scene,
@@ -147,8 +157,8 @@ export const bossRegistry: BossRegistry = {
         visual.label
       );
     },
-    update: (entity, snapshot) => {
-      (entity as BossPhase3Entity).updateFromServer(
+    (entity, snapshot) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -157,12 +167,12 @@ export const bossRegistry: BossRegistry = {
         snapshot.phase,
         snapshot.venomMarked ?? false
       );
-    },
-  },
-  [BOSS_KINDS.VANESSA_THE_RUTHLESS]: {
-    create: (scene, snapshot) => new BossVanessaEntity(scene, snapshot.x, snapshot.y),
-    update: (entity, snapshot) => {
-      (entity as BossVanessaEntity).updateFromServer(
+    }
+  ),
+  [BOSS_KINDS.VANESSA_THE_RUTHLESS]: createBossRegistryEntry(
+    (scene, snapshot) => new BossVanessaEntity(scene, snapshot.x, snapshot.y),
+    (entity, snapshot) => {
+      entity.updateFromServer(
         snapshot.x,
         snapshot.y,
         snapshot.hp,
@@ -173,6 +183,6 @@ export const bossRegistry: BossRegistry = {
         snapshot.speechText,
         snapshot.speechColor
       );
-    },
-  },
+    }
+  ),
 };

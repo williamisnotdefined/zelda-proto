@@ -1,16 +1,17 @@
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
 import { HAZARD_KINDS, type HazardKind } from '@/shared';
+import { hazardDefinitions } from '@/shared/definitions';
 import Phaser from 'phaser';
 
-const LANDMINE_HIT_RADIUS = 18;
-const LANDMINE_EXPLOSION_RADIUS = 180;
+const LANDMINE_HIT_RADIUS = hazardDefinitions[HAZARD_KINDS.LANDMINE].hitRadius;
+const LANDMINE_EXPLOSION_RADIUS = hazardDefinitions[HAZARD_KINDS.LANDMINE_EXPLOSION].hitRadius;
 const LANDMINE_COLOR = 0xe2c85b;
 const LANDMINE_EXPLOSION_COLOR = 0xffd36b;
 const LANDMINE_ALPHA = 0.12;
 const LANDMINE_STROKE_ALPHA = 0.35;
 const EXPLOSION_ALPHA = 0.12;
 const EXPLOSION_STROKE_ALPHA = 0.45;
-const EXPLOSION_DURATION_MS = 420;
+const EXPLOSION_DURATION_MS = hazardDefinitions[HAZARD_KINDS.LANDMINE_EXPLOSION].ttlMs;
 const LERP_BASE = 0.28;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 140;

@@ -58,6 +58,7 @@ export default defineConfig({
   },
   build: {
     sourcemap: true,
+    chunkSizeWarningLimit: 1300,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -69,12 +70,14 @@ export default defineConfig({
             return 'phaser';
           }
 
-          if (id.includes('/react/') || id.includes('/react-dom/')) {
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/') ||
+            id.includes('/zustand/') ||
+            id.includes('/lucide-react/')
+          ) {
             return 'react-vendor';
-          }
-
-          if (id.includes('/zustand/') || id.includes('/lucide-react/')) {
-            return 'ui-vendor';
           }
 
           return 'vendor';

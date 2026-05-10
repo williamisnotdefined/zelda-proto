@@ -195,7 +195,15 @@ export function normalizeServerMessage(
   state: SnapshotNormalizationState
 ): ServerMessage | null {
   const result = normalizeServerMessageResult(message, state);
-  return result.kind === 'message' ? result.message : null;
+  if (result.kind !== 'message') {
+    return null;
+  }
+
+  if (result.message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA && state.snapshotCache) {
+    return toSnapshotMessage(state.snapshotCache);
+  }
+
+  return result.message;
 }
 
 function createResyncRequest(
@@ -240,8 +248,16 @@ export function normalizeServerMessageResult(
 
   if (message.type === SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA) {
     if (message.full) {
-      const fullSnapshot = toSnapshotMessage(applySnapshotDelta(message, null));
-      return applyFullSnapshotBase(fullSnapshot, state, message.tick);
+      state.snapshotCache = applySnapshotDelta(message, null);
+      state.lastSnapshotTick = message.tick;
+      state.lastSnapshotInstanceId = message.instanceId;
+      state.resyncRequired = false;
+
+      return {
+        kind: 'message',
+        message: toSnapshotMessage(state.snapshotCache),
+        snapshotBaseApplied: true,
+      };
     }
 
     if (state.resyncRequired) {
@@ -269,7 +285,7 @@ export function normalizeServerMessageResult(
     state.snapshotCache = applySnapshotDelta(message, state.snapshotCache);
     return {
       kind: 'message',
-      message: toSnapshotMessage(state.snapshotCache),
+      message,
       snapshotBaseApplied: false,
     };
   }

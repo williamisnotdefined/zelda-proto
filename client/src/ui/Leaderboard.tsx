@@ -2,6 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import classNames from 'classnames';
 import { useGameStore } from './store';
 
+export function shouldHandleLeaderboardTab(event: KeyboardEvent): boolean {
+  if (event.key !== 'Tab') {
+    return false;
+  }
+
+  const target = event.target;
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) {
+    return true;
+  }
+
+  return !(
+    target.isContentEditable ||
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT'
+  );
+}
+
 export function Leaderboard() {
   const [visible, setVisible] = useState(false);
   const allPlayers = useGameStore((s) => s.allPlayers);
@@ -9,13 +27,13 @@ export function Leaderboard() {
 
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
+      if (shouldHandleLeaderboardTab(e)) {
         e.preventDefault();
         setVisible(true);
       }
     };
     const onUp = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') setVisible(false);
+      if (shouldHandleLeaderboardTab(e)) setVisible(false);
     };
     window.addEventListener('keydown', onDown);
     window.addEventListener('keyup', onUp);

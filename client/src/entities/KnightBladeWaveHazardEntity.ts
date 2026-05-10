@@ -1,12 +1,13 @@
 import { getDirectionVector } from '@/game-core';
 import { getExponentialInterpolationFactor } from '@/game-core/interpolation';
-import type { Direction, HazardSnapshot } from '@/shared';
+import { HAZARD_KINDS, type Direction, type HazardSnapshot } from '@/shared';
+import { hazardDefinitions } from '@/shared/definitions';
 import type Phaser from 'phaser';
 
 const LERP_BASE = 0.36;
 const MAX_LERP_DT_MS = 50;
 const SNAP_DISTANCE = 180;
-const BLADE_WAVE_TTL_MS = 900;
+const BLADE_WAVE_TTL_MS = hazardDefinitions[HAZARD_KINDS.KNIGHT_BLADE_WAVE].ttlMs;
 const DEFAULT_TINT = 0xffd76b;
 const CORE_TINT = 0xffffff;
 const SPARKLE_COUNT = 6;

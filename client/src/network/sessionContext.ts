@@ -11,7 +11,35 @@ function getSessionStorage(): Storage | null {
     return null;
   }
 
-  return window.sessionStorage;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredValue(storage: Storage, key: string): string | null {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredValue(storage: Storage, key: string, value: string): void {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    return;
+  }
+}
+
+function removeStoredValue(storage: Storage, key: string): void {
+  try {
+    storage.removeItem(key);
+  } catch {
+    return;
+  }
 }
 
 export function readStoredConnectionContext(): StoredConnectionContext {
@@ -24,8 +52,8 @@ export function readStoredConnectionContext(): StoredConnectionContext {
   }
 
   return {
-    nickname: storage.getItem(NICKNAME_STORAGE_KEY),
-    sessionToken: storage.getItem(SESSION_TOKEN_STORAGE_KEY),
+    nickname: getStoredValue(storage, NICKNAME_STORAGE_KEY),
+    sessionToken: getStoredValue(storage, SESSION_TOKEN_STORAGE_KEY),
   };
 }
 
@@ -35,7 +63,7 @@ export function persistNickname(nickname: string): void {
     return;
   }
 
-  storage.setItem(NICKNAME_STORAGE_KEY, nickname);
+  setStoredValue(storage, NICKNAME_STORAGE_KEY, nickname);
 }
 
 export function clearStoredNickname(): void {
@@ -44,7 +72,7 @@ export function clearStoredNickname(): void {
     return;
   }
 
-  storage.removeItem(NICKNAME_STORAGE_KEY);
+  removeStoredValue(storage, NICKNAME_STORAGE_KEY);
 }
 
 export function persistSessionToken(sessionToken: string): void {
@@ -53,7 +81,7 @@ export function persistSessionToken(sessionToken: string): void {
     return;
   }
 
-  storage.setItem(SESSION_TOKEN_STORAGE_KEY, sessionToken);
+  setStoredValue(storage, SESSION_TOKEN_STORAGE_KEY, sessionToken);
 }
 
 export function clearStoredSessionToken(): void {
@@ -62,7 +90,7 @@ export function clearStoredSessionToken(): void {
     return;
   }
 
-  storage.removeItem(SESSION_TOKEN_STORAGE_KEY);
+  removeStoredValue(storage, SESSION_TOKEN_STORAGE_KEY);
 }
 
 export function clearStoredConnectionContext(): void {

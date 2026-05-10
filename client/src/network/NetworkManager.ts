@@ -73,8 +73,10 @@ export class NetworkManager {
       this.reconnectTimer = null;
     }
 
+    let socket: WebSocket;
     try {
-      this.ws = new WebSocket(WS_URL);
+      socket = new WebSocket(WS_URL);
+      this.ws = socket;
       this.resetSnapshotTracking();
     } catch (error) {
       const errorMsg = `Failed to create WebSocket: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -98,7 +100,7 @@ export class NetworkManager {
       clearTimeout(this.connectionTimeout);
     }
     this.connectionTimeout = setTimeout(() => {
-      if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+      if (this.ws === socket && socket.readyState === WebSocket.CONNECTING) {
         logError({
           category: 'network',
           type: 'websocket.connection-timeout',
@@ -111,13 +113,17 @@ export class NetworkManager {
         });
         this.notifyError('Connection timeout - server may be unreachable');
         this.setConnectionState('ERROR');
-        this.ws.close();
+        socket.close();
       }
     }, MAX_CONNECTION_TIMEOUT);
 
-    this.ws.binaryType = 'arraybuffer';
+    socket.binaryType = 'arraybuffer';
 
-    this.ws.onopen = () => {
+    socket.onopen = () => {
+      if (this.ws !== socket) {
+        return;
+      }
+
       if (this.connectionTimeout) {
         clearTimeout(this.connectionTimeout);
         this.connectionTimeout = null;
@@ -129,7 +135,11 @@ export class NetworkManager {
       this.setConnectionState('CONNECTED');
     };
 
-    this.ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (this.ws !== socket) {
+        return;
+      }
+
       this.recordIncomingTraffic(event.data);
       const message = this.decodeServerMessage(event.data);
       if (!message) return;
@@ -162,7 +172,11 @@ export class NetworkManager {
       }
     };
 
-    this.ws.onclose = (event) => {
+    socket.onclose = (event) => {
+      if (this.ws !== socket) {
+        return;
+      }
+
       if (this.connectionTimeout) {
         clearTimeout(this.connectionTimeout);
         this.connectionTimeout = null;
@@ -220,7 +234,11 @@ export class NetworkManager {
       }
     };
 
-    this.ws.onerror = () => {
+    socket.onerror = () => {
+      if (this.ws !== socket) {
+        return;
+      }
+
       logError({
         category: 'network',
         type: 'websocket.error',
@@ -228,7 +246,7 @@ export class NetworkManager {
         handled: true,
         context: {
           url: WS_URL,
-          readyState: this.ws?.readyState,
+          readyState: socket.readyState,
         },
       });
       this.notifyError('WebSocket error occurred - connection may have failed');
@@ -270,6 +288,14 @@ export class NetworkManager {
     this.recordOutgoingTraffic(encoded.byteLength);
     this.ws.send(encoded);
     return true;
+  }
+
+  canSend(): boolean {
+    return (
+      !!this.ws &&
+      this.ws.readyState === WebSocket.OPEN &&
+      this.ws.bufferedAmount <= WS_MAX_BUFFERED_BYTES
+    );
   }
 
   onceOpen(cb: () => void): void {

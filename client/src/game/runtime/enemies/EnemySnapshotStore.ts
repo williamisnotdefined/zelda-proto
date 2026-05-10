@@ -1,4 +1,4 @@
-import type { EnemyKind, EnemySnapshot } from '@/shared';
+import type { EnemyKind, EnemySnapshot, EnemyStateDelta, EnemyTransformSnapshot } from '@/shared';
 import Phaser from 'phaser';
 
 const ENEMY_SNAPSHOT_GRID_CELL_SIZE = 512;
@@ -49,6 +49,84 @@ export class EnemySnapshotStore {
       if (removed) {
         releasedVisuals.push(removed);
       }
+    }
+
+    return {
+      dirtyIds,
+      releasedVisuals,
+    };
+  }
+
+  syncDelta(
+    enemies: EnemySnapshot[],
+    enemyTransforms: EnemyTransformSnapshot[],
+    enemyStates: EnemyStateDelta[],
+    removedEnemyIds: string[]
+  ): EnemySnapshotSyncResult {
+    const dirtyIds = new Set<string>();
+    const releasedVisuals: ReleasedEnemyVisual[] = [];
+
+    for (const enemy of enemies) {
+      const previousSnapshot = this.enemySnapshotsById.get(enemy.id);
+      if (previousSnapshot && !this.enemySnapshotChanged(previousSnapshot, enemy)) {
+        continue;
+      }
+
+      const previousKind = this.upsert({ ...enemy });
+      if (previousKind && previousKind !== enemy.kind) {
+        releasedVisuals.push({ id: enemy.id, kind: previousKind });
+      }
+      dirtyIds.add(enemy.id);
+    }
+
+    for (const transform of enemyTransforms) {
+      const previousSnapshot = this.enemySnapshotsById.get(transform.id);
+      if (!previousSnapshot) {
+        continue;
+      }
+
+      if (previousSnapshot.x === transform.x && previousSnapshot.y === transform.y) {
+        continue;
+      }
+
+      this.upsert({
+        ...previousSnapshot,
+        x: transform.x,
+        y: transform.y,
+      });
+      dirtyIds.add(transform.id);
+    }
+
+    for (const state of enemyStates) {
+      const previousSnapshot = this.enemySnapshotsById.get(state.id);
+      if (!previousSnapshot) {
+        continue;
+      }
+
+      const nextSnapshot: EnemySnapshot = {
+        ...previousSnapshot,
+        hp: state.hp,
+        maxHp: state.maxHp,
+        state: state.state,
+      };
+      if (state.statusEffects !== undefined) {
+        nextSnapshot.statusEffects = { ...state.statusEffects };
+      }
+
+      if (!this.enemySnapshotChanged(previousSnapshot, nextSnapshot)) {
+        continue;
+      }
+
+      this.upsert(nextSnapshot);
+      dirtyIds.add(state.id);
+    }
+
+    for (const id of removedEnemyIds) {
+      const removed = this.remove(id);
+      if (removed) {
+        releasedVisuals.push(removed);
+      }
+      dirtyIds.delete(id);
     }
 
     return {

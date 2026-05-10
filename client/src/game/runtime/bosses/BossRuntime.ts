@@ -7,6 +7,7 @@ import { bossRegistry, type BossEntity } from './bossRegistry';
 
 export class BossRuntime {
   private readonly bossEntities = new Map<string, BossEntity>();
+  private readonly bossEntityKindsById = new Map<string, BossSnapshot['kind']>();
   private readonly bossSnapshotsById = new Map<string, BossSnapshot>();
   private readonly burningOverlays = new Map<string, BurningStatusOverlay>();
 
@@ -31,6 +32,25 @@ export class BossRuntime {
     this.renderBosses(iceZones, aoeIndicators, waveIndicators, localPlayer);
   }
 
+  syncSnapshotDelta(
+    bosses: BossSnapshot[],
+    removedBossIds: string[],
+    iceZones: IceZone[],
+    aoeIndicators: AoeIndicator[],
+    waveIndicators: WaveIndicator[],
+    localPlayer: { x: number; y: number } | null
+  ): void {
+    for (const boss of bosses) {
+      this.bossSnapshotsById.set(boss.id, boss);
+    }
+
+    for (const id of removedBossIds) {
+      this.bossSnapshotsById.delete(id);
+    }
+
+    this.renderBosses(iceZones, aoeIndicators, waveIndicators, localPlayer);
+  }
+
   update(delta: number): void {
     for (const [id, entity] of this.bossEntities) {
       entity.update(delta);
@@ -49,6 +69,7 @@ export class BossRuntime {
       entity.destroy();
     }
     this.bossEntities.clear();
+    this.bossEntityKindsById.clear();
     this.bossSnapshotsById.clear();
     for (const overlay of this.burningOverlays.values()) {
       overlay.destroy();
@@ -79,9 +100,19 @@ export class BossRuntime {
     for (const boss of this.bossSnapshotsById.values()) {
       seenBossIds.add(boss.id);
       let entity = this.bossEntities.get(boss.id);
+      const previousKind = this.bossEntityKindsById.get(boss.id);
+      if (entity && previousKind !== boss.kind) {
+        entity.destroy();
+        this.destroyBurningOverlay(boss.id);
+        this.bossEntities.delete(boss.id);
+        this.bossEntityKindsById.delete(boss.id);
+        entity = undefined;
+      }
+
       if (!entity) {
         entity = bossRegistry[boss.kind].create(this.scene, boss);
         this.bossEntities.set(boss.id, entity);
+        this.bossEntityKindsById.set(boss.id, boss.kind);
         newBossIds.add(boss.id);
       }
     }
@@ -125,6 +156,7 @@ export class BossRuntime {
       entity.destroy();
       this.destroyBurningOverlay(id);
       this.bossEntities.delete(id);
+      this.bossEntityKindsById.delete(id);
     }
 
     if (nearestBoss && nearestBoss.state !== 'dead') {

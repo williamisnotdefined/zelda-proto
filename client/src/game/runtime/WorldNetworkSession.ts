@@ -1,4 +1,4 @@
-import type { SnapshotMessage, WelcomeMessage } from '@/shared';
+import type { SnapshotDeltaMessage, SnapshotMessage, WelcomeMessage } from '@/shared';
 import { SERVER_MESSAGE_TYPES, SESSION_RESUME_REJECT_REASONS } from '@/shared';
 import type { GameConnection } from '../../network/gameConnection';
 import type { GameUiSink } from './ui/GameUiSink';
@@ -9,6 +9,7 @@ const SESSION_EXPIRED_ERROR = 'Session expired. Enter your nickname to reconnect
 interface WorldNetworkSessionHandlers {
   onWelcome: (message: WelcomeMessage) => void;
   onSnapshot: (message: SnapshotMessage) => void;
+  onSnapshotDelta: (message: SnapshotDeltaMessage) => void;
 }
 
 export class WorldNetworkSession {
@@ -21,6 +22,10 @@ export class WorldNetworkSession {
   ) {}
 
   start(): void {
+    if (this.removeEventHandler) {
+      return;
+    }
+
     this.ui.setLastConnectionAttempt(Date.now());
     this.removeEventHandler = this.connection.onEvent((event) => {
       if (event.type === 'connection_state') {
@@ -45,6 +50,9 @@ export class WorldNetworkSession {
           break;
         case SERVER_MESSAGE_TYPES.SNAPSHOT:
           this.handlers.onSnapshot(message);
+          break;
+        case SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA:
+          this.handlers.onSnapshotDelta(message);
           break;
         case SERVER_MESSAGE_TYPES.LEADERBOARD:
           this.ui.setLeaderboard(message.players);

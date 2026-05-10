@@ -1,4 +1,4 @@
-import type { EnemySnapshot } from '@/shared';
+import type { EnemySnapshot, EnemyStateDelta, EnemyTransformSnapshot } from '@/shared';
 import Phaser from 'phaser';
 import { BurningStatusOverlay } from '../../../entities/BurningStatusOverlay';
 import { FxController } from '../../fx/FxController';
@@ -12,8 +12,8 @@ import {
 
 const MAX_COMMON_ENEMY_POOL_SIZE = 128;
 const MAX_PACMAN_GHOST_ENTITY_POOL_SIZE = 64;
-const ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX = 416;
 const ENTITY_CULL_MARGIN_PX = 220;
+const ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX = ENTITY_CULL_MARGIN_PX;
 const ENEMY_VISUAL_LOD_NEAR_DISTANCE_PX = 420;
 const ENEMY_VISUAL_LOD_MID_DISTANCE_PX = 860;
 const ENEMY_VISUAL_LOD_NEAR_TIME_SCALE = 1;
@@ -75,6 +75,28 @@ export class EnemyRuntime {
 
   syncSnapshots(enemies: EnemySnapshot[]): void {
     const result = this.snapshotStore.sync(enemies);
+    this.applySnapshotSyncResult(result);
+  }
+
+  syncSnapshotDelta(
+    enemies: EnemySnapshot[],
+    enemyTransforms: EnemyTransformSnapshot[],
+    enemyStates: EnemyStateDelta[],
+    removedEnemyIds: string[]
+  ): void {
+    const result = this.snapshotStore.syncDelta(
+      enemies,
+      enemyTransforms,
+      enemyStates,
+      removedEnemyIds
+    );
+    this.applySnapshotSyncResult(result);
+  }
+
+  private applySnapshotSyncResult(result: {
+    dirtyIds: Set<string>;
+    releasedVisuals: Array<{ id: string; kind: EnemySnapshot['kind'] }>;
+  }): void {
     for (const releasedVisual of result.releasedVisuals) {
       this.releaseEnemyVisual(releasedVisual.id, releasedVisual.kind);
     }
@@ -227,8 +249,8 @@ export class EnemyRuntime {
     const dy = centerY - this.lastEnemyVisualSyncCenterY;
 
     return (
-      dx * dx + dy * dy >
-      ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX * ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX
+      Math.abs(dx) > ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX ||
+      Math.abs(dy) > ENEMY_VISUAL_SYNC_MOVEMENT_THRESHOLD_PX
     );
   }
 
@@ -425,8 +447,7 @@ export class EnemyRuntime {
           continue;
         }
 
-        const x = entry.getX(entity);
-        const y = entry.getY(entity);
+        const { x, y } = entity;
         if (!this.isEntityInView(view, x, y)) {
           continue;
         }
@@ -521,8 +542,7 @@ export class EnemyRuntime {
 
     for (const entry of this.getRegistryEntries()) {
       for (const [id, entity] of entry.entities) {
-        const x = entry.getX(entity);
-        const y = entry.getY(entity);
+        const { x, y } = entity;
         const inView = this.isEntityInView(view, x, y);
 
         let lod = ENEMY_VISUAL_LOD_FAR;
@@ -536,8 +556,8 @@ export class EnemyRuntime {
         entity.update(delta, inView, lod);
         this.syncEnemyBurningOverlay(
           id,
-          entry.getX(entity),
-          entry.getY(entity),
+          entity.x,
+          entity.y,
           entity.serverState !== 'dead' && !!this.snapshotStore.get(id)?.statusEffects?.burning,
           inView
         );
@@ -558,15 +578,15 @@ export class EnemyRuntime {
 
     for (const entry of this.getRegistryEntries()) {
       for (const [id, entity] of entry.entities) {
-        const inView = this.isEntityInView(view, entry.getX(entity), entry.getY(entity));
+        const inView = this.isEntityInView(view, entity.x, entity.y);
         const lod = inView
           ? (enemyVisualBudget.lodById.get(id) ?? ENEMY_VISUAL_LOD_FAR)
           : ENEMY_VISUAL_LOD_FAR;
         entity.update(delta, inView, lod);
         this.syncEnemyBurningOverlay(
           id,
-          entry.getX(entity),
-          entry.getY(entity),
+          entity.x,
+          entity.y,
           entity.serverState !== 'dead' && !!this.snapshotStore.get(id)?.statusEffects?.burning,
           inView
         );

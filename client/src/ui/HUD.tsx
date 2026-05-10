@@ -83,7 +83,7 @@ function CooldownMeter({
 }
 
 export function HUD() {
-  const localPlayer = useGameStore((s) => s.localPlayer);
+  const localPlayerHud = useGameStore((s) => s.localPlayerHud);
   const connected = useGameStore((s) => s.connected);
   const playerCount = useGameStore((s) => s.playerCount);
   const waveCooldownEndsAt = useGameStore((s) => s.waveCooldownEndsAt);
@@ -203,7 +203,7 @@ export function HUD() {
   const shurikenCooldownProgress = shurikenReady
     ? 1
     : 1 - shurikenCooldownRemainingMs / PLAYER_SHURIKEN_COOLDOWN;
-  const hpRatio = localPlayer ? localPlayer.hp / localPlayer.maxHp : 0;
+  const hpRatio = localPlayerHud ? localPlayerHud.hp / localPlayerHud.maxHp : 0;
 
   const weaponAbilityMeters = [
     {
@@ -383,7 +383,7 @@ export function HUD() {
         </div>
       </div>
 
-      {localPlayer && (
+      {localPlayerHud && (
         <div className="absolute top-4 left-4">
           <div className="mb-1 text-xs">HP</div>
           <div className="h-4 w-[200px] overflow-hidden rounded-[3px] bg-[#333]">
@@ -397,7 +397,7 @@ export function HUD() {
             />
           </div>
           <div className="mt-0.5 text-[11px] opacity-80">
-            {localPlayer.hp} / {localPlayer.maxHp}
+            {localPlayerHud.hp} / {localPlayerHud.maxHp}
           </div>
 
           <div className="mt-2.5">
@@ -419,7 +419,7 @@ export function HUD() {
         </div>
       )}
 
-      {localPlayer?.state === 'dead' && (
+      {localPlayerHud?.state === 'dead' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60">
           <div className="text-[32px] font-bold text-[#ff4444]">YOU DIED</div>
           <div className="mt-2 text-sm opacity-70">Respawning...</div>

@@ -3,6 +3,7 @@ import {
   PROTOCOL_VERSION,
   SERVER_MESSAGE_TYPES,
   SESSION_RESUME_REJECT_REASONS,
+  type SnapshotDeltaMessage,
   type SnapshotMessage,
   type WelcomeMessage,
 } from '@/shared';
@@ -12,7 +13,7 @@ import { WorldNetworkSession } from './WorldNetworkSession';
 import type { GameUiSink } from './ui/GameUiSink';
 
 class FakeConnection implements GameConnection {
-  private eventHandler: ((event: GameConnectionEvent) => void) | null = null;
+  private eventHandlers: Array<(event: GameConnectionEvent) => void> = [];
 
   constructor(private desiredNickname: boolean = false) {}
 
@@ -22,6 +23,9 @@ class FakeConnection implements GameConnection {
   dispose(): void {}
   onceOpen(): void {}
   send(): boolean {
+    return true;
+  }
+  canSend(): boolean {
     return true;
   }
   sendJoin(): void {}
@@ -38,14 +42,20 @@ class FakeConnection implements GameConnection {
     return this.desiredNickname;
   }
   onEvent(handler: (event: GameConnectionEvent) => void): () => void {
-    this.eventHandler = handler;
+    this.eventHandlers.push(handler);
     return () => {
-      this.eventHandler = null;
+      this.eventHandlers = this.eventHandlers.filter((eventHandler) => eventHandler !== handler);
     };
   }
 
   emit(event: GameConnectionEvent): void {
-    this.eventHandler?.(event);
+    for (const eventHandler of this.eventHandlers) {
+      eventHandler(event);
+    }
+  }
+
+  getHandlerCount(): number {
+    return this.eventHandlers.length;
   }
 }
 
@@ -117,6 +127,33 @@ function createSnapshot(): SnapshotMessage {
   };
 }
 
+function createSnapshotDelta(): SnapshotDeltaMessage {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: SERVER_MESSAGE_TYPES.SNAPSHOT_DELTA,
+    tick: 1,
+    full: false,
+    instanceId: INSTANCE_IDS.PHASE1,
+    players: [],
+    removedPlayerIds: [],
+    enemies: [],
+    enemyTransforms: [],
+    enemyStates: [],
+    removedEnemyIds: [],
+    bosses: [],
+    removedBossIds: [],
+    iceZones: [],
+    aoeIndicators: [],
+    waveIndicators: [],
+    drops: [],
+    removedDropIds: [],
+    portals: [],
+    removedPortalIds: [],
+    hazards: [],
+    removedHazardIds: [],
+  };
+}
+
 function createLeaderboard(): GameConnectionEvent {
   return {
     type: 'message',
@@ -143,6 +180,7 @@ describe('WorldNetworkSession', () => {
     const session = new WorldNetworkSession(connection, ui, {
       onWelcome: vi.fn(),
       onSnapshot: vi.fn(),
+      onSnapshotDelta: vi.fn(),
     });
 
     session.start();
@@ -158,19 +196,42 @@ describe('WorldNetworkSession', () => {
     const ui = createUiSink();
     const onWelcome = vi.fn();
     const onSnapshot = vi.fn();
+    const onSnapshotDelta = vi.fn();
     const session = new WorldNetworkSession(connection, ui, {
       onWelcome,
       onSnapshot,
+      onSnapshotDelta,
     });
 
     session.start();
     connection.emit({ type: 'message', message: createWelcome() });
     connection.emit({ type: 'message', message: createSnapshot() });
+    connection.emit({ type: 'message', message: createSnapshotDelta() });
 
     expect(ui.setLocalPlayerId).toHaveBeenCalledWith('player-1');
     expect(ui.setConnectionError).toHaveBeenCalledWith(null);
     expect(onWelcome).toHaveBeenCalledWith(createWelcome());
     expect(onSnapshot).toHaveBeenCalledWith(createSnapshot());
+    expect(onSnapshotDelta).toHaveBeenCalledWith(createSnapshotDelta());
+  });
+
+  it('does not register duplicate handlers when started more than once', () => {
+    const connection = new FakeConnection();
+    const ui = createUiSink();
+    const onWelcome = vi.fn();
+    const session = new WorldNetworkSession(connection, ui, {
+      onWelcome,
+      onSnapshot: vi.fn(),
+      onSnapshotDelta: vi.fn(),
+    });
+
+    session.start();
+    session.start();
+    connection.emit({ type: 'message', message: createWelcome() });
+
+    expect(connection.restoreIfNeeded).toHaveBeenCalledTimes(1);
+    expect(connection.getHandlerCount()).toBe(1);
+    expect(onWelcome).toHaveBeenCalledTimes(1);
   });
 
   it('projects leaderboard updates into the UI sink', () => {
@@ -179,6 +240,7 @@ describe('WorldNetworkSession', () => {
     const session = new WorldNetworkSession(connection, ui, {
       onWelcome: vi.fn(),
       onSnapshot: vi.fn(),
+      onSnapshotDelta: vi.fn(),
     });
 
     session.start();
@@ -201,6 +263,7 @@ describe('WorldNetworkSession', () => {
     const session = new WorldNetworkSession(withoutNicknameConnection, withoutNicknameUi, {
       onWelcome: vi.fn(),
       onSnapshot: vi.fn(),
+      onSnapshotDelta: vi.fn(),
     });
 
     session.start();
@@ -223,6 +286,7 @@ describe('WorldNetworkSession', () => {
     const withNicknameSession = new WorldNetworkSession(withNicknameConnection, withNicknameUi, {
       onWelcome: vi.fn(),
       onSnapshot: vi.fn(),
+      onSnapshotDelta: vi.fn(),
     });
 
     withNicknameSession.start();

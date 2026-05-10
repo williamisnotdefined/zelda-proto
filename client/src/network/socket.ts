@@ -77,6 +77,10 @@ export function send(msg: ClientMessage): boolean {
   return networkManager.send(msg);
 }
 
+export function canSend(): boolean {
+  return networkManager.canSend();
+}
+
 export function sendJoin(nickname: string): void {
   const parsed = parseNickname(nickname);
   if (!parsed.ok) {

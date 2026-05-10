@@ -24,6 +24,8 @@ export type EnemyVisualStats = {
 };
 
 export interface EnemyVisualEntity {
+  readonly x: number;
+  readonly y: number;
   hp: number;
   serverState: string;
   update(dt: number, inView: boolean, lod: EnemyVisualLod): void;
@@ -60,8 +62,6 @@ export interface EnemyVisualRegistryEntry {
   restore(entity: EnemyVisualEntity, snapshot: EnemySnapshot): void;
   update(entity: EnemyVisualEntity, snapshot: EnemySnapshot): void;
   matches(entity: EnemyVisualEntity, snapshot: EnemySnapshot): boolean;
-  getX(entity: EnemyVisualEntity): number;
-  getY(entity: EnemyVisualEntity): number;
   pooledCount(): number;
   destroyPools(): void;
 }
@@ -78,9 +78,7 @@ function destroyPooledEntities(pool: EnemyVisualEntity[]): void {
 function createCommonEntry(
   kind: EnemyKind,
   maxPoolSize: number,
-  createEntity: (scene: Phaser.Scene, snapshot: EnemySnapshot) => EnemyVisualEntity,
-  getX: (entity: EnemyVisualEntity) => number,
-  getY: (entity: EnemyVisualEntity) => number
+  createEntity: (scene: Phaser.Scene, snapshot: EnemySnapshot) => EnemyVisualEntity
 ): EnemyVisualRegistryEntry {
   const entities = new Map<string, EnemyVisualEntity>();
   const pool: EnemyVisualEntity[] = [];
@@ -115,8 +113,6 @@ function createCommonEntry(
       );
     },
     matches: () => true,
-    getX,
-    getY,
     pooledCount: () => pool.length,
     destroyPools: () => destroyPooledEntities(pool),
   };
@@ -138,23 +134,17 @@ export function createEnemyVisualRegistry(
     [ENEMY_KINDS.BLOB]: createCommonEntry(
       ENEMY_KINDS.BLOB,
       maxCommonEnemyPoolSize,
-      (scene, snapshot) => new BlobEntity(scene, snapshot.x, snapshot.y),
-      (entity) => (entity as BlobEntity).sprite.x,
-      (entity) => (entity as BlobEntity).sprite.y
+      (scene, snapshot) => new BlobEntity(scene, snapshot.x, snapshot.y)
     ),
     [ENEMY_KINDS.SKELETON]: createCommonEntry(
       ENEMY_KINDS.SKELETON,
       maxCommonEnemyPoolSize,
-      (scene, snapshot) => new SkeletonEntity(scene, snapshot.x, snapshot.y),
-      (entity) => (entity as SkeletonEntity).x,
-      (entity) => (entity as SkeletonEntity).y
+      (scene, snapshot) => new SkeletonEntity(scene, snapshot.x, snapshot.y)
     ),
     [ENEMY_KINDS.KNIGHT]: createCommonEntry(
       ENEMY_KINDS.KNIGHT,
       maxCommonEnemyPoolSize,
-      (scene, snapshot) => new KnightEntity(scene, snapshot.x, snapshot.y),
-      (entity) => (entity as KnightEntity).x,
-      (entity) => (entity as KnightEntity).y
+      (scene, snapshot) => new KnightEntity(scene, snapshot.x, snapshot.y)
     ),
     [ENEMY_KINDS.PACMAN_GHOST]: {
       kind: ENEMY_KINDS.PACMAN_GHOST,
@@ -162,7 +152,7 @@ export function createEnemyVisualRegistry(
       maxPoolSize: maxPacmanGhostEntityPoolSize,
       getAcquirePool: (snapshot) => pacmanGhostPools[snapshot.variant ?? PACMAN_GHOST_VARIANTS.RED],
       getReleasePool: (entity) =>
-        pacmanGhostPools[(entity.variant ?? PACMAN_GHOST_VARIANTS.RED) as PacmanGhostVariant],
+        pacmanGhostPools[entity.variant ?? PACMAN_GHOST_VARIANTS.RED],
       create: (scene, snapshot) =>
         new PacmanGhostEntity(
           scene,
@@ -171,7 +161,7 @@ export function createEnemyVisualRegistry(
           snapshot.variant ?? PACMAN_GHOST_VARIANTS.RED
         ),
       restore: (entity, snapshot) => {
-        (entity as PacmanGhostEntity).restoreFromServer(
+        entity.restoreFromServer(
           snapshot.x,
           snapshot.y,
           snapshot.hp,
@@ -182,7 +172,7 @@ export function createEnemyVisualRegistry(
         );
       },
       update: (entity, snapshot) => {
-        (entity as PacmanGhostEntity).updateFromServer(
+        entity.updateFromServer(
           snapshot.x,
           snapshot.y,
           snapshot.hp,
@@ -195,8 +185,6 @@ export function createEnemyVisualRegistry(
       matches: (entity, snapshot) =>
         (entity.variant ?? PACMAN_GHOST_VARIANTS.RED) ===
         (snapshot.variant ?? PACMAN_GHOST_VARIANTS.RED),
-      getX: (entity) => (entity as PacmanGhostEntity).x,
-      getY: (entity) => (entity as PacmanGhostEntity).y,
       pooledCount: () =>
         Object.values(pacmanGhostPools).reduce((total, pool) => total + pool.length, 0),
       destroyPools: () => {

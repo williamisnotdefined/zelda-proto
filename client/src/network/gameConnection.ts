@@ -13,6 +13,7 @@ import {
   send,
   sendJoin,
   onceOpen,
+  canSend,
 } from './socket';
 
 export type GameConnectionEvent =
@@ -27,6 +28,7 @@ export interface GameConnection {
   dispose(): void;
   onceOpen(callback: () => void): void;
   send(message: ClientMessage): boolean;
+  canSend(): boolean;
   sendJoin(nickname: string): void;
   getNetworkStats(): NetworkPerformanceStats;
   hasDesiredNickname(): boolean;
@@ -56,6 +58,10 @@ class SocketGameConnection implements GameConnection {
 
   send(message: ClientMessage): boolean {
     return send(message);
+  }
+
+  canSend(): boolean {
+    return canSend();
   }
 
   sendJoin(nickname: string): void {

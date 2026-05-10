@@ -23,6 +23,12 @@ export interface PlayerData {
   direction: Direction;
 }
 
+export interface LocalPlayerHudData {
+  hp: number;
+  maxHp: number;
+  state: PlayerState;
+}
+
 export interface BlobData {
   id: string;
   x: number;
@@ -53,6 +59,7 @@ export interface DropData {
 export interface GameStore {
   localPlayerId: string | null;
   localPlayer: PlayerData | null;
+  localPlayerHud: LocalPlayerHudData | null;
   waveCooldownEndsAt: number | null;
   numbCooldownEndsAt: number | null;
   pullCooldownEndsAt: number | null;
@@ -97,6 +104,7 @@ export interface GameStore {
 export const useGameStore = create<GameStore>((set) => ({
   localPlayerId: null,
   localPlayer: null,
+  localPlayerHud: null,
   waveCooldownEndsAt: null,
   numbCooldownEndsAt: null,
   pullCooldownEndsAt: null,
@@ -116,7 +124,33 @@ export const useGameStore = create<GameStore>((set) => ({
   lastConnectionAttempt: null,
   allPlayers: [],
   setLocalPlayerId: (id) => set({ localPlayerId: id }),
-  setLocalPlayer: (p) => set({ localPlayer: p }),
+  setLocalPlayer: (p) =>
+    set((state) => {
+      if (!p) {
+        return {
+          localPlayer: null,
+          localPlayerHud: null,
+        };
+      }
+
+      const nextHud: LocalPlayerHudData = {
+        hp: p.hp,
+        maxHp: p.maxHp,
+        state: p.state,
+      };
+      const previousHud = state.localPlayerHud;
+
+      return {
+        localPlayer: p,
+        localPlayerHud:
+          previousHud &&
+          previousHud.hp === nextHud.hp &&
+          previousHud.maxHp === nextHud.maxHp &&
+          previousHud.state === nextHud.state
+            ? previousHud
+            : nextHud,
+      };
+    }),
   setWaveCooldownEndsAt: (waveCooldownEndsAt) => set({ waveCooldownEndsAt }),
   setNumbCooldownEndsAt: (numbCooldownEndsAt) => set({ numbCooldownEndsAt }),
   setPullCooldownEndsAt: (pullCooldownEndsAt) => set({ pullCooldownEndsAt }),

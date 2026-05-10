@@ -13,6 +13,38 @@ import {
 
 type KnownStatusKey = 'burning' | 'purpleBurning' | 'blueBurning';
 
+type StatusOverlayConfig = {
+  key: KnownStatusKey;
+  gifPath: string;
+  alt: string;
+  depth: number;
+};
+
+type StatusOverlaySlot = StatusOverlayConfig & {
+  overlay: Phaser.GameObjects.DOMElement | null;
+};
+
+const STATUS_OVERLAY_CONFIGS: StatusOverlayConfig[] = [
+  {
+    key: 'burning',
+    gifPath: FIRE_FIELD_GIF_PATH,
+    alt: 'Burning effect',
+    depth: 13,
+  },
+  {
+    key: 'purpleBurning',
+    gifPath: PURPLE_FIRE_FIELD_GIF_PATH,
+    alt: 'Purple burning effect',
+    depth: 13.2,
+  },
+  {
+    key: 'blueBurning',
+    gifPath: BLUE_BURNING_GIF_PATH,
+    alt: 'Blue burning effect',
+    depth: 13.1,
+  },
+];
+
 function createBurningOverlay(
   scene: Phaser.Scene,
   x: number,
@@ -40,49 +72,31 @@ function createBurningOverlay(
 }
 
 export class PlayerStatusOverlays {
-  private readonly overlays: Array<{ key: KnownStatusKey; overlay: Phaser.GameObjects.DOMElement }>;
+  private readonly overlays: StatusOverlaySlot[];
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
-    this.overlays = [
-      {
-        key: 'burning',
-        overlay: createBurningOverlay(scene, x, y, FIRE_FIELD_GIF_PATH, 'Burning effect', 13),
-      },
-      {
-        key: 'purpleBurning',
-        overlay: createBurningOverlay(
-          scene,
-          x,
-          y,
-          PURPLE_FIRE_FIELD_GIF_PATH,
-          'Purple burning effect',
-          13.2
-        ),
-      },
-      {
-        key: 'blueBurning',
-        overlay: createBurningOverlay(
-          scene,
-          x,
-          y,
-          BLUE_BURNING_GIF_PATH,
-          'Blue burning effect',
-          13.1
-        ),
-      },
-    ];
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly initialX: number,
+    private readonly initialY: number
+  ) {
+    this.overlays = STATUS_OVERLAY_CONFIGS.map((config) => ({
+      ...config,
+      overlay: null,
+    }));
   }
 
   sync(spriteX: number, spriteY: number, statusEffects: PlayerStatusSnapshot): void {
     const baseBurnY = spriteY - SPRITE_Y_OFFSET + BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER;
     let visibleIndex = 0;
 
-    for (const { key, overlay } of this.overlays) {
+    for (const slot of this.overlays) {
+      const { key } = slot;
       if (!statusEffects[key]) {
-        overlay.setVisible(false);
+        slot.overlay?.setVisible(false);
         continue;
       }
 
+      const overlay = this.ensureOverlay(slot);
       overlay.x = spriteX;
       overlay.y = baseBurnY - visibleIndex * BURNING_OVERLAY_STACK_STEP;
       overlay.setVisible(true);
@@ -91,8 +105,24 @@ export class PlayerStatusOverlays {
   }
 
   destroy(): void {
-    for (const { overlay } of this.overlays) {
-      overlay.destroy();
+    for (const slot of this.overlays) {
+      slot.overlay?.destroy();
+      slot.overlay = null;
     }
+  }
+
+  private ensureOverlay(slot: StatusOverlaySlot): Phaser.GameObjects.DOMElement {
+    if (!slot.overlay) {
+      slot.overlay = createBurningOverlay(
+        this.scene,
+        this.initialX,
+        this.initialY,
+        slot.gifPath,
+        slot.alt,
+        slot.depth
+      );
+    }
+
+    return slot.overlay;
   }
 }

@@ -74,6 +74,14 @@ export class BlobEntity {
     });
   }
 
+  get x(): number {
+    return this.sprite.x;
+  }
+
+  get y(): number {
+    return this.sprite.y;
+  }
+
   updateFromServer(x: number, y: number, hp: number, maxHp: number, state: string, elite = false, venomMarked = false): void {
     this.prevX = this.targetX;
     this.prevY = this.targetY;

@@ -264,17 +264,94 @@ export class LocalInputController {
     const landmineReady = nowMs >= this.landmineCooldownEndsAtMs;
     const shurikenReady = nowMs >= this.shurikenCooldownEndsAtMs;
     const waveLikeReady = nowMs >= this.waveLikeActiveUntilMs;
+    const canAct = !uiBlocked && !localDead;
     const manualWave = rawWaveDown && !this.prevWaveDown;
-    const wave = manualWave && waveReady && waveLikeReady;
-    const dash = dashDirection !== null && dashReady;
-    const numb = manualNumb && numbReady && waveLikeReady;
-    const pull = manualPull && pullReady && waveLikeReady;
-    const venom = manualVenom && venomReady && waveLikeReady;
-    const grenade = manualGrenade && grenadeReady;
-    const molotov = manualMolotov && molotovReady;
-    const landmine = manualLandmine && landmineReady;
-    const shuriken = manualShuriken && shurikenReady;
+    const wave = canAct && manualWave && waveReady && waveLikeReady;
+    const dash = canAct && dashDirection !== null && dashReady;
+    const numb = canAct && manualNumb && numbReady && waveLikeReady;
+    const pull = canAct && manualPull && pullReady && waveLikeReady;
+    const venom = canAct && manualVenom && venomReady && waveLikeReady;
+    const grenade = canAct && manualGrenade && grenadeReady;
+    const molotov = canAct && manualMolotov && molotovReady;
+    const landmine = canAct && manualLandmine && landmineReady;
+    const shuriken = canAct && manualShuriken && shurikenReady;
     this.prevWaveDown = rawWaveDown;
+
+    const inputState: InputState = {
+      up: canAct && rawUpDown,
+      down: canAct && rawDownDown,
+      left: canAct && rawLeftDown,
+      right: canAct && rawRightDown,
+      wave,
+      numb,
+      pull,
+      venom,
+      dash,
+      grenade,
+      molotov,
+      landmine,
+      shuriken,
+    };
+
+    const canSendInput = this.connection.canSend();
+    this.inputSendAccumulatorMs += delta;
+    const intervalElapsed = this.inputSendAccumulatorMs >= INPUT_SEND_INTERVAL_MS;
+    const changedSinceLastSend = hasDirectionalChange(this.lastSentInputState, inputState);
+
+    if (
+      !intervalElapsed &&
+      !changedSinceLastSend &&
+      !inputState.wave &&
+      !inputState.numb &&
+      !inputState.pull &&
+      !inputState.venom &&
+      !inputState.dash &&
+      !inputState.grenade &&
+      !inputState.molotov &&
+      !inputState.landmine &&
+      !inputState.shuriken
+    ) {
+      if (canSendInput) {
+        this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
+      }
+      return;
+    }
+
+    const dtWindowMs = Math.max(1, this.inputSendAccumulatorMs);
+    const lastSentInputState: InputState = {
+      up: inputState.up,
+      down: inputState.down,
+      left: inputState.left,
+      right: inputState.right,
+      wave: false,
+      numb: false,
+      pull: false,
+      venom: false,
+      dash: false,
+      grenade: false,
+      molotov: false,
+      landmine: false,
+      shuriken: false,
+    };
+
+    if (!canSendInput) {
+      this.inputSendAccumulatorMs = 0;
+      this.lastSentInputState = lastSentInputState;
+      return;
+    }
+
+    const input: InputMessage = createInputMessage(this.nextInputSeq, inputState);
+    const sent = this.connection.send(input);
+
+    this.inputSendAccumulatorMs = 0;
+
+    if (!sent) {
+      this.lastSentInputState = lastSentInputState;
+      return;
+    }
+
+    this.nextInputSeq += 1;
+
     if (wave) {
       this.waveCooldownEndsAtMs = nowMs + PLAYER_WAVE_COOLDOWN;
       this.waveLikeActiveUntilMs = nowMs + PLAYER_WAVE_CAST_DURATION;
@@ -316,48 +393,7 @@ export class LocalInputController {
       this.setShurikenCooldownEndsAt(this.shurikenCooldownEndsAtMs);
     }
 
-    const inputState: InputState = {
-      up: !uiBlocked && !localDead && rawUpDown,
-      down: !uiBlocked && !localDead && rawDownDown,
-      left: !uiBlocked && !localDead && rawLeftDown,
-      right: !uiBlocked && !localDead && rawRightDown,
-      wave: !uiBlocked && !localDead && wave,
-      numb: !uiBlocked && !localDead && numb,
-      pull: !uiBlocked && !localDead && pull,
-      venom: !uiBlocked && !localDead && venom,
-      dash: !uiBlocked && !localDead && dash,
-      grenade: !uiBlocked && !localDead && grenade,
-      molotov: !uiBlocked && !localDead && molotov,
-      landmine: !uiBlocked && !localDead && landmine,
-      shuriken: !uiBlocked && !localDead && shuriken,
-    };
-
     this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
-
-    this.inputSendAccumulatorMs += delta;
-    const intervalElapsed = this.inputSendAccumulatorMs >= INPUT_SEND_INTERVAL_MS;
-    const changedSinceLastSend = hasDirectionalChange(this.lastSentInputState, inputState);
-
-    if (
-      !intervalElapsed &&
-      !changedSinceLastSend &&
-      !inputState.wave &&
-      !inputState.numb &&
-      !inputState.pull &&
-      !inputState.venom &&
-      !inputState.dash &&
-      !inputState.grenade &&
-      !inputState.molotov &&
-      !inputState.landmine &&
-      !inputState.shuriken
-    ) {
-      return;
-    }
-
-    const dtWindowMs = Math.max(1, this.inputSendAccumulatorMs);
-    this.inputSendAccumulatorMs = 0;
-
-    const input: InputMessage = createInputMessage(this.nextInputSeq++, inputState);
 
     this.pendingInputs.push({
       input,
@@ -368,22 +404,7 @@ export class LocalInputController {
       this.pendingInputs.splice(0, this.pendingInputs.length - MAX_PENDING_INPUTS);
     }
 
-    this.lastSentInputState = {
-      up: inputState.up,
-      down: inputState.down,
-      left: inputState.left,
-      right: inputState.right,
-      wave: false,
-      numb: false,
-      pull: false,
-      venom: false,
-      dash: false,
-      grenade: false,
-      molotov: false,
-      landmine: false,
-      shuriken: false,
-    };
-    this.connection.send(input);
+    this.lastSentInputState = lastSentInputState;
   }
 
   private bindKeys(): void {

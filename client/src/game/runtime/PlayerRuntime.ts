@@ -82,6 +82,36 @@ export class PlayerRuntime {
     }
   }
 
+  syncPlayerDelta(
+    players: PlayerSnapshot[],
+    removedPlayerIds: string[],
+    waveIndicators: WaveIndicator[]
+  ): void {
+    const updatedPlayerIds = new Set<string>();
+    const waveByOwner = new Map<string, WaveIndicator>();
+
+    for (const wave of waveIndicators) {
+      if (wave.ownerId) {
+        waveByOwner.set(wave.ownerId, wave);
+      }
+    }
+
+    for (const player of players) {
+      updatedPlayerIds.add(player.id);
+      this.upsertPlayerEntity(player, waveByOwner.get(player.id) ?? null);
+    }
+
+    for (const id of removedPlayerIds) {
+      this.removePlayerEntity(id);
+    }
+
+    for (const [id, entity] of this.playerEntities) {
+      if (!updatedPlayerIds.has(id)) {
+        entity.syncWaveIndicator(waveByOwner.get(id) ?? null);
+      }
+    }
+  }
+
   update(delta: number, isTypingInInput: boolean): void {
     const localEntity = this.getLocalEntity();
     const uiBlocked = this.ui.isNicknameModalOpen() || isTypingInInput;
