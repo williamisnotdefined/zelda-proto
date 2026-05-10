@@ -26,6 +26,13 @@ const CITY_ONE_TILESET_SOURCE_KEY = 'city_grass_tileset_source';
 const CITY_ONE_TILE_SIZE = 16;
 const CITY_ONE_TILESET_COLUMNS = 30;
 const CITY_ONE_DIRT_BASE_KEY = 'city_tile_dirt_base';
+const CITY_ONE_SHORE_WATER_LEFT_RIGHT_KEY = 'city_tile_water_shore_water_left_right';
+const CITY_ONE_SHORE_WATER_UP_DOWN_KEY = 'city_tile_water_shore_water_up_down';
+const CITY_ONE_GRASS_FRAME = 132;
+const CITY_ONE_SHORE_WATER_LEFT_FRAME = 402;
+const CITY_ONE_SHORE_WATER_RIGHT_FRAME = 405;
+const CITY_ONE_SHORE_WATER_ABOVE_FRAME = 467;
+const CITY_ONE_SHORE_WATER_BELOW_FRAME = 377;
 
 const CITY_ONE_TILE_FRAMES: Record<string, number> = {
   city_tile_grass_0: 132,
@@ -66,6 +73,22 @@ const CITY_ONE_TILE_FRAMES: Record<string, number> = {
   city_tile_water_bottom_2: 469,
   city_tile_water_grass_left: 402,
   city_tile_water_grass_right: 405,
+  city_tile_water_shore_water_below_0: 377,
+  city_tile_water_shore_water_below_1: 378,
+  city_tile_water_shore_water_below_2: 379,
+  city_tile_water_shore_water_above_0: 467,
+  city_tile_water_shore_water_above_1: 468,
+  city_tile_water_shore_water_above_2: 469,
+  city_tile_water_shore_water_left_0: 402,
+  city_tile_water_shore_water_left_1: 432,
+  city_tile_water_shore_water_left_2: 440,
+  city_tile_water_shore_water_right_0: 405,
+  city_tile_water_shore_water_right_1: 406,
+  city_tile_water_shore_water_right_2: 435,
+  city_tile_water_shore_water_up_left: 372,
+  city_tile_water_shore_water_up_right: 375,
+  city_tile_water_shore_water_down_left: 462,
+  city_tile_water_shore_water_down_right: 465,
 };
 
 function preloadCityOneAssets(scene: Phaser.Scene): void {
@@ -107,20 +130,28 @@ function preloadCityOneAssets(scene: Phaser.Scene): void {
     `${animatedPath}/Animated Campfire/spr_campfire_burning.png`,
     { frameWidth: 32, frameHeight: 64 }
   );
-  scene.load.spritesheet(
-    'city_wave_front',
-    `${animatedPath}/Animated water waves/spr_front_wave_animated.png`,
-    { frameWidth: 16, frameHeight: 16 }
+  const waterWavePath = `${animatedPath}/Animated water waves`;
+  const loadWaterWave = (key: string, filename: string): void => {
+    scene.load.spritesheet(key, `${waterWavePath}/${filename}`, {
+      frameWidth: 16,
+      frameHeight: 16,
+    });
+  };
+
+  loadWaterWave('city_wave_front', 'spr_front_wave_animated.png');
+  loadWaterWave('city_wave_left', 'spr_left_side_wave_animated.png');
+  loadWaterWave('city_wave_right', 'spr_right_side_wave_animated.png');
+  loadWaterWave('city_wave_left_corner', 'spr_left_corner_wave_animated.png');
+  loadWaterWave('city_wave_right_corner', 'spr_right_corner_wave_animated.png');
+  loadWaterWave('city_wave_left_backcorner', 'spr_left_backcorner_wave_animated.png');
+  loadWaterWave('city_wave_right_backcorner', 'spr_right_backcorner_wave_animated.png');
+  loadWaterWave(
+    'city_wave_front_left_corner_intersection',
+    'spr_front_left_corner_intersection_wave_animated.png'
   );
-  scene.load.spritesheet(
-    'city_wave_left',
-    `${animatedPath}/Animated water waves/spr_left_side_wave_animated.png`,
-    { frameWidth: 16, frameHeight: 16 }
-  );
-  scene.load.spritesheet(
-    'city_wave_right',
-    `${animatedPath}/Animated water waves/spr_right_side_wave_animated.png`,
-    { frameWidth: 16, frameHeight: 16 }
+  loadWaterWave(
+    'city_wave_front_right_corner_intersection',
+    'spr_front_right_corner_intersection_wave_animated.png'
   );
 }
 
@@ -190,6 +221,93 @@ function registerCityOneTileTextures(scene: Phaser.Scene): void {
     tileTexture.context.putImageData(imageData, 0, 0);
     tileTexture.refresh();
   }
+
+  registerCityOneCompositeShoreTextures(scene, sourceImage);
+}
+
+function registerCityOneCompositeShoreTextures(
+  scene: Phaser.Scene,
+  sourceImage: HTMLImageElement | HTMLCanvasElement
+): void {
+  registerCityOneCompositeShoreTexture(scene, sourceImage, CITY_ONE_SHORE_WATER_LEFT_RIGHT_KEY, [
+    { frameIndex: CITY_ONE_GRASS_FRAME },
+    { frameIndex: CITY_ONE_SHORE_WATER_LEFT_FRAME, sourceX: 0, sourceY: 0, width: 6, height: 16 },
+    {
+      frameIndex: CITY_ONE_SHORE_WATER_RIGHT_FRAME,
+      sourceX: 10,
+      sourceY: 0,
+      width: 6,
+      height: 16,
+      destX: 10,
+    },
+  ]);
+
+  registerCityOneCompositeShoreTexture(scene, sourceImage, CITY_ONE_SHORE_WATER_UP_DOWN_KEY, [
+    { frameIndex: CITY_ONE_GRASS_FRAME },
+    { frameIndex: CITY_ONE_SHORE_WATER_ABOVE_FRAME, sourceX: 0, sourceY: 0, width: 16, height: 6 },
+    {
+      frameIndex: CITY_ONE_SHORE_WATER_BELOW_FRAME,
+      sourceX: 0,
+      sourceY: 10,
+      width: 16,
+      height: 6,
+      destY: 10,
+    },
+  ]);
+}
+
+function registerCityOneCompositeShoreTexture(
+  scene: Phaser.Scene,
+  sourceImage: HTMLImageElement | HTMLCanvasElement,
+  textureKey: string,
+  parts: {
+    frameIndex: number;
+    sourceX?: number;
+    sourceY?: number;
+    width?: number;
+    height?: number;
+    destX?: number;
+    destY?: number;
+  }[]
+): void {
+  if (scene.textures.exists(textureKey)) {
+    return;
+  }
+
+  const tileTexture = scene.textures.createCanvas(
+    textureKey,
+    CITY_ONE_TILE_SIZE,
+    CITY_ONE_TILE_SIZE
+  );
+  if (!tileTexture) {
+    return;
+  }
+
+  tileTexture.context.imageSmoothingEnabled = false;
+  tileTexture.context.clearRect(0, 0, CITY_ONE_TILE_SIZE, CITY_ONE_TILE_SIZE);
+
+  for (const part of parts) {
+    const sourceColumn = part.frameIndex % CITY_ONE_TILESET_COLUMNS;
+    const sourceRow = Math.floor(part.frameIndex / CITY_ONE_TILESET_COLUMNS);
+    const width = part.width ?? CITY_ONE_TILE_SIZE;
+    const height = part.height ?? CITY_ONE_TILE_SIZE;
+    const sourceX = sourceColumn * CITY_ONE_TILE_SIZE + (part.sourceX ?? 0);
+    const sourceY = sourceRow * CITY_ONE_TILE_SIZE + (part.sourceY ?? 0);
+
+    tileTexture.context.drawImage(
+      sourceImage,
+      sourceX,
+      sourceY,
+      width,
+      height,
+      part.destX ?? 0,
+      part.destY ?? 0,
+      width,
+      height
+    );
+  }
+
+  tileTexture.refresh();
 }
 
 function registerStripTextures(

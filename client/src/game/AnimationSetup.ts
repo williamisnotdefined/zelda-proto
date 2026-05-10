@@ -237,4 +237,20 @@ export function setupAnimations(scene: Phaser.Scene): void {
   createFullStripAnim(scene, 'city_wave_front', 'city_wave_front_loop', 8);
   createFullStripAnim(scene, 'city_wave_left', 'city_wave_left_loop', 8);
   createFullStripAnim(scene, 'city_wave_right', 'city_wave_right_loop', 8);
+  createFullStripAnim(scene, 'city_wave_left_corner', 'city_wave_left_corner_loop', 8);
+  createFullStripAnim(scene, 'city_wave_right_corner', 'city_wave_right_corner_loop', 8);
+  createFullStripAnim(scene, 'city_wave_left_backcorner', 'city_wave_left_backcorner_loop', 8);
+  createFullStripAnim(scene, 'city_wave_right_backcorner', 'city_wave_right_backcorner_loop', 8);
+  createFullStripAnim(
+    scene,
+    'city_wave_front_left_corner_intersection',
+    'city_wave_front_left_corner_intersection_loop',
+    8
+  );
+  createFullStripAnim(
+    scene,
+    'city_wave_front_right_corner_intersection',
+    'city_wave_front_right_corner_intersection_loop',
+    8
+  );
 }

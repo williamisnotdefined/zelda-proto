@@ -9,6 +9,7 @@ const GROUND_DEPTH = -0.85;
 const GROUND_DETAIL_DEPTH = -0.82;
 const PATH_DEPTH = -0.75;
 const WATER_DEPTH = -0.7;
+const WATER_SHORE_DEPTH = -0.58;
 const WATER_EDGE_DEPTH = -0.55;
 const PROP_DEPTH = 2;
 const TREE_DEPTH = 3;
@@ -49,16 +50,43 @@ const PATH_GRASS_RIGHT_TILES = [
   'city_tile_path_grass_right_2',
 ] as const;
 const WATER_TILES = ['city_tile_water_0', 'city_tile_water_1', 'city_tile_water_2'] as const;
-const WATER_TOP_TILES = [
-  'city_tile_water_top_0',
-  'city_tile_water_top_1',
-  'city_tile_water_top_2',
+const WATER_SHORE_WATER_BELOW_TILES = [
+  'city_tile_water_shore_water_below_0',
+  'city_tile_water_shore_water_below_1',
+  'city_tile_water_shore_water_below_2',
 ] as const;
-const WATER_BOTTOM_TILES = [
-  'city_tile_water_bottom_0',
-  'city_tile_water_bottom_1',
-  'city_tile_water_bottom_2',
+const WATER_SHORE_WATER_ABOVE_TILES = [
+  'city_tile_water_shore_water_above_0',
+  'city_tile_water_shore_water_above_1',
+  'city_tile_water_shore_water_above_2',
 ] as const;
+const WATER_SHORE_WATER_LEFT_TILES = [
+  'city_tile_water_shore_water_left_0',
+  'city_tile_water_shore_water_left_1',
+  'city_tile_water_shore_water_left_2',
+] as const;
+const WATER_SHORE_WATER_RIGHT_TILES = [
+  'city_tile_water_shore_water_right_0',
+  'city_tile_water_shore_water_right_1',
+  'city_tile_water_shore_water_right_2',
+] as const;
+const WATER_SHORE_WATER_UP_LEFT_TILE = 'city_tile_water_shore_water_up_left';
+const WATER_SHORE_WATER_UP_RIGHT_TILE = 'city_tile_water_shore_water_up_right';
+const WATER_SHORE_WATER_DOWN_LEFT_TILE = 'city_tile_water_shore_water_down_left';
+const WATER_SHORE_WATER_DOWN_RIGHT_TILE = 'city_tile_water_shore_water_down_right';
+const WATER_SHORE_WATER_LEFT_RIGHT_TILE = 'city_tile_water_shore_water_left_right';
+const WATER_SHORE_WATER_UP_DOWN_TILE = 'city_tile_water_shore_water_up_down';
+const WATER_WAVE_ANIMS = {
+  front: 'city_wave_front_loop',
+  left: 'city_wave_left_loop',
+  right: 'city_wave_right_loop',
+  leftCorner: 'city_wave_left_corner_loop',
+  rightCorner: 'city_wave_right_corner_loop',
+  leftBackCorner: 'city_wave_left_backcorner_loop',
+  rightBackCorner: 'city_wave_right_backcorner_loop',
+  frontLeftIntersection: 'city_wave_front_left_corner_intersection_loop',
+  frontRightIntersection: 'city_wave_front_right_corner_intersection_loop',
+} as const;
 
 type GameObject = Phaser.GameObjects.GameObject & { setVisible?: (visible: boolean) => GameObject };
 
@@ -193,22 +221,131 @@ export class CityOneRenderer {
 
     for (const cell of waterCells) {
       const [gx, gy] = this.parseCellKey(cell);
-      const topOpen = !waterCells.has(this.cellKey(gx, gy - 1));
-      const bottomOpen = !waterCells.has(this.cellKey(gx, gy + 1));
-      const tileKey = topOpen
-        ? this.pick(WATER_TOP_TILES, gx, gy, 17)
-        : bottomOpen
-          ? this.pick(WATER_BOTTOM_TILES, gx, gy, 18)
-          : this.pick(WATER_TILES, gx, gy, 19);
-      this.addTile(tileKey, gx, gy, WATER_DEPTH);
+      this.addTile(this.pick(WATER_TILES, gx, gy, 19), gx, gy, WATER_DEPTH);
     }
 
-    for (let gy = 5; gy <= 10; gy += 1) {
-      this.addTile(this.pick(GRASS_TILES, -5, gy, 24), -5, gy, WATER_EDGE_DEPTH - 0.08);
-      this.addTile(this.pick(GRASS_TILES, -4, gy, 25), -4, gy, WATER_EDGE_DEPTH - 0.08);
-    }
+    this.addWaterShore(waterCells);
+    this.addWaterWaves(waterCells);
 
     this.addImage('city_bridge_horizontal', -236, 226, WATER_EDGE_DEPTH + 0.1, SCALE);
+  }
+
+  private addWaterShore(waterCells: Set<string>): void {
+    const shoreCells = new Set<string>();
+    const neighborOffsets: Array<[number, number]> = [
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0],
+    ];
+
+    for (const cell of waterCells) {
+      const [gx, gy] = this.parseCellKey(cell);
+      for (const [dx, dy] of neighborOffsets) {
+        const shoreKey = this.cellKey(gx + dx, gy + dy);
+        if (!waterCells.has(shoreKey)) {
+          shoreCells.add(shoreKey);
+        }
+      }
+    }
+
+    for (const cell of shoreCells) {
+      const [gx, gy] = this.parseCellKey(cell);
+      const tileKey = this.pickWaterShoreTile(waterCells, gx, gy);
+      if (tileKey) {
+        this.addTile(tileKey, gx, gy, WATER_SHORE_DEPTH);
+      }
+    }
+  }
+
+  private pickWaterShoreTile(waterCells: Set<string>, gx: number, gy: number): string | null {
+    const waterUp = waterCells.has(this.cellKey(gx, gy - 1));
+    const waterDown = waterCells.has(this.cellKey(gx, gy + 1));
+    const waterLeft = waterCells.has(this.cellKey(gx - 1, gy));
+    const waterRight = waterCells.has(this.cellKey(gx + 1, gy));
+
+    if (waterUp && waterLeft && !waterDown && !waterRight) {
+      return WATER_SHORE_WATER_UP_LEFT_TILE;
+    }
+    if (waterUp && waterRight && !waterDown && !waterLeft) {
+      return WATER_SHORE_WATER_UP_RIGHT_TILE;
+    }
+    if (waterDown && waterLeft && !waterUp && !waterRight) {
+      return WATER_SHORE_WATER_DOWN_LEFT_TILE;
+    }
+    if (waterDown && waterRight && !waterUp && !waterLeft) {
+      return WATER_SHORE_WATER_DOWN_RIGHT_TILE;
+    }
+    if (waterLeft && waterRight && !waterUp && !waterDown) {
+      return WATER_SHORE_WATER_LEFT_RIGHT_TILE;
+    }
+    if (waterUp && waterDown && !waterLeft && !waterRight) {
+      return WATER_SHORE_WATER_UP_DOWN_TILE;
+    }
+    if (waterDown) {
+      return this.pick(WATER_SHORE_WATER_BELOW_TILES, gx, gy, 26);
+    }
+    if (waterUp) {
+      return this.pick(WATER_SHORE_WATER_ABOVE_TILES, gx, gy, 27);
+    }
+    if (waterLeft) {
+      return this.pick(WATER_SHORE_WATER_LEFT_TILES, gx, gy, 28);
+    }
+    if (waterRight) {
+      return this.pick(WATER_SHORE_WATER_RIGHT_TILES, gx, gy, 29);
+    }
+
+    return null;
+  }
+
+  private addWaterWaves(waterCells: Set<string>): void {
+    for (const cell of waterCells) {
+      const [gx, gy] = this.parseCellKey(cell);
+      const topOpen = !waterCells.has(this.cellKey(gx, gy - 1));
+      const bottomOpen = !waterCells.has(this.cellKey(gx, gy + 1));
+      const leftOpen = !waterCells.has(this.cellKey(gx - 1, gy));
+      const rightOpen = !waterCells.has(this.cellKey(gx + 1, gy));
+
+      let bottomCovered = false;
+      let leftCovered = false;
+      let rightCovered = false;
+
+      if (bottomOpen && leftOpen && !rightOpen) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.leftCorner, gx, gy, WATER_EDGE_DEPTH);
+        bottomCovered = true;
+        leftCovered = true;
+      }
+      if (bottomOpen && rightOpen && !leftOpen) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.rightCorner, gx, gy, WATER_EDGE_DEPTH);
+        bottomCovered = true;
+        rightCovered = true;
+      }
+      if (topOpen && leftOpen && !rightOpen) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.leftBackCorner, gx, gy, WATER_EDGE_DEPTH);
+        leftCovered = true;
+      }
+      if (topOpen && rightOpen && !leftOpen) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.rightBackCorner, gx, gy, WATER_EDGE_DEPTH);
+        rightCovered = true;
+      }
+
+      if (bottomOpen && !bottomCovered) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.front, gx, gy, WATER_EDGE_DEPTH);
+      }
+      if (leftOpen && !leftCovered) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.left, gx, gy, WATER_EDGE_DEPTH);
+      }
+      if (rightOpen && !rightCovered) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.right, gx, gy, WATER_EDGE_DEPTH);
+      }
+
+      if (!bottomOpen && !leftOpen && !waterCells.has(this.cellKey(gx - 1, gy + 1))) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.frontLeftIntersection, gx, gy, WATER_EDGE_DEPTH);
+      }
+      if (!bottomOpen && !rightOpen && !waterCells.has(this.cellKey(gx + 1, gy + 1))) {
+        this.addAnimatedTile(WATER_WAVE_ANIMS.frontRightIntersection, gx, gy, WATER_EDGE_DEPTH);
+      }
+    }
   }
 
   private createSafeZoneBoundary(): void {
@@ -470,6 +607,25 @@ export class CityOneRenderer {
     image.setDepth(depth);
     this.objects.push(image);
     return image;
+  }
+
+  private addAnimatedTile(
+    animationKey: string,
+    gx: number,
+    gy: number,
+    depth: number
+  ): Phaser.GameObjects.Sprite {
+    const textureKey = animationKey.endsWith('_loop') ? animationKey.slice(0, -5) : animationKey;
+    const sprite = this.scene.add.sprite(
+      CITY_ONE_CENTER_X + gx * TILE,
+      CITY_ONE_CENTER_Y + gy * TILE,
+      textureKey
+    );
+    sprite.setScale(SCALE);
+    sprite.setDepth(depth);
+    sprite.play(animationKey);
+    this.objects.push(sprite);
+    return sprite;
   }
 
   private pick<T extends readonly string[]>(
