@@ -21,12 +21,13 @@ vi.mock('phaser', () => ({
   },
 }));
 
-import { PLAYER_WAVE_COOLDOWN } from '@/game-core';
+import { PLAYER_SPIKED_BALLS_COOLDOWN, PLAYER_WAVE_COOLDOWN } from '@/game-core';
 import type { PlayerEntity } from '../../entities/Player';
 import type { GameConnection } from '../../network/gameConnection';
 import { LocalInputController } from './LocalInputController';
 
 const KEY_Q = 81;
+const KEY_G = 71;
 
 type FakeKey = { isDown: boolean };
 
@@ -156,6 +157,30 @@ describe('LocalInputController', () => {
     expect(localEntity.targetX).toBeGreaterThan(10);
     expect(cooldownSetters.setWaveCooldownEndsAt).toHaveBeenCalledWith(
       1_000 + PLAYER_WAVE_COOLDOWN
+    );
+  });
+
+  it('clears the internal spiked balls cooldown on reset', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    const { controller, keys, connection, cooldownSetters } = createController();
+    const localEntity = createLocalEntity();
+
+    keys.get(KEY_G)!.isDown = true;
+    controller.update(16, localEntity, false);
+    expect(cooldownSetters.setSpikedBallsCooldownEndsAt).toHaveBeenCalledWith(
+      1_000 + PLAYER_SPIKED_BALLS_COOLDOWN
+    );
+
+    controller.reset();
+    vi.mocked(connection.send).mockClear();
+    cooldownSetters.setSpikedBallsCooldownEndsAt.mockClear();
+
+    controller.update(16, localEntity, false);
+
+    expect(connection.send).toHaveBeenCalledTimes(1);
+    expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ spikedBalls: true }));
+    expect(cooldownSetters.setSpikedBallsCooldownEndsAt).toHaveBeenCalledWith(
+      1_000 + PLAYER_SPIKED_BALLS_COOLDOWN
     );
   });
 });

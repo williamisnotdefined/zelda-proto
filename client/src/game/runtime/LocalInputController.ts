@@ -147,6 +147,7 @@ export class LocalInputController {
     this.prevConfusionDown = false;
     this.prevLandmineDown = false;
     this.prevShurikenDown = false;
+    this.prevSpikedBallsDown = false;
     this.resetDirectionalTapState();
     this.waveCooldownEndsAtMs = 0;
     this.dashCooldownEndsAtMs = 0;
@@ -158,6 +159,7 @@ export class LocalInputController {
     this.molotovCooldownEndsAtMs = 0;
     this.landmineCooldownEndsAtMs = 0;
     this.shurikenCooldownEndsAtMs = 0;
+    this.spikedBallsCooldownEndsAtMs = 0;
     this.waveLikeActiveUntilMs = 0;
     this.setWaveCooldownEndsAt(null);
     this.setNumbCooldownEndsAt(null);
