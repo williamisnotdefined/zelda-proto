@@ -11,6 +11,7 @@ const SNAP_DISTANCE = 140;
 
 interface FieldHazardConfig {
   textureKey: string;
+  animationKey: string;
   alpha: number;
   hitRadius: number;
   hitZoneColor: number;
@@ -19,7 +20,7 @@ interface FieldHazardConfig {
 }
 
 export class FieldHazardEntity {
-  sprite: Phaser.GameObjects.Image;
+  sprite: Phaser.GameObjects.Sprite;
   hitZone: Phaser.GameObjects.Arc;
   private targetX: number;
   private targetY: number;
@@ -28,7 +29,7 @@ export class FieldHazardEntity {
     this.targetX = x;
     this.targetY = y;
 
-    this.sprite = scene.add.image(
+    this.sprite = scene.add.sprite(
       x + FIELD_HAZARD_SPRITE_OFFSET_X,
       y + FIELD_HAZARD_SPRITE_OFFSET_Y,
       config.textureKey
@@ -41,6 +42,7 @@ export class FieldHazardEntity {
     if (config.tint !== undefined) {
       this.sprite.setTint(config.tint);
     }
+    this.sprite.play(config.animationKey);
 
     const hitZoneColor = config.tint ?? config.hitZoneColor;
     this.hitZone = scene.add.circle(

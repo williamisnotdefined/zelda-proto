@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
+const FIRE_FIELD_TEXTURE_KEY = 'fire_field';
+const FIRE_FIELD_ANIMATION_KEY = 'fire_field_loop';
 const BURNING_OVERLAY_ALPHA = 0.52;
 const DEFAULT_BURNING_OVERLAY_SIZE_PX = 58;
 
@@ -11,7 +12,7 @@ interface BurningStatusOverlayOptions {
 }
 
 export class BurningStatusOverlay {
-  private readonly overlay: Phaser.GameObjects.DOMElement;
+  private readonly overlay: Phaser.GameObjects.Sprite;
   private readonly offsetY: number;
 
   constructor(
@@ -22,21 +23,13 @@ export class BurningStatusOverlay {
   ) {
     this.offsetY = offsetY;
 
-    const image = document.createElement('img');
-    image.src = FIRE_FIELD_GIF_PATH;
-    image.alt = 'Burning effect';
-    image.draggable = false;
-    image.style.width = `${sizePx}px`;
-    image.style.height = `${sizePx}px`;
-    image.style.pointerEvents = 'none';
-    image.style.userSelect = 'none';
-    image.style.opacity = `${BURNING_OVERLAY_ALPHA}`;
-
-    this.overlay = scene.add.dom(x, y + offsetY, image);
+    this.overlay = scene.add.sprite(x, y + offsetY, FIRE_FIELD_TEXTURE_KEY);
     this.overlay.setDepth(depth);
     this.overlay.setAlpha(BURNING_OVERLAY_ALPHA);
     this.overlay.setOrigin(0.5, 0.5);
+    this.overlay.setDisplaySize(sizePx, sizePx);
     this.overlay.setVisible(false);
+    this.overlay.play(FIRE_FIELD_ANIMATION_KEY);
   }
 
   sync(x: number, y: number, visible: boolean): void {

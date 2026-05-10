@@ -10,7 +10,8 @@ describe('portalRegistry', () => {
   it('reuses the same config source for visuals and minimap color', () => {
     const config = getPortalVisualConfig(PORTAL_KINDS.PHASE3_TO_PHASE4);
 
-    expect(config.gifPath).toContain('Earth_Portal');
+    expect(config.textureKey).toBe('portal_earth');
+    expect(config.animationKey).toBe('portal_earth_loop');
     expect(config.sizePx).toBeGreaterThan(RETURN_PORTAL_SIZE_FALLBACK);
     expect(getPortalMinimapColor(PORTAL_KINDS.PHASE3_TO_PHASE4)).toBe(config.minimapColor);
   });

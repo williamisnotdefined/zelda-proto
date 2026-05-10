@@ -10,6 +10,7 @@ export class FireFieldHazardEntity extends FieldHazardEntity {
   constructor(scene: Phaser.Scene, x: number, y: number, tint?: number) {
     super(scene, x, y, {
       textureKey: 'fire_field',
+      animationKey: 'fire_field_loop',
       alpha: FIRE_FIELD_ALPHA,
       hitRadius: hazardDefinitions[HAZARD_KINDS.FIRE_FIELD].hitRadius,
       hitZoneColor: FIRE_FIELD_HIT_ZONE_COLOR,

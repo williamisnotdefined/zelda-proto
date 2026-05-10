@@ -10,6 +10,7 @@ export class BlueFlameHazardEntity extends FieldHazardEntity {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
       textureKey: 'blue_flame',
+      animationKey: 'blue_flame_loop',
       alpha: BLUE_FLAME_ALPHA,
       hitRadius: hazardDefinitions[HAZARD_KINDS.BLUE_FLAME].hitRadius,
       hitZoneColor: BLUE_FLAME_HIT_ZONE_COLOR,

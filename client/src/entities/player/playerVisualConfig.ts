@@ -22,9 +22,12 @@ export const BURNING_OVERLAY_OFFSET_FROM_HIT_CENTER = 4;
 export const BURNING_OVERLAY_STACK_STEP = 14;
 export const BURNING_OVERLAY_ALPHA = 0.52;
 export const BURNING_OVERLAY_SIZE_PX = 58;
-export const FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Fire_Field.gif';
-export const PURPLE_FIRE_FIELD_GIF_PATH = '/assets/sprites/fields/Purple_Field.gif';
-export const BLUE_BURNING_GIF_PATH = '/assets/sprites/fields/Blue_Flame.gif';
+export const FIRE_FIELD_TEXTURE_KEY = 'fire_field';
+export const FIRE_FIELD_ANIMATION_KEY = 'fire_field_loop';
+export const PURPLE_FIELD_TEXTURE_KEY = 'purple_field';
+export const PURPLE_FIELD_ANIMATION_KEY = 'purple_field_loop';
+export const BLUE_FLAME_TEXTURE_KEY = 'blue_flame';
+export const BLUE_FLAME_ANIMATION_KEY = 'blue_flame_loop';
 
 export const ATTACK_SHADOW_COLOR = 0xffa31a;
 export const ATTACK_SHADOW_STROKE_COLOR = 0xffe3a1;

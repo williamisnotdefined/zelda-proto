@@ -13,6 +13,14 @@ const MOLOTOV_EXPLOSION_FRAME_COUNT = 5;
 const MOLOTOV_EXPLOSION_FRAME_COLUMNS = 3;
 const MOLOTOV_EXPLOSION_STRIP_TEXTURE_KEY = 'molotov_explosion_strip';
 const MOLOTOV_EXPLOSION_FRAME_TEXTURE_KEY_PREFIX = 'molotov_explosion_';
+const FIELD_FIRE_FRAME_WIDTH = 55;
+const FIELD_FIRE_FRAME_HEIGHT = 50;
+const FIELD_PURPLE_FRAME_WIDTH = 50;
+const FIELD_PURPLE_FRAME_HEIGHT = 51;
+const FIELD_BLUE_FRAME_WIDTH = 49;
+const FIELD_BLUE_FRAME_HEIGHT = 47;
+const PORTAL_LARGE_FRAME_SIZE = 64;
+const PORTAL_RETURN_FRAME_SIZE = 32;
 
 function registerStripTextures(
   scene: Phaser.Scene,
@@ -271,9 +279,30 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 64,
     });
 
-    this.load.image('fire_field', 'assets/sprites/fields/Fire_Field.gif');
-    this.load.image('purple_field', 'assets/sprites/fields/Purple_Field.gif');
-    this.load.image('blue_flame', 'assets/sprites/fields/Blue_Flame.gif');
+    this.load.spritesheet('fire_field', 'assets/sprites/generated/fire_field_strip.png', {
+      frameWidth: FIELD_FIRE_FRAME_WIDTH,
+      frameHeight: FIELD_FIRE_FRAME_HEIGHT,
+    });
+    this.load.spritesheet('purple_field', 'assets/sprites/generated/purple_field_strip.png', {
+      frameWidth: FIELD_PURPLE_FRAME_WIDTH,
+      frameHeight: FIELD_PURPLE_FRAME_HEIGHT,
+    });
+    this.load.spritesheet('blue_flame', 'assets/sprites/generated/blue_flame_strip.png', {
+      frameWidth: FIELD_BLUE_FRAME_WIDTH,
+      frameHeight: FIELD_BLUE_FRAME_HEIGHT,
+    });
+    this.load.spritesheet('portal_advance', 'assets/sprites/generated/energy_portal_strip.png', {
+      frameWidth: PORTAL_LARGE_FRAME_SIZE,
+      frameHeight: PORTAL_LARGE_FRAME_SIZE,
+    });
+    this.load.spritesheet('portal_return', 'assets/sprites/generated/magic_forcefield_blue_strip.png', {
+      frameWidth: PORTAL_RETURN_FRAME_SIZE,
+      frameHeight: PORTAL_RETURN_FRAME_SIZE,
+    });
+    this.load.spritesheet('portal_earth', 'assets/sprites/generated/earth_portal_strip.png', {
+      frameWidth: PORTAL_LARGE_FRAME_SIZE,
+      frameHeight: PORTAL_LARGE_FRAME_SIZE,
+    });
     this.load.image('grenade', 'assets/sprites/attacks/grenade_48x48.png');
     this.load.image('molotov', 'assets/sprites/attacks/molotov.png');
     this.load.image('landmine', 'assets/sprites/attacks/landmine_mine.png');

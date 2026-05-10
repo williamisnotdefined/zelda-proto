@@ -226,4 +226,11 @@ export function setupAnimations(scene: Phaser.Scene): void {
     { key: 'vanessa_right', start: 16, end: 23, frameRate: 10 },
     { key: 'vanessa_up', start: 24, end: 31, frameRate: 10 },
   ]);
+
+  createFullStripAnim(scene, 'fire_field', 'fire_field_loop', 10);
+  createFullStripAnim(scene, 'purple_field', 'purple_field_loop', 8);
+  createFullStripAnim(scene, 'blue_flame', 'blue_flame_loop', 8);
+  createFullStripAnim(scene, 'portal_advance', 'portal_advance_loop', 10);
+  createFullStripAnim(scene, 'portal_return', 'portal_return_loop', 10);
+  createFullStripAnim(scene, 'portal_earth', 'portal_earth_loop', 10);
 }

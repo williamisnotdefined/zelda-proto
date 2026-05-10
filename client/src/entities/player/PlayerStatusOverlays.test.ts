@@ -24,6 +24,10 @@ class FakeDomElement {
     return this;
   }
 
+  setDisplaySize(): this {
+    return this;
+  }
+
   setVisible(visible: boolean): this {
     this.visible = visible;
     return this;
@@ -31,6 +35,10 @@ class FakeDomElement {
 
   destroy(): void {
     this.destroyed = true;
+  }
+
+  play(): this {
+    return this;
   }
 }
 
@@ -40,7 +48,7 @@ function createScene() {
     elements,
     scene: {
       add: {
-        dom: vi.fn(() => {
+        sprite: vi.fn(() => {
           const element = new FakeDomElement();
           elements.push(element);
           return element;
@@ -52,30 +60,24 @@ function createScene() {
 
 describe('PlayerStatusOverlays', () => {
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('creates DOM overlays only when a status becomes active', () => {
-    vi.stubGlobal('document', {
-      createElement: vi.fn(() => ({
-        style: {},
-        draggable: false,
-      })),
-    });
+  it('creates sprite overlays only when a status becomes active', () => {
     const { scene, elements } = createScene();
     const overlays = new PlayerStatusOverlays(scene as never, 10, 20);
 
-    expect(scene.add.dom).not.toHaveBeenCalled();
+    expect(scene.add.sprite).not.toHaveBeenCalled();
 
     overlays.sync(10, 20, {});
-    expect(scene.add.dom).not.toHaveBeenCalled();
+    expect(scene.add.sprite).not.toHaveBeenCalled();
 
     overlays.sync(10, 20, { burning: { ticksRemaining: 2 } });
-    expect(scene.add.dom).toHaveBeenCalledTimes(1);
+    expect(scene.add.sprite).toHaveBeenCalledTimes(1);
     expect(elements[0].visible).toBe(true);
 
     overlays.sync(10, 20, { burning: { ticksRemaining: 1 } });
-    expect(scene.add.dom).toHaveBeenCalledTimes(1);
+    expect(scene.add.sprite).toHaveBeenCalledTimes(1);
 
     overlays.sync(10, 20, {});
     expect(elements[0].visible).toBe(false);

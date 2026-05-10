@@ -11,6 +11,7 @@ export class PurpleFieldHazardEntity extends FieldHazardEntity {
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, {
       textureKey: 'purple_field',
+      animationKey: 'purple_field_loop',
       alpha: PURPLE_FIELD_ALPHA,
       hitRadius: hazardDefinitions[HAZARD_KINDS.PURPLE_FIELD].hitRadius,
       hitZoneColor: PURPLE_FIELD_HIT_ZONE_COLOR,
