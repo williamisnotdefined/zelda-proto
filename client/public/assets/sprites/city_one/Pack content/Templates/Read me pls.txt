@@ -1,0 +1,5 @@
+In this folder you can find "Asset placement template"
+which is simply a aseprite archive where you can open on your aseprite
+and see how i placed each sprite and tileset in different layers.
+
+It should help with overall placement and how you could separate layer of assets inside your engine.
