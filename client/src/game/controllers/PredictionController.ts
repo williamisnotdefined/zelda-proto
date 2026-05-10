@@ -1,4 +1,4 @@
-import type { Direction, PlayerSnapshot } from '@/shared';
+import type { Direction, InstanceId, PlayerSnapshot } from '@/shared';
 import {
   PLAYER_SPEED,
   getDashDelta,
@@ -9,6 +9,7 @@ import {
 } from '@/game-core';
 import type { InputState as CoreInputState, PendingInput as CorePendingInput } from '@/game-core';
 import { PlayerEntity } from '../../entities/Player';
+import { constrainCityOnePlayerPosition } from '../render/cityOneCollision';
 
 export type PendingInput = CorePendingInput;
 export type InputState = CoreInputState;
@@ -18,7 +19,12 @@ export class PredictionController {
     trimPendingInputs(pendingInputs);
   }
 
-  applyLocalPrediction(input: InputState, dtMs: number, entity: PlayerEntity | null): void {
+  applyLocalPrediction(
+    input: InputState,
+    dtMs: number,
+    entity: PlayerEntity | null,
+    instanceId: InstanceId | null
+  ): void {
     if (!entity) return;
     if (entity.serverState === 'dead') return;
 
@@ -28,6 +34,7 @@ export class PredictionController {
         const dash = getDashDelta(dashDirection);
         entity.targetX += dash.dx;
         entity.targetY += dash.dy;
+        this.constrainEntity(entity, instanceId);
         return;
       }
     }
@@ -37,6 +44,7 @@ export class PredictionController {
 
     entity.targetX += delta.dx;
     entity.targetY += delta.dy;
+    this.constrainEntity(entity, instanceId);
   }
 
   reconcileLocalPrediction(
@@ -44,7 +52,8 @@ export class PredictionController {
     serverPlayer: PlayerSnapshot,
     localEntity: PlayerEntity | null,
     pendingInputs: PendingInput[],
-    onResetAccumulator: () => void
+    onResetAccumulator: () => void,
+    instanceId: InstanceId | null
   ): PendingInput[] {
     if (serverPlayer.state === 'dead') {
       if (localEntity) {
@@ -70,7 +79,10 @@ export class PredictionController {
         serverPlayer,
         pendingInputs,
         { x: localEntity.targetX, y: localEntity.targetY },
-        PLAYER_SPEED
+        PLAYER_SPEED,
+        {
+          positionConstraint: (position) => constrainCityOnePlayerPosition(instanceId, position),
+        }
       );
 
       localEntity.updateFromServer(
@@ -89,5 +101,14 @@ export class PredictionController {
     }
 
     return pendingInputs;
+  }
+
+  private constrainEntity(entity: PlayerEntity, instanceId: InstanceId | null): void {
+    const constrained = constrainCityOnePlayerPosition(instanceId, {
+      x: entity.targetX,
+      y: entity.targetY,
+    });
+    entity.targetX = constrained.x;
+    entity.targetY = constrained.y;
   }
 }

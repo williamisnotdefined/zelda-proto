@@ -1,6 +1,7 @@
 package world
 
 import (
+	"math"
 	"math/rand"
 	"strconv"
 	"sync/atomic"
@@ -31,8 +32,19 @@ func newWorld(t *testing.T) *World {
 
 func newWorldAt(t *testing.T, now *time.Time) *World {
 	t.Helper()
+	return newWorldInInstanceAt(t, now, domworld.InstancePhase1)
+}
+
+func newWorldInInstance(t *testing.T, instanceID domworld.InstanceID) *World {
+	t.Helper()
+	now := time.Unix(1_700_000_000, 0)
+	return newWorldInInstanceAt(t, &now, instanceID)
+}
+
+func newWorldInInstanceAt(t *testing.T, now *time.Time, instanceID domworld.InstanceID) *World {
+	t.Helper()
 	return New(Config{
-		InstanceID: domworld.InstancePhase1,
+		InstanceID: instanceID,
 		SpawnX:     200, SpawnY: 200,
 		IDs:     &counterIDs{},
 		Rand:    rand.New(rand.NewSource(1)),
@@ -50,6 +62,14 @@ func randForFoodDrop(t *testing.T) *rand.Rand {
 	}
 	t.Fatal("could not find deterministic food drop seed")
 	return nil
+}
+
+func playerOverlapsRect(px, py, cx, cy, halfW, halfH, radius float64) bool {
+	nearestX := math.Max(cx-halfW, math.Min(px, cx+halfW))
+	nearestY := math.Max(cy-halfH, math.Min(py, cy+halfH))
+	dx := px - nearestX
+	dy := py - nearestY
+	return dx*dx+dy*dy < radius*radius
 }
 
 func TestAddRemovePlayer(t *testing.T) {
@@ -165,10 +185,10 @@ func TestDragonFiresHazardLine(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
-	x, y := 0.0, 0.0
+	x, y := 1000.0, 1000.0
 	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0
-	d := boss.NewDragonLord("d1", 200, 0)
+	d := boss.NewDragonLord("d1", 1200, 1000)
 	w.SpawnDragon(d)
 	for i := 0; i < 10; i++ {
 		w.Tick(50 * time.Millisecond)
@@ -576,7 +596,7 @@ func TestPlayerLandmineExplodesOnContactAndSkipsOwner(t *testing.T) {
 func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	t.Parallel()
 
-	w := newWorld(t)
+	w := newWorldInInstance(t, domworld.InstancePhase2)
 	ax, ay := 200.0, 200.0
 	tx, ty := ax-player.LandmineSpawnOffset, ay
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
@@ -586,7 +606,7 @@ func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	passiveConfig := enemy.BlobConfig
 	passiveConfig.Damage = 0
 	passiveConfig.Speed = 0
-	e := enemy.New("e1", tx+40, ty, "0,0", passiveConfig, drop.KindFoodSmall)
+	e := enemy.New("e1", ax+170, ty, "0,0", passiveConfig, drop.KindFoodSmall)
 	w.SpawnEnemy(e)
 
 	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Landmine: true})
@@ -606,7 +626,7 @@ func TestProtectedCasterLandmineSkipsPvPButStillDamagesMonsters(t *testing.T) {
 func TestProtectedCasterGrenadeSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	t.Parallel()
 
-	w := newWorld(t)
+	w := newWorldInInstance(t, domworld.InstancePhase2)
 	ax, ay := 200.0, 200.0
 	tx, ty := ax+player.GrenadeDistance, ay
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
@@ -639,7 +659,7 @@ func TestProtectedCasterGrenadeSkipsPvPButStillDamagesMonsters(t *testing.T) {
 func TestProtectedCasterMolotovSkipsPvPButStillDamagesMonsters(t *testing.T) {
 	t.Parallel()
 
-	w := newWorld(t)
+	w := newWorldInInstance(t, domworld.InstancePhase2)
 	ax, ay := 200.0, 200.0
 	tx, ty := ax+player.GrenadeDistance, ay
 	attacker := w.AddPlayer("p1", "Link", &ax, &ay)
@@ -1245,7 +1265,98 @@ func TestAdoptPlayer(t *testing.T) {
 	if e.TargetID != "" {
 		t.Fatalf("expected hostile target cleared, got %q", e.TargetID)
 	}
-	if dx, dy := e.X-200.0, e.Y-200.0; dx*dx+dy*dy <= domworld.SpawnSafeZoneRadius*domworld.SpawnSafeZoneRadius {
+	if dx, dy := e.X-200.0, e.Y-200.0; dx*dx+dy*dy <= domworld.CityOneSafeZoneRadius*domworld.CityOneSafeZoneRadius {
 		t.Fatalf("expected hostile expelled from safe zone, got enemy at (%.1f, %.1f)", e.X, e.Y)
+	}
+}
+
+func TestCityOneStaticCollisionPushesPlayerOutOfProps(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := domworld.SpawnX-100, domworld.SpawnY-188
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.Tick(20 * time.Millisecond)
+
+	if playerOverlapsRect(p.X, p.Y, domworld.SpawnX-100, domworld.SpawnY-188, 27, 27, cityOnePlayerCollisionRadius) {
+		t.Fatalf("expected player pushed out of crate collider, got (%.1f, %.1f)", p.X, p.Y)
+	}
+}
+
+func TestCityOneStaticCollisionDoesNotApplyOutsidePhase1(t *testing.T) {
+	t.Parallel()
+
+	w := newWorldInInstance(t, domworld.InstancePhase2)
+	x, y := domworld.SpawnX-100, domworld.SpawnY-188
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.Tick(20 * time.Millisecond)
+
+	if p.X != x || p.Y != y {
+		t.Fatalf("expected phase2 player unchanged by city collider, got (%.1f, %.1f)", p.X, p.Y)
+	}
+}
+
+func TestCityOneBridgeStaysWalkable(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := domworld.SpawnX-236, domworld.SpawnY+226
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.Tick(20 * time.Millisecond)
+
+	if p.X != x || p.Y != y {
+		t.Fatalf("expected bridge position walkable, got (%.1f, %.1f)", p.X, p.Y)
+	}
+}
+
+func TestCityOneBridgeRightLandingStaysWalkable(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := domworld.SpawnX-128, domworld.SpawnY+224
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.Tick(20 * time.Millisecond)
+
+	if p.X != x || p.Y != y {
+		t.Fatalf("expected right bridge landing walkable, got (%.1f, %.1f)", p.X, p.Y)
+	}
+}
+
+func TestCityOneLakeWaterBlocksPlayer(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := domworld.SpawnX-368, domworld.SpawnY+80
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.Tick(20 * time.Millisecond)
+
+	if playerOverlapsRect(p.X, p.Y, domworld.SpawnX-368, domworld.SpawnY+80, 160, 64, cityOnePlayerCollisionRadius) {
+		t.Fatalf("expected player pushed out of visible lake water, got (%.1f, %.1f)", p.X, p.Y)
+	}
+}
+
+func TestCityOneStaticCollisionConstrainsDashDestination(t *testing.T) {
+	t.Parallel()
+
+	w := newWorld(t)
+	x, y := domworld.SpawnX-400, domworld.SpawnY-188
+	p := w.AddPlayer("p1", "Link", &x, &y)
+	p.SafeZoneTimer = 0
+
+	w.HandleInput("p1", player.Input{Seq: 1, Right: true, Dash: true})
+	w.Tick(20 * time.Millisecond)
+
+	if playerOverlapsRect(p.X, p.Y, domworld.SpawnX-100, domworld.SpawnY-188, 27, 27, cityOnePlayerCollisionRadius) {
+		t.Fatalf("expected dash destination constrained out of crate collider, got (%.1f, %.1f)", p.X, p.Y)
 	}
 }

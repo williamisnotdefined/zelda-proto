@@ -11,6 +11,8 @@ const TOASTY_SLIDE_IN_DURATION_MS = 120;
 const TOASTY_HOLD_DURATION_MS = 550;
 const TOASTY_SLIDE_OUT_DURATION_MS = 120;
 const SAFE_ZONE_VISUAL_DURATION_MS = 3000;
+const SAFE_ZONE_FILL_DEPTH = 8;
+const SAFE_ZONE_RING_DEPTH = 30;
 const DAMAGE_NUMBER_DEPTH = 40;
 const DAMAGE_NUMBER_DURATION_MS = 650;
 const DAMAGE_NUMBER_RISE_PX = 42;
@@ -51,12 +53,12 @@ export class FxController {
     this.destroySafeZone();
 
     this.safeZoneCircle = this.scene.add.circle(x, y, radius, 0x44ff44, 0.15);
-    this.safeZoneCircle.setDepth(0);
+    this.safeZoneCircle.setDepth(SAFE_ZONE_FILL_DEPTH);
     this.safeZoneCircle.setScrollFactor(1, 1);
 
     this.safeZoneRing = this.scene.add.circle(x, y, radius);
     this.safeZoneRing.setStrokeStyle(3, 0x44ff44, 0.5);
-    this.safeZoneRing.setDepth(0);
+    this.safeZoneRing.setDepth(SAFE_ZONE_RING_DEPTH);
     this.safeZoneRing.setScrollFactor(1, 1);
 
     this.safeZoneTimer = this.scene.time.delayedCall(SAFE_ZONE_VISUAL_DURATION_MS, () => {

@@ -11,19 +11,14 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/player"
 )
 
-// Regression: a player parked inside the spawn safezone with the
-// post-respawn invulnerability timer still active must NOT take fire-field
-// hazard damage.
+// Regression: a player parked inside the Phase 1 city safezone must NOT take
+// fire-field hazard damage even after temporary spawn protection expires.
 func TestSafeZoneBlocksHazardDamage(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
-	// Place player at spawn (200, 200) so the safezone applies. Keep the
-	// default SafeZoneTimer (3s) supplied by player.New.
 	p := w.AddPlayer("p1", "Link", nil, nil)
-	if p.SafeZoneTimer <= 0 {
-		t.Fatalf("freshly spawned player must have a positive safezone timer")
-	}
+	p.SafeZoneTimer = 0
 
 	// Drop a fire hazard right on top of the player.
 	h := hazard.New("h1", p.X, p.Y, hazard.KindFireField)
@@ -33,16 +28,18 @@ func TestSafeZoneBlocksHazardDamage(t *testing.T) {
 	startHP := p.HP
 	w.Tick(20 * time.Millisecond)
 	if p.HP != startHP {
-		t.Fatalf("safezone-protected player took hazard damage: HP %d -> %d", startHP, p.HP)
+		t.Fatalf("city-safe player took hazard damage: HP %d -> %d", startHP, p.HP)
 	}
 }
 
-// Once the safezone timer expires, the same hazard must hurt the player.
+// Once outside the permanent city and temporary spawn protection has expired,
+// hazards should hurt the player normally.
 func TestHazardDamagesPlayerWhenSafezoneExpires(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
-	p := w.AddPlayer("p1", "Link", nil, nil)
+	x, y := 1000.0, 1000.0
+	p := w.AddPlayer("p1", "Link", &x, &y)
 	p.SafeZoneTimer = 0 // simulate expired protection
 	h := hazard.New("h1", p.X, p.Y, hazard.KindFireField)
 	w.hazards[h.ID] = h
@@ -89,22 +86,22 @@ func TestDashBlueFlameDamagesAllActorKindsAndAwardsKills(t *testing.T) {
 	t.Parallel()
 
 	w := newWorld(t)
-	sx, sy := 0.0, 0.0
+	sx, sy := 1000.0, 1000.0
 	source := w.AddPlayer("src", "Link", &sx, &sy)
 	source.SafeZoneTimer = 0
 
-	px, py := 300.0, 300.0
+	px, py := 1300.0, 1000.0
 	victim := w.AddPlayer("victim", "Zelda", &px, &py)
 	victim.SafeZoneTimer = 0
 	victim.HP = hazard.BurningTickDamage
 
 	weakConfig := enemy.BlobConfig
 	weakConfig.MaxHP = hazard.BurningTickDamage
-	e := enemy.New("e1", 450, 300, "0,0", weakConfig, drop.KindFoodSmall)
+	e := enemy.New("e1", 1450, 1000, "0,0", weakConfig, drop.KindFoodSmall)
 	e.HP = hazard.BurningTickDamage
 	w.SpawnEnemy(e)
 
-	d := boss.NewDragonLord("d1", 600, 300)
+	d := boss.NewDragonLord("d1", 1600, 1000)
 	d.HP = hazard.BurningTickDamage
 	w.SpawnDragon(d)
 

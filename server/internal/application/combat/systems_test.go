@@ -145,6 +145,22 @@ func TestPvPSystemRespectsSafezoneOnAttackerAndTarget(t *testing.T) {
 	}
 }
 
+func TestPvPSystemPermanentSafezoneBlocksExpiredPlayers(t *testing.T) {
+	t.Parallel()
+	zone := safezone.Zone{X: 0, Y: 0, Radius: 100, Permanent: true}
+	attacker := player.New("att", "n", 0, 0)
+	attacker.SafeZoneTimer = 0
+	attacker.State = player.StateAttacking
+	attacker.Direction = domworld.DirectionRight
+	target := player.New("tgt", "n", 40, 0)
+	target.SafeZoneTimer = 0
+
+	PvPSystem{}.Resolve(map[string]*player.Player{"att": attacker, "tgt": target}, zone)
+	if target.HP != player.MaxHP {
+		t.Fatalf("permanent safezone must block PvP after timers expire, got HP=%d", target.HP)
+	}
+}
+
 func TestPlayerWaveDamagesAllSupportedTargetKinds(t *testing.T) {
 	t.Parallel()
 

@@ -30,6 +30,15 @@ func TestZoneProtectsRequiresInside(t *testing.T) {
 	}
 }
 
+func TestPermanentZoneProtectsWithoutTimer(t *testing.T) {
+	z := Zone{X: 0, Y: 0, Radius: 50, Permanent: true}
+	p := player.New("p1", "n", 10, 0)
+	p.SafeZoneTimer = 0
+	if !z.Protects(p) {
+		t.Fatalf("expected permanent zone to protect player inside radius")
+	}
+}
+
 func TestAnyProtected(t *testing.T) {
 	z := Zone{X: 0, Y: 0, Radius: 50}
 	players := map[string]*player.Player{

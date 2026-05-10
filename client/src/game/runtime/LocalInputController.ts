@@ -15,7 +15,7 @@ import {
   createInputMessage,
   hasDirectionalChange,
 } from '@/game-core';
-import type { Direction, InputMessage } from '@/shared';
+import type { Direction, InputMessage, InstanceId } from '@/shared';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
 import type { GameConnection } from '../../network/gameConnection';
@@ -176,7 +176,8 @@ export class LocalInputController {
 
   reconcileLocalPlayer(
     player: Parameters<PredictionController['reconcileLocalPrediction']>[1],
-    entity: PlayerEntity
+    entity: PlayerEntity,
+    instanceId: InstanceId | null
   ): void {
     this.pendingInputs = this.predictionController.reconcileLocalPrediction(
       this.scene.time.now,
@@ -185,11 +186,17 @@ export class LocalInputController {
       this.pendingInputs,
       () => {
         this.inputSendAccumulatorMs = 0;
-      }
+      },
+      instanceId
     );
   }
 
-  update(delta: number, localEntity: PlayerEntity | null, uiBlocked: boolean): void {
+  update(
+    delta: number,
+    localEntity: PlayerEntity | null,
+    uiBlocked: boolean,
+    instanceId: InstanceId | null
+  ): void {
     this.predictionController.trimPendingInputs(this.pendingInputs);
 
     if (!localEntity) {
@@ -356,7 +363,7 @@ export class LocalInputController {
       !inputState.spikedBalls
     ) {
       if (canSendInput) {
-        this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
+        this.predictionController.applyLocalPrediction(inputState, delta, localEntity, instanceId);
       }
       return;
     }
@@ -448,7 +455,7 @@ export class LocalInputController {
       this.setSpikedBallsCooldownEndsAt(this.spikedBallsCooldownEndsAtMs);
     }
 
-    this.predictionController.applyLocalPrediction(inputState, delta, localEntity);
+    this.predictionController.applyLocalPrediction(inputState, delta, localEntity, instanceId);
 
     this.pendingInputs.push({
       input,

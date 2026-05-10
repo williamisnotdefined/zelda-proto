@@ -233,4 +233,8 @@ export function setupAnimations(scene: Phaser.Scene): void {
   createFullStripAnim(scene, 'portal_advance', 'portal_advance_loop', 10);
   createFullStripAnim(scene, 'portal_return', 'portal_return_loop', 10);
   createFullStripAnim(scene, 'portal_earth', 'portal_earth_loop', 10);
+  createFullStripAnim(scene, 'city_campfire_burning', 'city_campfire_burning_loop', 8);
+  createFullStripAnim(scene, 'city_wave_front', 'city_wave_front_loop', 8);
+  createFullStripAnim(scene, 'city_wave_left', 'city_wave_left_loop', 8);
+  createFullStripAnim(scene, 'city_wave_right', 'city_wave_right_loop', 8);
 }

@@ -534,6 +534,7 @@ func (w *World) resolveCombat() {
 			w.spawnDashTrail(sourcePlayerID, startX, startY, direction)
 		},
 	) {
+		w.resolvePlayersStaticCollisionsLocked()
 		w.syncDynamicIndexesLocked()
 	}
 	w.resolvePlayerShurikens()

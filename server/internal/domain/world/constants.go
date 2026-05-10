@@ -19,6 +19,9 @@ const (
 	// are protected from enemy contact damage.
 	SpawnSafeZoneRadius float64 = 150
 
+	// CityOneSafeZoneRadius is the permanent safe city around the Phase 1 spawn.
+	CityOneSafeZoneRadius float64 = 850
+
 	// ViewRadius bounds the visibility used by the snapshot system to filter
 	// distant entities for each player.
 	ViewRadius float64 = 2000

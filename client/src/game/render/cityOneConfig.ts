@@ -1,0 +1,4 @@
+export const CITY_ONE_CENTER_X = 200;
+export const CITY_ONE_CENTER_Y = 200;
+export const CITY_ONE_SAFE_ZONE_RADIUS = 850;
+export const CITY_ONE_PLAYER_COLLISION_RADIUS = 16;

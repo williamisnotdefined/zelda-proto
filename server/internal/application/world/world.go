@@ -449,6 +449,9 @@ func (w *World) SpawnEnemy(e *enemy.Enemy) {
 	defer w.mu.Unlock()
 	w.enemies[e.ID] = e
 	w.enemyIndex.Upsert(e.ID, e.X, e.Y)
+	if w.safeZoneBlocksHostiles() {
+		w.expelHostilesFromSafeZone()
+	}
 }
 
 // SpawnDragon adds a DragonLord boss.
@@ -457,6 +460,9 @@ func (w *World) SpawnDragon(b *boss.DragonLord) {
 	defer w.mu.Unlock()
 	w.dragons[b.ID] = b
 	w.bossIndex.Upsert(b.ID, b.X, b.Y)
+	if w.safeZoneBlocksHostiles() {
+		w.expelHostilesFromSafeZone()
+	}
 }
 
 // SpawnGelehk adds a Gelehk boss.
@@ -465,6 +471,9 @@ func (w *World) SpawnGelehk(b *boss.Gelehk) {
 	defer w.mu.Unlock()
 	w.gelehks[b.ID] = b
 	w.bossIndex.Upsert(b.ID, b.X, b.Y)
+	if w.safeZoneBlocksHostiles() {
+		w.expelHostilesFromSafeZone()
+	}
 }
 
 // SpawnVanessa adds a Vanessa the Ruthless boss.
@@ -473,6 +482,9 @@ func (w *World) SpawnVanessa(b *boss.VanessaTheRuthless) {
 	defer w.mu.Unlock()
 	w.vanessas[b.ID] = b
 	w.bossIndex.Upsert(b.ID, b.X, b.Y)
+	if w.safeZoneBlocksHostiles() {
+		w.expelHostilesFromSafeZone()
+	}
 }
 
 // Tick advances the simulation by dt. Order mirrors the main runtime: players,
@@ -490,6 +502,7 @@ func (w *World) Tick(dt time.Duration) {
 	if safeZoneJustCreated {
 		safeZoneActive = true
 	}
+	safeZoneBlocksHostiles := safeZoneActive || w.safeZone().Permanent
 	if w.spawnSystem != nil {
 		w.spawnSystem.Update(
 			w.now.UnixMilli(), w.players, w.enemies,
@@ -497,18 +510,24 @@ func (w *World) Tick(dt time.Duration) {
 			func(id string) { w.enemyIndex.Remove(id) },
 		)
 	}
+	if safeZoneBlocksHostiles {
+		w.expelHostilesFromSafeZone()
+	}
 	w.advanceMolotovBurns(dt)
 	w.advanceConfusionStatuses(dt)
 	playerViews := w.playerViews()
-	w.tickEnemies(dt, safeZoneActive, playerViews)
+	w.tickEnemies(dt, safeZoneBlocksHostiles, playerViews)
 	w.tickBosses(dt, playerViews)
-	if safeZoneActive && (!w.wasSafeZoneActive || safeZoneJustCreated) {
+	if safeZoneBlocksHostiles && (w.safeZone().Permanent || !w.wasSafeZoneActive || safeZoneJustCreated) {
 		w.expelHostilesFromSafeZone()
 	}
 	w.advanceVenomDebuffs(dt)
 	w.advancePullOverlapBodies(dt)
 	w.resolveBodyCollisionsLocked()
-	w.wasSafeZoneActive = safeZoneActive
+	if w.resolvePlayersStaticCollisionsLocked() {
+		w.syncDynamicIndexesLocked()
+	}
+	w.wasSafeZoneActive = safeZoneBlocksHostiles
 	w.resolveCombat()
 	w.tickDrops()
 	w.tickPortals()
@@ -533,7 +552,8 @@ func (w *World) respawnPlayers(dt time.Duration) bool {
 }
 
 func (w *World) expelHostilesFromSafeZone() {
-	cx, cy, radius := w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius
+	zone := w.safeZone()
+	cx, cy, radius := zone.X, zone.Y, zone.Radius
 	pushDist := radius + 12
 	push := func(x, y *float64) bool {
 		dx := *x - cx
@@ -607,6 +627,7 @@ func (w *World) tickPlayers(dt time.Duration) bool {
 			}
 		}
 		p.Update(dt, mult)
+		w.resolvePlayerStaticCollisionsLocked(p)
 		w.playerIndex.Upsert(id, p.X, p.Y)
 		if w.isProtected(p) {
 			safeZoneActive = true
@@ -728,7 +749,8 @@ func (w *World) capturePlayerConfusionTargets(cx, cy float64, freezeFor time.Dur
 	return targets
 }
 
-func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemyView) {
+func (w *World) tickEnemies(dt time.Duration, safeZoneBlocksHostiles bool, views []enemyView) {
+	zone := w.safeZone()
 	find := w.findNearestPlayerFunc()
 	for id, e := range w.enemies {
 		if e.TryRespawn(dt) {
@@ -741,11 +763,11 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemy
 			w.enemyIndex.Upsert(id, e.X, e.Y)
 			continue
 		}
-		if w.updateEnemyConfusionAI(e, dt, safeZoneActive) {
+		if w.updateEnemyConfusionAI(e, dt, safeZoneBlocksHostiles, zone) {
 			w.enemyIndex.Upsert(id, e.X, e.Y)
 			continue
 		}
-		e.Update(dt, views, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius, find)
+		e.Update(dt, views, safeZoneBlocksHostiles, zone.X, zone.Y, zone.Radius, find)
 		if direction, ok := e.ConsumeKnightBladeWave(); ok {
 			w.spawnKnightBladeWave(e, direction)
 		}
@@ -753,12 +775,12 @@ func (w *World) tickEnemies(dt time.Duration, safeZoneActive bool, views []enemy
 	}
 }
 
-func (w *World) updateEnemyConfusionAI(e *enemy.Enemy, dt time.Duration, safeZoneActive bool) bool {
+func (w *World) updateEnemyConfusionAI(e *enemy.Enemy, dt time.Duration, safeZoneBlocksHostiles bool, zone safezone.Zone) bool {
 	if w.isEnemyConfused(e.ID) {
 		target := w.nearestEnemyTarget(e, func(candidate *enemy.Enemy) bool {
 			return !w.isEnemyConfused(candidate.ID)
 		})
-		e.UpdateAgainstMonster(dt, target, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius)
+		e.UpdateAgainstMonster(dt, target, safeZoneBlocksHostiles, zone.X, zone.Y, zone.Radius)
 		return true
 	}
 
@@ -768,7 +790,7 @@ func (w *World) updateEnemyConfusionAI(e *enemy.Enemy, dt time.Duration, safeZon
 	if target == nil {
 		return false
 	}
-	e.UpdateAgainstMonster(dt, target, safeZoneActive, w.cfg.SpawnX, w.cfg.SpawnY, domworld.SpawnSafeZoneRadius)
+	e.UpdateAgainstMonster(dt, target, safeZoneBlocksHostiles, zone.X, zone.Y, zone.Radius)
 	return true
 }
 
@@ -1197,9 +1219,18 @@ func (w *World) playerViewsLocked() []boss.PlayerView {
 	return views
 }
 
-// safeZone returns the spawn protection zone for this world.
+// safeZone returns the protection zone for this world. Phase 1 hosts the
+// permanent city safe zone; other phases keep the temporary spawn bubble.
 func (w *World) safeZone() safezone.Zone {
+	if w.cfg.InstanceID == domworld.InstancePhase1 {
+		return safezone.Zone{X: w.cfg.SpawnX, Y: w.cfg.SpawnY, Radius: domworld.CityOneSafeZoneRadius, Permanent: true}
+	}
 	return safezone.Zone{X: w.cfg.SpawnX, Y: w.cfg.SpawnY, Radius: domworld.SpawnSafeZoneRadius}
+}
+
+func (w *World) safeZoneBlocksHostiles() bool {
+	zone := w.safeZone()
+	return zone.Permanent || zone.AnyProtected(w.players)
 }
 
 // isProtected is the canonical "is this player invulnerable in the spawn

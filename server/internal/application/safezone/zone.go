@@ -12,9 +12,11 @@ import (
 	"github.com/williamisnotdefined/zelda-proto/server/internal/domain/player"
 )
 
-// Zone describes a circular spawn safezone.
+// Zone describes a circular safezone. Permanent zones protect every player
+// inside them; temporary spawn zones also require the player's respawn timer.
 type Zone struct {
 	X, Y, Radius float64
+	Permanent    bool
 }
 
 // IsInside reports whether (x, y) lies within the zone radius.
@@ -28,6 +30,9 @@ func (z Zone) IsInside(x, y float64) bool {
 func (z Zone) Protects(p *player.Player) bool {
 	if p == nil {
 		return false
+	}
+	if z.Permanent {
+		return z.IsInside(p.X, p.Y)
 	}
 	return p.IsProtected(z.X, z.Y, z.Radius)
 }

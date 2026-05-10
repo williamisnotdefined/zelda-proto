@@ -2,6 +2,8 @@ import type { InstanceId } from '@/shared';
 import { INSTANCE_IDS } from '@/shared';
 import { seededRandom } from '@/shared/utils';
 import Phaser from 'phaser';
+import { CityOneRenderer } from './CityOneRenderer';
+import { CITY_ONE_CENTER_X, CITY_ONE_CENTER_Y, CITY_ONE_SAFE_ZONE_RADIUS } from './cityOneConfig';
 
 const CHUNK_SIZE = 512;
 const CHUNK_MARGIN = 1;
@@ -28,9 +30,11 @@ export class EnvironmentRenderer {
   private readonly scene: Phaser.Scene;
   private bgTileSprite!: Phaser.GameObjects.TileSprite;
   private readonly activeChunks: Map<string, Phaser.GameObjects.Sprite[]> = new Map();
+  private readonly cityOne: CityOneRenderer;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
+    this.cityOne = new CityOneRenderer(scene);
   }
 
   create(instanceId: InstanceId | null): void {
@@ -45,6 +49,7 @@ export class EnvironmentRenderer {
     this.bgTileSprite.setScrollFactor(0, 0);
     this.bgTileSprite.setOrigin(0.5, 0.5);
     this.bgTileSprite.setDepth(-1);
+    this.cityOne.create(instanceId);
   }
 
   update(instanceId: InstanceId | null): void {
@@ -66,11 +71,13 @@ export class EnvironmentRenderer {
 
   applyInstanceVisualTheme(instanceId: InstanceId): void {
     this.bgTileSprite.setTexture(this.getBackgroundTextureKey(instanceId));
+    this.cityOne.applyInstance(instanceId);
     this.resetChunkDecor();
   }
 
   destroy(): void {
     this.resetChunkDecor();
+    this.cityOne.destroy();
     this.bgTileSprite?.destroy();
   }
 
@@ -184,6 +191,9 @@ export class EnvironmentRenderer {
 
       const x = baseX + rx * CHUNK_SIZE;
       const y = baseY + ry * CHUNK_SIZE;
+      if (this.isInsideCityOne(x, y)) {
+        continue;
+      }
       const frameIdx = Math.floor(rf * DECOR_FRAMES.length);
       const frame = DECOR_FRAMES[frameIdx];
 
@@ -204,6 +214,9 @@ export class EnvironmentRenderer {
 
       const x = baseX + rx * CHUNK_SIZE;
       const y = baseY + ry * CHUNK_SIZE;
+      if (this.isInsideCityOne(x, y)) {
+        continue;
+      }
 
       const sprite = this.scene.add.sprite(x, y, 'cut_grass_tile');
       sprite.setDepth(CUT_GRASS_DEPTH);
@@ -211,5 +224,12 @@ export class EnvironmentRenderer {
     }
 
     this.activeChunks.set(key, sprites);
+  }
+
+  private isInsideCityOne(x: number, y: number): boolean {
+    const dx = x - CITY_ONE_CENTER_X;
+    const dy = y - CITY_ONE_CENTER_Y;
+    const radius = CITY_ONE_SAFE_ZONE_RADIUS + 80;
+    return dx * dx + dy * dy <= radius * radius;
   }
 }

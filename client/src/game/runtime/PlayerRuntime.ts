@@ -1,4 +1,4 @@
-import type { PlayerSnapshot, WaveIndicator } from '@/shared';
+import type { InstanceId, PlayerSnapshot, WaveIndicator } from '@/shared';
 import { WORLD_SPAWN_SAFE_ZONE_RADIUS } from '@/shared/constants';
 import Phaser from 'phaser';
 import { PlayerEntity } from '../../entities/Player';
@@ -12,6 +12,7 @@ export class PlayerRuntime {
   private previousLocalState: string | null = null;
   private readonly playerEntities = new Map<string, PlayerEntity>();
   private pendingSafeZoneForLocalPlayer = false;
+  private currentInstanceId: InstanceId | null = null;
   private readonly inputController: LocalInputController;
 
   constructor(
@@ -118,17 +119,19 @@ export class PlayerRuntime {
     }
   }
 
-  update(delta: number, isTypingInInput: boolean): void {
+  update(delta: number, isTypingInInput: boolean, instanceId: InstanceId | null): void {
+    this.currentInstanceId = instanceId;
     const localEntity = this.getLocalEntity();
     const uiBlocked = this.ui.isNicknameModalOpen() || isTypingInInput;
-    this.inputController.update(delta, localEntity, uiBlocked);
+    this.inputController.update(delta, localEntity, uiBlocked, this.currentInstanceId);
 
     for (const entity of this.playerEntities.values()) {
       entity.update(delta);
     }
   }
 
-  handleInstanceChanged(): void {
+  handleInstanceChanged(instanceId: InstanceId): void {
+    this.currentInstanceId = instanceId;
     for (const entity of this.playerEntities.values()) {
       entity.destroy();
     }
@@ -148,6 +151,7 @@ export class PlayerRuntime {
     this.localPlayerId = null;
     this.previousLocalState = null;
     this.pendingSafeZoneForLocalPlayer = false;
+    this.currentInstanceId = null;
     this.fx.resetLocalToastyCounter();
     this.inputController.reset();
     this.ui.setLocalPlayer(null);
@@ -204,7 +208,7 @@ export class PlayerRuntime {
         this.pendingSafeZoneForLocalPlayer = false;
       }
 
-      this.inputController.reconcileLocalPlayer(player, entity);
+      this.inputController.reconcileLocalPlayer(player, entity, this.currentInstanceId);
       this.fx.handleLocalToastyCounter(player.toastyCount);
       if (this.previousLocalState === 'dead' && player.state !== 'dead') {
         this.fx.createSafeZoneAt(player.x, player.y, WORLD_SPAWN_SAFE_ZONE_RADIUS);

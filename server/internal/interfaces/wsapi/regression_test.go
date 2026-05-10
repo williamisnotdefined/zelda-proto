@@ -92,9 +92,15 @@ func TestEnemiesChasePlayer(t *testing.T) {
 	playerID := d.connections["c1"].playerID
 	loc, _ := mgr.LocationOf(playerID)
 	w := mgr.World(loc)
+	p := w.RemovePlayer(playerID)
+	if p == nil {
+		t.Fatal("expected joined player in world")
+	}
+	w.AdoptPlayer(p, 1000, 1000)
+	p.SafeZoneTimer = 0
 
-	// Wait for safe zone to drop so enemies actually engage.
-	for i := 0; i < 200; i++ {
+	// Place the player outside the permanent city so enemies can engage.
+	for i := 0; i < 5; i++ {
 		d.Sim(20 * time.Millisecond)
 	}
 
@@ -139,10 +145,16 @@ func TestSnapshotDeltaIncludesEnemyMovements(t *testing.T) {
 	}
 	playerID := d.connections["c1"].playerID
 	loc, _ := mgr.LocationOf(playerID)
-	_ = mgr.World(loc)
+	w := mgr.World(loc)
+	p := w.RemovePlayer(playerID)
+	if p == nil {
+		t.Fatal("expected joined player in world")
+	}
+	w.AdoptPlayer(p, 1000, 1000)
+	p.SafeZoneTimer = 0
 
-	// Wait past safe zone, then do many sim/broadcast cycles to accumulate diffs.
-	for i := 0; i < 200; i++ {
+	// Place the player outside the permanent city, then accumulate enemy diffs.
+	for i := 0; i < 5; i++ {
 		d.Sim(20 * time.Millisecond)
 	}
 	d.Broadcast() // initial full

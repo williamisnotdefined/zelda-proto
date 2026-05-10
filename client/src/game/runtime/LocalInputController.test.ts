@@ -123,7 +123,7 @@ describe('LocalInputController', () => {
     const localEntity = createLocalEntity();
 
     keys.get(KEY_Q)!.isDown = true;
-    controller.update(16, localEntity, true);
+    controller.update(16, localEntity, true, null);
 
     expect(cooldownSetters.setWaveCooldownEndsAt).not.toHaveBeenCalled();
   });
@@ -138,7 +138,7 @@ describe('LocalInputController', () => {
 
     cursors.right.isDown = true;
     keys.get(KEY_Q)!.isDown = true;
-    controller.update(16, localEntity, false);
+    controller.update(16, localEntity, false, null);
 
     expect(localEntity.targetX).toBe(10);
     expect(connection.send).toHaveBeenCalledTimes(1);
@@ -152,7 +152,7 @@ describe('LocalInputController', () => {
 
     cursors.right.isDown = true;
     keys.get(KEY_Q)!.isDown = true;
-    controller.update(16, localEntity, false);
+    controller.update(16, localEntity, false, null);
 
     expect(localEntity.targetX).toBeGreaterThan(10);
     expect(cooldownSetters.setWaveCooldownEndsAt).toHaveBeenCalledWith(
@@ -166,7 +166,7 @@ describe('LocalInputController', () => {
     const localEntity = createLocalEntity();
 
     keys.get(KEY_G)!.isDown = true;
-    controller.update(16, localEntity, false);
+    controller.update(16, localEntity, false, null);
     expect(cooldownSetters.setSpikedBallsCooldownEndsAt).toHaveBeenCalledWith(
       1_000 + PLAYER_SPIKED_BALLS_COOLDOWN
     );
@@ -175,7 +175,7 @@ describe('LocalInputController', () => {
     vi.mocked(connection.send).mockClear();
     cooldownSetters.setSpikedBallsCooldownEndsAt.mockClear();
 
-    controller.update(16, localEntity, false);
+    controller.update(16, localEntity, false, null);
 
     expect(connection.send).toHaveBeenCalledTimes(1);
     expect(connection.send).toHaveBeenCalledWith(expect.objectContaining({ spikedBalls: true }));

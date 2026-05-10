@@ -21,6 +21,176 @@ const FIELD_BLUE_FRAME_WIDTH = 49;
 const FIELD_BLUE_FRAME_HEIGHT = 47;
 const PORTAL_LARGE_FRAME_SIZE = 64;
 const PORTAL_RETURN_FRAME_SIZE = 32;
+const CITY_ONE_BASE_PATH = 'assets/sprites/city_one/Pack content';
+const CITY_ONE_TILESET_SOURCE_KEY = 'city_grass_tileset_source';
+const CITY_ONE_TILE_SIZE = 16;
+const CITY_ONE_TILESET_COLUMNS = 30;
+const CITY_ONE_DIRT_BASE_KEY = 'city_tile_dirt_base';
+
+const CITY_ONE_TILE_FRAMES: Record<string, number> = {
+  city_tile_grass_0: 132,
+  city_tile_grass_1: 133,
+  city_tile_grass_flower: 92,
+  city_tile_grass_blades_0: 93,
+  city_tile_grass_blades_1: 122,
+  city_tile_grass_sprout: 123,
+  city_tile_grass_rock: 216,
+  city_tile_dirt_plain_0: 227,
+  city_tile_dirt_plain_1: 228,
+  city_tile_dirt_plain_2: 257,
+  city_tile_dirt_plain_3: 258,
+  city_tile_dirt_detail_0: 246,
+  city_tile_dirt_detail_1: 247,
+  city_tile_dirt_detail_2: 276,
+  city_tile_dirt_detail_3: 277,
+  city_tile_path_grass_above_0: 197,
+  city_tile_path_grass_above_1: 198,
+  city_tile_path_grass_above_2: 199,
+  city_tile_path_grass_below_0: 287,
+  city_tile_path_grass_below_1: 288,
+  city_tile_path_grass_below_2: 289,
+  city_tile_path_grass_left_0: 220,
+  city_tile_path_grass_left_1: 226,
+  city_tile_path_grass_left_2: 250,
+  city_tile_path_grass_right_0: 218,
+  city_tile_path_grass_right_1: 229,
+  city_tile_path_grass_right_2: 248,
+  city_tile_water_0: 437,
+  city_tile_water_1: 438,
+  city_tile_water_2: 439,
+  city_tile_water_top_0: 407,
+  city_tile_water_top_1: 408,
+  city_tile_water_top_2: 409,
+  city_tile_water_bottom_0: 467,
+  city_tile_water_bottom_1: 468,
+  city_tile_water_bottom_2: 469,
+  city_tile_water_grass_left: 402,
+  city_tile_water_grass_right: 405,
+};
+
+function preloadCityOneAssets(scene: Phaser.Scene): void {
+  const spritesPath = `${CITY_ONE_BASE_PATH}/Sprites`;
+  const animatedPath = `${CITY_ONE_BASE_PATH}/Animated sprites`;
+
+  scene.load.image(CITY_ONE_TILESET_SOURCE_KEY, `${spritesPath}/Tileset/spr_grass_tileset.png`);
+
+  scene.load.image('city_tree1', `${spritesPath}/Vegetation/spr_tree1.png`);
+  scene.load.image('city_tree2', `${spritesPath}/Vegetation/spr_tree2.png`);
+  scene.load.image('city_tree3', `${spritesPath}/Vegetation/spr_tree3.png`);
+
+  scene.load.image('city_boulder1', `${spritesPath}/Rocks/spr_boulder1.png`);
+  scene.load.image('city_boulder2', `${spritesPath}/Rocks/spr_boulder2.png`);
+  scene.load.image('city_boulder3', `${spritesPath}/Rocks/spr_boulder3.png`);
+  scene.load.image('city_boulder4', `${spritesPath}/Rocks/spr_boulder4.png`);
+  scene.load.image('city_smallrock1', `${spritesPath}/Rocks/spr_smallrock1.png`);
+  scene.load.image('city_smallrock2', `${spritesPath}/Rocks/spr_smallrock2.png`);
+
+  const objectPath = `${spritesPath}/Objects and buildings`;
+  scene.load.image('city_barrel1', `${objectPath}/Barrels and crates/spr_barrel1.png`);
+  scene.load.image('city_barrel2', `${objectPath}/Barrels and crates/spr_barrel2.png`);
+  scene.load.image('city_crate1', `${objectPath}/Barrels and crates/spr_crate1.png`);
+  scene.load.image('city_crate2', `${objectPath}/Barrels and crates/spr_crate2.png`);
+  scene.load.image('city_crate3', `${objectPath}/Barrels and crates/spr_crate3.png`);
+  scene.load.image('city_crate4', `${objectPath}/Barrels and crates/spr_crate4.png`);
+  scene.load.image(
+    'city_bridge_horizontal',
+    `${objectPath}/Bridge/spr_wooden_bridge_horizontal.png`
+  );
+  scene.load.image('city_bridge_vertical', `${objectPath}/Bridge/spr_wooden_bridge_vertical.png`);
+  scene.load.image('city_chest', `${objectPath}/Chest/spr_chest.png`);
+  scene.load.image('city_small_chest', `${objectPath}/Chest/spr_small_chest.png`);
+  scene.load.image('city_fence_front', `${objectPath}/Fences/spr_front_fence.png`);
+  scene.load.image('city_fence_side', `${objectPath}/Fences/spr_side_fence.png`);
+
+  scene.load.spritesheet(
+    'city_campfire_burning',
+    `${animatedPath}/Animated Campfire/spr_campfire_burning.png`,
+    { frameWidth: 32, frameHeight: 64 }
+  );
+  scene.load.spritesheet(
+    'city_wave_front',
+    `${animatedPath}/Animated water waves/spr_front_wave_animated.png`,
+    { frameWidth: 16, frameHeight: 16 }
+  );
+  scene.load.spritesheet(
+    'city_wave_left',
+    `${animatedPath}/Animated water waves/spr_left_side_wave_animated.png`,
+    { frameWidth: 16, frameHeight: 16 }
+  );
+  scene.load.spritesheet(
+    'city_wave_right',
+    `${animatedPath}/Animated water waves/spr_right_side_wave_animated.png`,
+    { frameWidth: 16, frameHeight: 16 }
+  );
+}
+
+function registerCityOneTileTextures(scene: Phaser.Scene): void {
+  const sourceTexture = scene.textures.get(CITY_ONE_TILESET_SOURCE_KEY);
+  const sourceImage = sourceTexture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+
+  if (!scene.textures.exists(CITY_ONE_DIRT_BASE_KEY)) {
+    const dirtBaseTexture = scene.textures.createCanvas(
+      CITY_ONE_DIRT_BASE_KEY,
+      CITY_ONE_TILE_SIZE,
+      CITY_ONE_TILE_SIZE
+    );
+    if (dirtBaseTexture) {
+      dirtBaseTexture.context.imageSmoothingEnabled = false;
+      dirtBaseTexture.context.fillStyle = '#c07652';
+      dirtBaseTexture.context.fillRect(0, 0, CITY_ONE_TILE_SIZE, CITY_ONE_TILE_SIZE);
+      dirtBaseTexture.refresh();
+    }
+  }
+
+  for (const [textureKey, frameIndex] of Object.entries(CITY_ONE_TILE_FRAMES)) {
+    if (scene.textures.exists(textureKey)) {
+      continue;
+    }
+
+    const tileTexture = scene.textures.createCanvas(
+      textureKey,
+      CITY_ONE_TILE_SIZE,
+      CITY_ONE_TILE_SIZE
+    );
+    if (!tileTexture) {
+      continue;
+    }
+
+    const sourceColumn = frameIndex % CITY_ONE_TILESET_COLUMNS;
+    const sourceRow = Math.floor(frameIndex / CITY_ONE_TILESET_COLUMNS);
+    const sourceX = sourceColumn * CITY_ONE_TILE_SIZE;
+    const sourceY = sourceRow * CITY_ONE_TILE_SIZE;
+
+    tileTexture.context.imageSmoothingEnabled = false;
+    tileTexture.context.clearRect(0, 0, CITY_ONE_TILE_SIZE, CITY_ONE_TILE_SIZE);
+    tileTexture.context.drawImage(
+      sourceImage,
+      sourceX,
+      sourceY,
+      CITY_ONE_TILE_SIZE,
+      CITY_ONE_TILE_SIZE,
+      0,
+      0,
+      CITY_ONE_TILE_SIZE,
+      CITY_ONE_TILE_SIZE
+    );
+
+    const imageData = tileTexture.context.getImageData(
+      0,
+      0,
+      CITY_ONE_TILE_SIZE,
+      CITY_ONE_TILE_SIZE
+    );
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] === 158 && data[i + 1] === 92 && data[i + 2] === 182) {
+        data[i + 3] = 0;
+      }
+    }
+    tileTexture.context.putImageData(imageData, 0, 0);
+    tileTexture.refresh();
+  }
+}
 
 function registerStripTextures(
   scene: Phaser.Scene,
@@ -357,11 +527,13 @@ export class BootScene extends Phaser.Scene {
 
     this.load.image('food', 'assets/sprites/food/food.png');
     this.load.image('toasty', 'assets/sprites/eastereggs/toasty.png');
+    preloadCityOneAssets(this);
   }
 
   create(): void {
     try {
       registerExplosionTextures(this);
+      registerCityOneTileTextures(this);
       setupAnimations(this);
       this.scene.start('WorldScene');
     } catch (error) {

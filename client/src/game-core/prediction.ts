@@ -27,6 +27,8 @@ export interface InputState {
   spikedBalls: boolean;
 }
 
+export type PositionConstraint = (position: { x: number; y: number }) => { x: number; y: number };
+
 export interface ReconcileOptions {
   maxPendingInputs?: number;
   maxPendingInputAgeMs?: number;
@@ -35,6 +37,7 @@ export interface ReconcileOptions {
   maxBlend?: number;
   blendRampDistance?: number;
   deadzoneDistance?: number;
+  positionConstraint?: PositionConstraint;
 }
 
 export interface ReconciledPosition {
@@ -44,7 +47,7 @@ export interface ReconciledPosition {
   resetAccumulator: boolean;
 }
 
-const DEFAULTS: Required<ReconcileOptions> = {
+const DEFAULTS: Omit<Required<ReconcileOptions>, 'positionConstraint'> = {
   maxPendingInputs: 128,
   maxPendingInputAgeMs: 1500,
   snapDistance: 120,
@@ -79,6 +82,8 @@ export function getPredictedPosition(
   options: ReconcileOptions = {}
 ): { x: number; y: number; filteredPending: PendingInput[] } {
   const settings = { ...DEFAULTS, ...options };
+  const constrain =
+    settings.positionConstraint ?? ((position: { x: number; y: number }) => position);
   const acknowledged = serverPlayer.lastProcessedInputSeq;
   const filteredPending = pendingInputs.filter(
     (entry) =>
@@ -96,6 +101,7 @@ export function getPredictedPosition(
         const dash = getDashDelta(dashDirection);
         x += dash.dx;
         y += dash.dy;
+        ({ x, y } = constrain({ x, y }));
         direction = dashDirection;
         continue;
       }
@@ -109,6 +115,7 @@ export function getPredictedPosition(
     );
     x += delta.dx;
     y += delta.dy;
+    ({ x, y } = constrain({ x, y }));
 
     const nextDirection = getDashDirection(pending.input, null);
     if (nextDirection) {

@@ -59,7 +59,7 @@ export class WorldScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.environmentRenderer.update(this.currentInstanceId);
-    this.playerRuntime.update(delta, this.isTypingInInput());
+    this.playerRuntime.update(delta, this.isTypingInInput(), this.currentInstanceId);
 
     const localEntity = this.playerRuntime.getLocalEntity();
     if (!localEntity) {
@@ -161,7 +161,7 @@ export class WorldScene extends Phaser.Scene {
     this.currentInstanceId = nextInstanceId;
     this.environmentRenderer.applyInstanceVisualTheme(nextInstanceId);
     this.fx.destroySafeZone();
-    this.playerRuntime.handleInstanceChanged();
+    this.playerRuntime.handleInstanceChanged(nextInstanceId);
     this.enemyRuntime.reset();
     this.bossRuntime.reset();
     this.staticEntityRuntime.reset();
