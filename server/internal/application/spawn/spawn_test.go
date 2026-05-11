@@ -105,7 +105,7 @@ func TestPopulateCreatesTwoElitesPerChunk(t *testing.T) {
 	}
 }
 
-func TestPhase3PopulateCreatesKnightAndSkeletonElites(t *testing.T) {
+func TestPhase3PopulateUsesBalancedKnightSkeletonComposition(t *testing.T) {
 	def := registries.All()[domworld.InstancePhase3]
 	sys := New(def.SpawnSystem, &counter{})
 	enemies := map[string]*enemy.Enemy{}
@@ -120,11 +120,14 @@ func TestPhase3PopulateCreatesKnightAndSkeletonElites(t *testing.T) {
 		}
 	}
 
-	if countByKind[enemy.KindKnight] == 0 || countByKind[enemy.KindSkeleton] == 0 {
-		t.Fatalf("expected phase3 to spawn knights and skeletons, got %+v", countByKind)
+	if len(enemies) != 9 {
+		t.Fatalf("expected phase3 to spawn 9 enemies per chunk, got %d", len(enemies))
 	}
-	if elitesByKind[enemy.KindKnight] != 1 || elitesByKind[enemy.KindSkeleton] != 1 {
-		t.Fatalf("expected 1 elite knight and 1 elite skeleton, got %+v", elitesByKind)
+	if countByKind[enemy.KindKnight] != 3 || countByKind[enemy.KindSkeleton] != 6 {
+		t.Fatalf("expected 3 knights and 6 skeletons, got %+v", countByKind)
+	}
+	if elitesByKind[enemy.KindKnight] != 1 || elitesByKind[enemy.KindSkeleton] != 3 {
+		t.Fatalf("expected 1 elite knight and 3 elite skeletons, got %+v", elitesByKind)
 	}
 }
 

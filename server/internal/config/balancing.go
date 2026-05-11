@@ -90,7 +90,7 @@ type Balancing struct {
 
 // DefaultBalancing is the canonical gameplay tuning set. Tune here.
 var DefaultBalancing = Balancing{
-	DefaultEnemiesPerChunk: 18,
+	DefaultEnemiesPerChunk: 9,
 	Phase1EnemiesPerChunk:  10,
 	Phase2EnemiesPerChunk:  14,
 	Phase4EnemiesPerChunk:  24,

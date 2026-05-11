@@ -64,12 +64,31 @@ func TestPhase3HasEntryBosses(t *testing.T) {
 	}
 }
 
-func TestPhase3MixesKnightsAndSkeletons(t *testing.T) {
+func TestPhase3UsesBalancedKnightSkeletonComposition(t *testing.T) {
 	def := All()[domworld.InstancePhase3]
-	if len(def.SpawnSystem.MixedEnemyConfigs) != 2 {
-		t.Fatalf("phase3 must mix knight and skeleton configs, got %d", len(def.SpawnSystem.MixedEnemyConfigs))
+	wantKinds := []enemy.Kind{
+		enemy.KindKnight,
+		enemy.KindSkeleton,
+		enemy.KindSkeleton,
+		enemy.KindSkeleton,
+		enemy.KindKnight,
+		enemy.KindKnight,
+		enemy.KindSkeleton,
+		enemy.KindSkeleton,
+		enemy.KindSkeleton,
 	}
-	if def.SpawnSystem.MixedEnemyConfigs[0].Kind != enemy.KindKnight || def.SpawnSystem.MixedEnemyConfigs[1].Kind != enemy.KindSkeleton {
-		t.Fatalf("phase3 mix mismatch: %+v", def.SpawnSystem.MixedEnemyConfigs)
+	if def.SpawnSystem.EnemiesPerChunk != len(wantKinds) {
+		t.Fatalf("phase3 EnemiesPerChunk: got %d want %d", def.SpawnSystem.EnemiesPerChunk, len(wantKinds))
+	}
+	if def.SpawnSystem.EliteEnemiesPerChunk != 4 {
+		t.Fatalf("phase3 EliteEnemiesPerChunk: got %d want 4", def.SpawnSystem.EliteEnemiesPerChunk)
+	}
+	if len(def.SpawnSystem.MixedEnemyConfigs) != len(wantKinds) {
+		t.Fatalf("phase3 composition length: got %d want %d", len(def.SpawnSystem.MixedEnemyConfigs), len(wantKinds))
+	}
+	for i, want := range wantKinds {
+		if got := def.SpawnSystem.MixedEnemyConfigs[i].Kind; got != want {
+			t.Fatalf("phase3 composition index %d: got %s want %s", i, got, want)
+		}
 	}
 }

@@ -71,16 +71,17 @@ var Phase4BossDefinition = Phase4Boss{
 
 // SpawnSystemConfig configures the chunk-based monster spawner.
 type SpawnSystemConfig struct {
-	ChunkSize         int
-	EnemiesPerChunk   int
-	ActiveRange       float64
-	DespawnTimeMS     int64
-	EnemyPrefix       string
-	EnemyKind         enemy.Kind
-	EnemyConfig       enemy.Config
-	MixedEnemyConfigs []enemy.Config
-	DefaultDropKind   drop.Kind
-	PacmanVariants    bool
+	ChunkSize            int
+	EnemiesPerChunk      int
+	EliteEnemiesPerChunk int
+	ActiveRange          float64
+	DespawnTimeMS        int64
+	EnemyPrefix          string
+	EnemyKind            enemy.Kind
+	EnemyConfig          enemy.Config
+	MixedEnemyConfigs    []enemy.Config
+	DefaultDropKind      drop.Kind
+	PacmanVariants       bool
 }
 
 // BossRegionConfig configures the player-relative boss respawner.
@@ -208,11 +209,22 @@ func allFrom(b config.Balancing) map[domworld.InstanceID]InstanceDefinition {
 			SpawnX:     p3.X, SpawnY: p3.Y,
 			SpawnSystem: SpawnSystemConfig{
 				ChunkSize: b.SpawnChunkSize, EnemiesPerChunk: b.DefaultEnemiesPerChunk,
-				ActiveRange: b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
+				EliteEnemiesPerChunk: 4,
+				ActiveRange:          b.SpawnActiveRange, DespawnTimeMS: b.SpawnDespawnTimeMS,
 				EnemyPrefix: "phase3_enemy",
 				EnemyKind:   enemy.KindKnight, EnemyConfig: enemy.KnightConfig,
-				MixedEnemyConfigs: []enemy.Config{enemy.KnightConfig, enemy.SkeletonConfig},
-				DefaultDropKind:   drop.KindFoodLarge,
+				MixedEnemyConfigs: []enemy.Config{
+					enemy.KnightConfig,
+					enemy.SkeletonConfig,
+					enemy.SkeletonConfig,
+					enemy.SkeletonConfig,
+					enemy.KnightConfig,
+					enemy.KnightConfig,
+					enemy.SkeletonConfig,
+					enemy.SkeletonConfig,
+					enemy.SkeletonConfig,
+				},
+				DefaultDropKind: drop.KindFoodLarge,
 			},
 			BossRegion: BossRegionConfig{
 				Enabled: false, RegionSize: 2600, ActiveRange: 2200,

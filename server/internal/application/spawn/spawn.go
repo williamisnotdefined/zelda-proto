@@ -194,7 +194,11 @@ func (s *System) populate(ch *chunk, enemies map[string]*enemy.Enemy, addEnemy f
 }
 
 func (s *System) makeEnemy(id string, x, y float64, chunkKey string, index int, total int) *enemy.Enemy {
-	elite := index < min(total, eliteEnemiesPerGroup)
+	eliteCount := s.cfg.EliteEnemiesPerChunk
+	if eliteCount <= 0 {
+		eliteCount = eliteEnemiesPerGroup
+	}
+	elite := index < min(total, eliteCount)
 	if s.cfg.PacmanVariants {
 		variant := pacmanVariants[index%len(pacmanVariants)]
 		if elite {

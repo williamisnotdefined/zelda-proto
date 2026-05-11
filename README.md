@@ -266,12 +266,15 @@ cloudflared tunnel info wilho
 | --- | --- | --- | --- | --- |
 | Player | Grenade (`A`) | `10` | `2s` | Damage is applied on detonation only |
 | Player | Molotov (`D`) | `5` + burn | `1s` | Detonation damages players, monsters, and bosses; monsters and bosses burn for `5` ticks of `5` damage with `10%` lifesteal |
-| Player | Landmine (`S`) | `10` | `2s` | Stationary explosive, detonates on proximity or expiry |
-| Player | Wave (`Q`) | `3` | `5s` | Expanding wave with life steal (`120%` of dealt damage) |
-| Player | Numb (`W`) | `3` | `5s` | Wave variant with freeze effect and life steal |
-| Player | Pull (`E`) | `3` | `5s` | Pulls targets to the caster, then holds overlap briefly |
-| Player | Venom (`R`) | `3` | `5s` | Green wave that marks hostiles for `10s`, causing `2x` player damage and `120%` lifesteal from those targets |
+| Player | Landmine (`S`) | `10` | `2s` | Stationary explosive, detonates on proximity; expires after `30s` if unused |
+| Player | Wave (`Q`) | `3` | `4s` | Expanding wave with life steal (`120%` of dealt damage) |
+| Player | Numb (`W`) | `3` | `4s` | Wave variant with freeze effect and life steal |
+| Player | Pull (`E`) | `3` | `4s` | Pulls targets to the caster, then holds overlap briefly |
+| Player | Venom (`R`) | `3` | `4s` | Green wave that marks hostiles for `10s`, causing `2x` player damage and `120%` lifesteal from those targets |
+| Player | Confusion (`T`) | `5` | `40s` | Neon wave that damages PvE hostiles; surviving normal non-elite enemies fight other monsters for `20s`; `10%` lifesteal |
 | Player | Dash | `0` direct | `1s` | Mobility skill; dash itself does not hit directly |
+| Player | Shuriken (`F`) | `5` per tick | `30s` | Orbiting aura for `30s`, ticks every `1s`, has `5%` lifesteal and absorbs `20%` incoming damage while active |
+| Player | Spiked Balls (`G`) | `5` per tick | `30s` | Orbiting aura for `30s`, ticks every `1s`, has `10%` lifesteal and grants `+100` max HP while active |
 | Player dash trail | Blue flame | `8` + blue burning | n/a | Spawned along the dash path |
 | Hazard | Fire field | `8` + burning | n/a | Applies `3` burning ticks of `8` each |
 | Hazard | Purple field | `8` + purple burning | n/a | Applies `3` purple-burning ticks of `8` each |
@@ -325,15 +328,17 @@ cloudflared tunnel info wilho
 
 ## Phase Monster Density
 
-| Phase | Primary monster | Density |
-| --- | --- | --- |
-| Phase 1 | Blob | `10` monsters per chunk |
-| Phase 2 | Skeleton | `14` monsters per chunk |
-| Phase 3 | Knight + Skeleton | `18` monsters per chunk |
-| Phase 4 | Pacman Ghost | `24` monsters per chunk |
+| Phase | Monsters Per Chunk | Elite Breakdown | Starter Population |
+| --- | --- | --- | --- |
+| Phase 1 | `10` Blob | `2` Blob Elite + `8` Blob | none |
+| Phase 2 | `14` Skeleton | `2` Skeleton Elite + `12` Skeleton | `12` starter Skeletons, first `2` elite |
+| Phase 3 | `9` Knight + `9` Skeleton (`18` total) | `1` Knight Elite + `8` Knight; `1` Skeleton Elite + `8` Skeleton | none |
+| Phase 4 | `24` Pacman Ghost | `2` Pacman Ghost Elite + `22` Pacman Ghost | `24` starter Pacman Ghosts, first `2` elite |
+
+Phase 3 alternates the mixed spawn list by index (`Knight`, then `Skeleton`), so its `18` monsters per chunk split evenly. For chunk and starter groups, the first two spawned monsters are elite.
 
 ## Notes About Current Behavior
 
 - The basic `Space` attack and the old pistol/fireball path were removed from the live input schema
-- Current player hotkeys are `Q/W/E/R` for wave skills and `A/S/D` for grenade, landmine, and molotov
+- Current player hotkeys are `Q/W/E/R/T` for wave skills and `A/S/D/F/G` for grenade, landmine, molotov, shuriken, and spiked balls
 - Safezone protection blocks hostile contact damage and PvP hazard damage while the player is protected inside the spawn zone
